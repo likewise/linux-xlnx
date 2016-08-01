@@ -77,6 +77,8 @@
 
 #ifndef __ASSEMBLY__
 
+#include <linux/types.h>
+
 /*
  * The CPU ID never changes at run time, so we might as well tell the
  * compiler that it's constant.  Use this function to read the CPU ID
