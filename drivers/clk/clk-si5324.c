@@ -30,6 +30,7 @@
 #include <asm/div64.h>
 
 #include "clk-si5324.h"
+#include "si5324drv.h"
 
 struct si5324_driver_data;
 
@@ -705,6 +706,21 @@ static unsigned long si5324_clkout_recalc_rate(struct clk_hw *hw,
 	nc_ls = (nc_ls_h << 16) || (nc_ls_m << 8) || nc_ls_l;
 	nc_ls += 1;
 	return (parent_rate / n1_hs) / nc_ls;
+}
+
+static long si5324_clkout_round_rate_bsp(struct clk_hw *hw, unsigned long rate,
+				     unsigned long *parent_rate)
+{
+	u32 NCn_ls, N2_ls, N3n;
+	u8  N1_hs, N2_hs, BwSel;
+	int result;
+	u8  buf[14*2]; // Need to set 14 registers
+	int i;
+
+	// Calculate the frequency settings for the Si5324
+	result = Si5324_CalcFreqSettings(114285000, 114285000,
+	                                 &N1_hs, &NCn_ls, &N2_hs, &N2_ls, &N3n,
+	                                 &BwSel);
 }
 
 /* round_rate selects the rate closest to the requested one.
