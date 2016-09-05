@@ -60,7 +60,7 @@ struct si5324_parameters {
 	u32 best_n2_hs;
 	u32 best_n2_ls;
 	u32 best_n3;
-	valid;
+	int valid;
 };
 
 struct si5324_hw_data {
@@ -182,18 +182,21 @@ static void si5324_initialize(struct si5324_driver_data *drvdata)
 static void si5324_read_parameters(struct si5324_driver_data *drvdata,
 				   struct si5324_parameters *params)
 {
+#if 0
 	u8 buf[SI5324_PARAMETERS_LENGTH];
 
 	si5324_bulk_read(drvdata, reg, SI5324_PARAMETERS_LENGTH, buf);
 	params->p1 = ((buf[2] & 0x03) << 16) | (buf[3] << 8) | buf[4];
 	params->p2 = ((buf[5] & 0x0f) << 16) | (buf[6] << 8) | buf[7];
 	params->p3 = ((buf[5] & 0xf0) << 12) | (buf[0] << 8) | buf[1];
+#endif
 	params->valid = 1;
 }
 
 static void si5324_write_parameters(struct si5324_driver_data *drvdata,
 				    struct si5324_parameters *params)
 {
+#if 0
 	u8 buf[SI5324_PARAMETERS_LENGTH];
 
 	buf[0] = ((params->p3 & 0x0ff00) >> 8) & 0xff;
@@ -208,6 +211,7 @@ static void si5324_write_parameters(struct si5324_driver_data *drvdata,
 	buf[6] = ((params->p2 & 0x0ff00) >> 8) & 0xff;
 	buf[7] = params->p2 & 0xff;
 	si5324_bulk_write(drvdata, reg, SI5324_PARAMETERS_LENGTH, buf);
+#endif
 }
 
 static bool si5324_regmap_is_volatile(struct device *dev, unsigned int reg)
@@ -286,18 +290,22 @@ static const struct clk_ops si5324_xtal_ops = {
  */
 static int si5324_clkin_prepare(struct clk_hw *hw)
 {
-	struct si5324_driver_data *drvdata =
-		container_of(hw, struct si5324_driver_data, clkin);
+	struct si5324_driver_data *drvdata;
+	struct si5324_hw_data *hwdata =
+		container_of(hw, struct si5324_hw_data, hw);
 
-	/* disable free-run */
-	si5324_set_bits(drvdata, SI5324_REG0,
-			SI5324_REG0_FREE_RUN, 0);
 	/* clkin1? */
-	if (hw.num == 0) {
+	if (hwdata->num == 0) {
+		drvdata = container_of(hw, struct si5324_driver_data, clkin1);
+		/* disable free-run */
+		si5324_set_bits(drvdata, SI5324_REG0, SI5324_REG0_FREE_RUN, 0);
 		/* clkin1 powered, clkin2 powered-down*/
 		si5324_set_bits(drvdata, SI5324_POWERDOWN,
 			SI5324_PD_CK1 || SI5324_PD_CK2, SI5324_PD_CK2);
-	} else if (hw.num == 1) {
+	} else if (hwdata->num == 1) {
+		drvdata = container_of(hw, struct si5324_driver_data, clkin2);
+		/* disable free-run */
+		si5324_set_bits(drvdata, SI5324_REG0, SI5324_REG0_FREE_RUN, 0);
 		/* clkin2 powered, clkin1 powered-down*/
 		si5324_set_bits(drvdata, SI5324_POWERDOWN,
 			SI5324_PD_CK1 || SI5324_PD_CK2, SI5324_PD_CK1);
@@ -308,10 +316,13 @@ static int si5324_clkin_prepare(struct clk_hw *hw)
 
 static void si5324_clkin_unprepare(struct clk_hw *hw)
 {
-	struct si5324_driver_data *drvdata =
-		container_of(hw, struct si5324_driver_data, clkin);
-	if (hw.num == 0) {
-	} else if (hw.num == 1) {
+	struct si5324_driver_data *drvdata;
+	struct si5324_hw_data *hwdata =
+		container_of(hw, struct si5324_hw_data, hw);
+	if (hwdata->num == 0) {
+		drvdata = container_of(hw, struct si5324_driver_data, clkin1);
+	} else if (hwdata->num == 1) {
+		drvdata = container_of(hw, struct si5324_driver_data, clkin2);
 	} else {
 	}
 }
@@ -324,12 +335,21 @@ static void si5324_clkin_unprepare(struct clk_hw *hw)
 static unsigned long si5324_clkin_recalc_rate(struct clk_hw *hw,
 					unsigned long parent_rate)
 {
-	struct si5324_driver_data *drvdata =
-		container_of(hw, struct si5324_driver_data, clkin);
+	struct si5324_driver_data *drvdata;
 	unsigned long rate;
 	unsigned char idiv;
-
+	struct si5324_hw_data *hwdata =
+		container_of(hw, struct si5324_hw_data, hw);
+	(void)rate;
+	(void)idiv;
+	if (hwdata->num == 0) {
+		drvdata = container_of(hw, struct si5324_driver_data, clkin1);
+	} else if (hwdata->num == 1) {
+		drvdata = container_of(hw, struct si5324_driver_data, clkin2);
+	} else {
+	}
 	rate = parent_rate;
+#if 0
 	if (parent_rate > 160000000) {
 		idiv = SI5324_CLKIN_DIV_8;
 		rate /= 8;
@@ -348,7 +368,7 @@ static unsigned long si5324_clkin_recalc_rate(struct clk_hw *hw,
 
 	dev_dbg(&drvdata->client->dev, "%s - clkin div = %d, rate = %lu\n",
 		__func__, (1 << (idiv >> 6)), rate);
-
+#endif
 	return rate;
 }
 
@@ -400,7 +420,7 @@ static int _si5324_pll_reparent(struct si5324_driver_data *drvdata,
 		/* select clkin2 */
 		si5324_set_bits(drvdata, SI5324_CKSEL,
 				3 << 6, 1 << 6);
-	} else if (parent == SI5324_PLL_SRC_CLK1) {
+	} else if (parent == SI5324_PLL_SRC_CLKIN1) {
 		/* disable free-run */
 		si5324_set_bits(drvdata, SI5324_REG0,
 				SI5324_REG0_FREE_RUN, 0);
@@ -410,7 +430,7 @@ static int _si5324_pll_reparent(struct si5324_driver_data *drvdata,
 		/* select clkin1 */
 		si5324_set_bits(drvdata, SI5324_CKSEL,
 				3 << 6, 0);
-	} else if (parent == SI5324_PLL_SRC_CLK2) {
+	} else if (parent == SI5324_PLL_SRC_CLKIN2) {
 		/* disable free-run */
 		si5324_set_bits(drvdata, SI5324_REG0,
 				SI5324_REG0_FREE_RUN, 0);
@@ -428,12 +448,7 @@ static unsigned char si5324_pll_get_parent(struct clk_hw *hw)
 {
 	struct si5324_hw_data *hwdata =
 		container_of(hw, struct si5324_hw_data, hw);
-	u8 mask = (hwdata->num == 0) ? SI5324_PLLA_SOURCE : SI5324_PLLB_SOURCE;
-	u8 val;
-
-	val = si5324_reg_read(hwdata->drvdata, SI5324_PLL_INPUT_SOURCE);
-
-	return (val & mask) ? 1 : 0;
+	return 0;
 }
 
 static int si5324_pll_set_parent(struct clk_hw *hw, u8 index)
@@ -446,7 +461,7 @@ static int si5324_pll_set_parent(struct clk_hw *hw, u8 index)
 
 	return _si5324_pll_reparent(hwdata->drvdata, hwdata->num,
 			     (index == 0) ? SI5324_PLL_SRC_XTAL :
-			     SI5324_PLL_SRC_CLKIN);
+			     SI5324_PLL_SRC_CLKIN1);
 }
 
 static unsigned long si5324_pll_recalc_rate(struct clk_hw *hw,
@@ -454,6 +469,8 @@ static unsigned long si5324_pll_recalc_rate(struct clk_hw *hw,
 {
 	struct si5324_hw_data *hwdata =
 		container_of(hw, struct si5324_hw_data, hw);
+	return parent_rate;
+#if 0
 	u8 reg = (hwdata->num == 0) ? SI5324_PLLA_PARAMETERS :
 		SI5324_PLLB_PARAMETERS;
 	unsigned long long rate;
@@ -476,8 +493,8 @@ static unsigned long si5324_pll_recalc_rate(struct clk_hw *hw,
 		__func__, clk_hw_get_name(hw),
 		hwdata->params.p1, hwdata->params.p2, hwdata->params.p3,
 		parent_rate, (unsigned long)rate);
-
 	return (unsigned long)rate;
+#endif
 }
 
 static long si5324_pll_round_rate(struct clk_hw *hw, unsigned long rate,
@@ -485,6 +502,7 @@ static long si5324_pll_round_rate(struct clk_hw *hw, unsigned long rate,
 {
 	struct si5324_hw_data *hwdata =
 		container_of(hw, struct si5324_hw_data, hw);
+#if 0
 	unsigned long rfrac, denom, a, b, c;
 	unsigned long long lltmp;
 
@@ -533,7 +551,7 @@ static long si5324_pll_round_rate(struct clk_hw *hw, unsigned long rate,
 		"%s - %s: a = %lu, b = %lu, c = %lu, parent_rate = %lu, rate = %lu\n",
 		__func__, clk_hw_get_name(hw), a, b, c,
 		*parent_rate, rate);
-
+#endif
 	return rate;
 }
 
@@ -542,6 +560,7 @@ static int si5324_pll_set_rate(struct clk_hw *hw, unsigned long rate,
 {
 	struct si5324_hw_data *hwdata =
 		container_of(hw, struct si5324_hw_data, hw);
+#if 0
 	u8 reg = (hwdata->num == 0) ? SI5324_PLLA_PARAMETERS :
 		SI5324_PLLB_PARAMETERS;
 
@@ -558,7 +577,7 @@ static int si5324_pll_set_rate(struct clk_hw *hw, unsigned long rate,
 		__func__, clk_hw_get_name(hw),
 		hwdata->params.p1, hwdata->params.p2, hwdata->params.p3,
 		parent_rate, rate);
-
+#endif
 	return 0;
 }
 
@@ -667,7 +686,7 @@ static unsigned long si5324_clkout_recalc_rate(struct clk_hw *hw,
 	struct si5324_hw_data *hwdata =
 		container_of(hw, struct si5324_hw_data, hw);
 	/* clkout2 divider is three registers higher up clkout1 divider */
-	unsigned char reg = SI5324_NC1_LS_H + (hw.num * 3);
+	unsigned char reg = SI5324_NC1_LS_H + (hwdata->num * 3);
 	/* common divider */
 	unsigned char n1_hs;
 	/* output clock specific divider */
@@ -699,6 +718,7 @@ static long si5324_clkout_round_rate(struct clk_hw *hw, unsigned long rate,
 		container_of(hw, struct si5324_hw_data, hw);
 	unsigned char rdiv;
 
+#if 0
 	if (rate > SI5324_CLKOUT_MAX_FREQ)
 		rate = SI5324_CLKOUT_MAX_FREQ;
 	if (rate < SI5324_CLKOUT_MIN_FREQ)
@@ -736,7 +756,7 @@ static long si5324_clkout_round_rate(struct clk_hw *hw, unsigned long rate,
 		"%s - %s: rdiv = %u, parent_rate = %lu, rate = %lu\n",
 		__func__, clk_hw_get_name(hw), (1 << rdiv),
 		*parent_rate, rate);
-
+#endif
 	return rate;
 }
 
@@ -745,6 +765,7 @@ static int si5324_clkout_set_rate(struct clk_hw *hw, unsigned long rate,
 {
 	struct si5324_hw_data *hwdata =
 		container_of(hw, struct si5324_hw_data, hw);
+#if 0
 	unsigned long new_rate, new_err, err;
 	unsigned char rdiv;
 
@@ -794,7 +815,7 @@ static int si5324_clkout_set_rate(struct clk_hw *hw, unsigned long rate,
 		"%s - %s: rdiv = %u, parent_rate = %lu, rate = %lu\n",
 		__func__, clk_hw_get_name(hw), (1 << rdiv),
 		parent_rate, rate);
-
+#endif
 	return 0;
 }
 
@@ -857,7 +878,7 @@ static int si5324_dt_parse(struct i2c_client *client)
 		case 1:
 			pdata->pll_src = SI5324_PLL_SRC_CLKIN1;
 			break;
-		case 1:
+		case 2:
 			pdata->pll_src = SI5324_PLL_SRC_CLKIN2;
 			break;
 		default:
@@ -938,7 +959,7 @@ put_child:
 	return -EINVAL;
 }
 #else
-static int si5324_dt_parse(struct i2c_client *client, enum si5324_variant variant)
+static int si5324_dt_parse(struct i2c_client *client)
 {
 	return 0;
 }
@@ -1047,7 +1068,7 @@ static int si5324_i2c_probe(struct i2c_client *client,
 	memset(&init, 0, sizeof(init));
 	init.name = si5324_input_names[1];
 	init.ops = &si5324_clkin_ops;
-	if (!IS_ERR(drvdata->pclkin)) {
+	if (!IS_ERR(drvdata->pclkin1)) {
 		drvdata->pclkin1_name = __clk_get_name(drvdata->pclkin1);
 		init.parent_names = &drvdata->pclkin1_name;
 		init.num_parents = 1;
@@ -1065,7 +1086,7 @@ static int si5324_i2c_probe(struct i2c_client *client,
 	memset(&init, 0, sizeof(init));
 	init.name = si5324_input_names[2];
 	init.ops = &si5324_clkin_ops;
-	if (!IS_ERR(drvdata->pclkin)) {
+	if (!IS_ERR(drvdata->pclkin2)) {
 		drvdata->pclkin2_name = __clk_get_name(drvdata->pclkin2);
 		init.parent_names = &drvdata->pclkin2_name;
 		init.num_parents = 1;
@@ -1172,6 +1193,7 @@ err_clk:
 
 static const struct i2c_device_id si5324_i2c_ids[] = {
 	{ "si5324", 0 },
+	{ }
 };
 MODULE_DEVICE_TABLE(i2c, si5324_i2c_ids);
 
@@ -1187,4 +1209,4 @@ module_i2c_driver(si5324_driver);
 
 MODULE_AUTHOR("Leon Woestenberg <leon@sidebranch.com>");
 MODULE_DESCRIPTION("Silicon Labs Si5324 jitter attenuating clock multiplier driver");
-MODULE_LICENSE("GPL")
+MODULE_LICENSE("GPL");

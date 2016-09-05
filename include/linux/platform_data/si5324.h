@@ -62,8 +62,6 @@ enum si5324_disable_state {
  * @rate: initial clkout rate, or default if 0
  */
 struct si5324_clkout_config {
-	enum si5324_multisynth_src multisynth_src;
-	enum si5324_clkout_src clkout_src;
 	enum si5324_drive_strength drive;
 	enum si5324_disable_state disable_state;
 	bool pll_master;
