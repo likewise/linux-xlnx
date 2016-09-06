@@ -145,6 +145,16 @@ static inline int si5324_set_bits(struct si5324_driver_data *drvdata,
 	return regmap_update_bits(drvdata->regmap, reg, mask, val);
 }
 
+/* similar to Si5324_DoSettings() */
+static inline int si5324_bulk_scatter_write(struct si5324_driver_data *drvdata,
+					u8 count/*number of reg/val pairs*/, const u8 *buf)
+{
+	int i;
+	for (i = 0; i < count; i++) {
+		si5324_reg_write(drvdata, buf[i * 2]/*reg*/, buf[i * 2 + 1]/*val*/);
+	}
+}
+
 static void si5324_initialize(struct si5324_driver_data *drvdata)
 {
 	/* keep RST_REG asserted for 10 ms */
@@ -180,48 +190,69 @@ static void si5324_initialize(struct si5324_driver_data *drvdata)
 	si5324_reg_write(drvdata, 137, 0x01);   // FASTLOCK=1 (enable fast locking)
 }
 
+#define SI5324_PARAMETERS_LENGTH		30
+
 static void si5324_read_parameters(struct si5324_driver_data *drvdata,
-				   struct si5324_parameters *params)
+				   u8 reg, struct si5324_parameters *params)
 {
 #if 0
 	u8 buf[SI5324_PARAMETERS_LENGTH];
 
-	si5324_bulk_read(drvdata, reg, SI5324_PARAMETERS_LENGTH, buf);
-	params->p1 = ((buf[2] & 0x03) << 16) | (buf[3] << 8) | buf[4];
-	params->p2 = ((buf[5] & 0x0f) << 16) | (buf[6] << 8) | buf[7];
-	params->p3 = ((buf[5] & 0xf0) << 12) | (buf[0] << 8) | buf[1];
+	switch (reg) {
+	case SI5324_CLK6_PARAMETERS:
+	case SI5324_CLK7_PARAMETERS:
+		buf[0] = si5324_reg_read(drvdata, reg);
+		params->p1 = buf[0];
+		params->p2 = 0;
+		params->p3 = 1;
+		break;
+	default:
+		si5324_bulk_read(drvdata, reg, SI5324_PARAMETERS_LENGTH, buf);
+		params->p1 = ((buf[2] & 0x03) << 16) | (buf[3] << 8) | buf[4];
+		params->p2 = ((buf[5] & 0x0f) << 16) | (buf[6] << 8) | buf[7];
+		params->p3 = ((buf[5] & 0xf0) << 12) | (buf[0] << 8) | buf[1];
+	}
 #endif
 	params->valid = 1;
 }
 
 static void si5324_write_parameters(struct si5324_driver_data *drvdata,
-				    struct si5324_parameters *params)
+				    u8 reg, struct si5324_parameters *params)
 {
 #if 0
 	u8 buf[SI5324_PARAMETERS_LENGTH];
-
-	buf[0] = ((params->p3 & 0x0ff00) >> 8) & 0xff;
-	buf[1] = params->p3 & 0xff;
-	/* save rdiv and divby4 */
-	buf[2] = si5324_reg_read(drvdata, reg + 2) & ~0x03;
-	buf[2] |= ((params->p1 & 0x30000) >> 16) & 0x03;
-	buf[3] = ((params->p1 & 0x0ff00) >> 8) & 0xff;
-	buf[4] = params->p1 & 0xff;
-	buf[5] = ((params->p3 & 0xf0000) >> 12) |
-		((params->p2 & 0xf0000) >> 16);
-	buf[6] = ((params->p2 & 0x0ff00) >> 8) & 0xff;
-	buf[7] = params->p2 & 0xff;
-	si5324_bulk_write(drvdata, reg, SI5324_PARAMETERS_LENGTH, buf);
+	switch (reg) {
+	case SI5324_CLK6_PARAMETERS:
+	case SI5324_CLK7_PARAMETERS:
+		buf[0] = params->p1 & 0xff;
+		si5324_reg_write(drvdata, reg, buf[0]);
+		break;
+	default:
+		buf[0] = ((params->p3 & 0x0ff00) >> 8) & 0xff;
+		buf[1] = params->p3 & 0xff;
+		/* save rdiv and divby4 */
+		buf[2] = si5324_reg_read(drvdata, reg + 2) & ~0x03;
+		buf[2] |= ((params->p1 & 0x30000) >> 16) & 0x03;
+		buf[3] = ((params->p1 & 0x0ff00) >> 8) & 0xff;
+		buf[4] = params->p1 & 0xff;
+		buf[5] = ((params->p3 & 0xf0000) >> 12) |
+			((params->p2 & 0xf0000) >> 16);
+		buf[6] = ((params->p2 & 0x0ff00) >> 8) & 0xff;
+		buf[7] = params->p2 & 0xff;
+		si5324_bulk_write(drvdata, reg, SI5324_PARAMETERS_LENGTH, buf);
+	}
 #endif
 }
 
 static bool si5324_regmap_is_volatile(struct device *dev, unsigned int reg)
 {
+#if 0
 	switch (reg) {
 	case SI5324_INTERRUPT_STATUS:
 	case SI5324_PLL_RESET:
 		return true;
 	}
+#endif
 	return false;
 }
 
@@ -594,6 +625,7 @@ static int _si5324_clkout_set_drive_strength(
 	struct si5324_driver_data *drvdata, int num,
 	enum si5324_drive_strength drive)
 {
+#if 0
 	u8 mask;
 
 	if (num > 8)
@@ -618,6 +650,7 @@ static int _si5324_clkout_set_drive_strength(
 
 	si5324_set_bits(drvdata, SI5324_CLK0_CTRL + num,
 			SI5324_CLK_DRIVE_STRENGTH_MASK, mask);
+#endif
 	return 0;
 }
 
@@ -781,58 +814,77 @@ static int si5324_clkout_set_rate(struct clk_hw *hw, unsigned long rate,
 {
 	struct si5324_hw_data *hwdata =
 		container_of(hw, struct si5324_hw_data, hw);
-#if 0
-	unsigned long new_rate, new_err, err;
-	unsigned char rdiv;
 
-	/* round to closed rdiv */
-	rdiv = SI5324_OUTPUT_CLK_DIV_1;
-	new_rate = parent_rate;
-	err = abs(new_rate - rate);
-	do {
-		new_rate >>= 1;
-		new_err = abs(new_rate - rate);
-		if (new_err > err || rdiv == SI5324_OUTPUT_CLK_DIV_128)
-			break;
-		rdiv++;
-		err = new_err;
-	} while (1);
+	u32 NCn_ls, N2_ls, N3n;
+	u8  N1_hs, N2_hs, BwSel;
+	int result;
+	u8  buf[14*2]; // Need to set 14 registers
+	int i;
 
-	/* write output divider */
-	switch (hwdata->num) {
-	case 6:
-		si5324_set_bits(hwdata->drvdata, SI5324_CLK6_7_OUTPUT_DIVIDER,
-				SI5324_OUTPUT_CLK6_DIV_MASK, rdiv);
-		break;
-	case 7:
-		si5324_set_bits(hwdata->drvdata, SI5324_CLK6_7_OUTPUT_DIVIDER,
-				SI5324_OUTPUT_CLK_DIV_MASK,
-				rdiv << SI5324_OUTPUT_CLK_DIV_SHIFT);
-		break;
-	default:
-		si5324_set_bits(hwdata->drvdata,
-				si5324_msynth_params_address(hwdata->num) + 2,
-				SI5324_OUTPUT_CLK_DIV_MASK,
-				rdiv << SI5324_OUTPUT_CLK_DIV_SHIFT);
-	}
+	// Calculate the frequency settings for the Si5324
+	result = Si5324_CalcFreqSettings(114285000, 114285000,
+	                                 &N1_hs, &NCn_ls, &N2_hs, &N2_ls, &N3n,
+	                                 &BwSel);
 
-	/* powerup clkout */
-	si5324_set_bits(hwdata->drvdata, SI5324_CLK0_CTRL + hwdata->num,
-			SI5324_CLK_POWERDOWN, 0);
+	    i = 0;
 
-	/*
-	 * Do a pll soft reset on both plls, needed in some cases to get
-	 * all outputs running.
-	 */
-	si5324_reg_write(hwdata->drvdata, SI5324_PLL_RESET,
-			 SI5324_PLL_RESET_A | SI5324_PLL_RESET_B);
+	// Free running mode or use a reference clock
+	buf[i] = 0;
+	    // Enable free running mode
+	    buf[i+1] = 0x54;
+	i += 2;
 
-	dev_dbg(&hwdata->drvdata->client->dev,
-		"%s - %s: rdiv = %u, parent_rate = %lu, rate = %lu\n",
-		__func__, clk_hw_get_name(hw), (1 << rdiv),
-		parent_rate, rate);
-#endif
-	return 0;
+	// Loop bandwidth
+	buf[i]   = 2;
+	buf[i+1] = (BwSel << 4) | 0x02;
+	i += 2;
+
+	// Enable reference clock 2 in free running mode
+	buf[i] = 11;
+	    //Enable input clock 2
+	    buf[i+1] = 0x40;
+	i += 2;
+
+	// N1_HS
+	buf[i]   = 25;
+	buf[i+1] = N1_hs << 5;
+	i += 2;
+
+	// NC1_LS
+	buf[i]   = 31;
+	buf[i+1] = (u8)((NCn_ls & 0x000F0000) >> 16);
+	buf[i+2] = 32;
+	buf[i+3] = (u8)((NCn_ls & 0x0000FF00) >>  8);
+	buf[i+4] = 33;
+	buf[i+5] = (u8)( NCn_ls & 0x000000FF       );
+	i += 6;
+
+	// N2_HS and N2_LS
+	buf[i]    = 40;
+	buf[i+1]  = (N2_hs << 5);
+	// N2_LS upper bits (same register as N2_HS)
+	buf[i+1] |= (u8)((N2_ls & 0x000F0000) >> 16);
+	buf[i+2]  = 41;
+	buf[i+3]  = (u8)((N2_ls & 0x0000FF00) >>  8);
+	buf[i+4]  = 42;
+	buf[i+5]  = (u8)( N2_ls & 0x000000FF       );
+	i += 6;
+
+	    // N32
+	    buf[i]   = 46;
+	    buf[i+2] = 47;
+	    buf[i+4] = 48;
+	buf[i+1] = (u8)((N3n & 0x00070000) >> 16);
+	buf[i+3] = (u8)((N3n & 0x0000FF00) >>  8);
+	buf[i+5] = (u8)( N3n & 0x000000FF       );
+	i += 6;
+
+	// Start calibration
+	buf[i]   = 136;
+	buf[i+1] = 0x40;
+	i += 2;
+
+	return si5324_bulk_scatter_write(hwdata->drvdata, 14, buf);
 }
 
 static const struct clk_ops si5324_clkout_ops = {

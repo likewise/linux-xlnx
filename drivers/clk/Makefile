@@ -42,6 +42,7 @@ obj-$(CONFIG_COMMON_CLK_SI5324)		+= clk-si5324.o
 obj-$(CONFIG_COMMON_CLK_SI5324)		+= si5324drv.o
 
 CFLAGS_si5324drv.o += -DFALSE=0 -Dllabs=abs
+CFLAGS_clk-si5324.o += -Wno-unused-variable
 
 obj-$(CONFIG_COMMON_CLK_SI5351)		+= clk-si5351.o
 obj-$(CONFIG_COMMON_CLK_SI514)		+= clk-si514.o

@@ -13,7 +13,7 @@
 #ifndef _CLK_SI5324_H_
 #define _CLK_SI5324_H_
 
-#define SI5324_BUS_BASE_ADDR			0x60
+#define SI5324_BUS_BASE_ADDR			0x68
 
 #define SI5324_REG0			0
 #define SI5324_REG0_FREE_RUN			(1<<7)
@@ -63,7 +63,7 @@
 #define SI5324_N3_MAX    0x080000  /**< Maximum N3n setting */
 
 /* 5351 legacy */
-
+#if 0
 #define SI5324_PLL_MIN			15
 #define SI5324_PLL_MAX			90
 
@@ -115,7 +115,9 @@
 #define  SI5324_CLK_DISABLE_STATE_FLOAT		2
 #define  SI5324_CLK_DISABLE_STATE_NEVER		3
 
-#define SI5324_PARAMETERS_LENGTH		8
+#endif
+
+#if 0
 #define SI5324_PLLA_PARAMETERS			26
 #define SI5324_PLLB_PARAMETERS			34
 #define SI5324_CLK0_PARAMETERS			42
@@ -180,5 +182,7 @@
 #define  SI5324_CLKIN_ENABLE			(1<<7)
 #define  SI5324_XTAL_ENABLE			(1<<6)
 #define  SI5324_MULTISYNTH_ENABLE		(1<<4)
+
+#endif
 
 #endif
