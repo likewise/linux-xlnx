@@ -49,3 +49,27 @@ obj-$(CONFIG_PHY_BRCMSTB_SATA)		+= phy-brcmstb-sata.o
 obj-$(CONFIG_PHY_PISTACHIO_USB)		+= phy-pistachio-usb.o
 obj-$(CONFIG_PHY_CYGNUS_PCIE)		+= phy-bcm-cygnus-pcie.o
 obj-$(CONFIG_PHY_XILINX_ZYNQMP)		+= phy-zynqmp.o
+
+
+obj-$(CONFIG_PHY_XILINX_VPHY)		+= phy-xilinx-vphy.o
+#obj-m := phy-xilinx-vphy.o
+
+phy-xilinx-vphy-objs := vphy.o
+CFLAGS_vphy.o += -I$(src)/xilinx-vphy/ -DXENV_LINUX
+
+ccflags-y += -DXENV_LINUX
+ccflags-y += -Wno-declaration-after-statement
+ccflags-y += -Wno-unused-function
+ccflags-y += -Wno-unused-label
+ccflags-y += -Wno-unused-value
+ccflags-y += -Wno-unused-variable
+ccflags-y += -Wno-aggressive-loop-optimizations
+
+phy-xilinx-vphy-objs += xilinx-vphy/xil_io.o
+phy-xilinx-vphy-objs += xilinx-vphy/xil_assert.o
+phy-xilinx-vphy-objs += xilinx-vphy/xvphy.o
+phy-xilinx-vphy-objs += xilinx-vphy/xvphy_gthe4.o
+phy-xilinx-vphy-objs += xilinx-vphy/xvphy_hdmi.o
+phy-xilinx-vphy-objs += xilinx-vphy/xvphy_hdmi_intr.o
+phy-xilinx-vphy-objs += xilinx-vphy/xvphy_intr.o
+phy-xilinx-vphy-objs += xilinx-vphy/xvphy_log.o
