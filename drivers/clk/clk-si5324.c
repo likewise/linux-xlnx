@@ -1041,6 +1041,7 @@ static int si5324_i2c_probe(struct i2c_client *client,
 	struct clk_init_data init;
 	struct clk *clk;
 	const char *parent_names[3];
+	u8 val;
 	u8 num_parents, num_clocks;
 	int ret, n;
 
@@ -1073,6 +1074,11 @@ static int si5324_i2c_probe(struct i2c_client *client,
 	if (IS_ERR(drvdata->regmap)) {
 		dev_err(&client->dev, "failed to allocate register map\n");
 		return PTR_ERR(drvdata->regmap);
+	}
+
+	if ((si5324_reg_read(drvdata, 134) != 0x01) || (si5324_reg_read(drvdata, 135) != 0x82)) {
+		dev_err(&client->dev, "Identification registers do not indicate Si5324 presence.\n");
+		return -ENODEV;
 	}
 
 	si5324_initialize(drvdata);
@@ -1193,8 +1199,8 @@ static int si5324_i2c_probe(struct i2c_client *client,
 
 	/* register clk multisync and clk out divider */
 	num_clocks = 2;
+	num_parents = 1;
 	parent_names[0] = si5324_pll_name;
-	parent_names[1] = si5324_pll_name;
 
 	drvdata->clkout = devm_kzalloc(&client->dev, num_clocks *
 				       sizeof(*drvdata->clkout), GFP_KERNEL);
@@ -1246,6 +1252,7 @@ static int si5324_i2c_probe(struct i2c_client *client,
 		dev_err(&client->dev, "unable to add clk provider\n");
 		goto err_clk;
 	}
+	dev_info(&client->dev, "Initialized Si5324.\n");
 
 	return 0;
 

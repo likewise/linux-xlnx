@@ -1,8 +1,7 @@
 /*
  * clk-si5324.h: Silicon Laboratories Si5324A/B/C I2C Clock Generator
  *
- * Sebastian Hesselbarth <sebastian.hesselbarth@gmail.com>
- * Rabeeh Khoury <rabeeh@solid-run.com>
+ * Leon Woestenberg <leon@sidebranch.com>
  *
  * This program is free software; you can redistribute  it and/or modify it
  * under  the terms of  the GNU General  Public License as published by the
