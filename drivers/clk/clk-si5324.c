@@ -3,7 +3,7 @@
  *
  * Leon Woestenberg <leon@sidebranch.com>
  *
-  * References:
+ * References:
  * [1] "Si5324 Data Sheet"
  *     https://www.silabs.com/Support%20Documents/TechnicalDocs/Si5324.pdf
  *
