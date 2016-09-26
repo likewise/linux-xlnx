@@ -1,0 +1,32 @@
+Xilinx VPHY (Early Access Release)
+
+The Xilinx Video PHY is a video-specific wrapper around different versions of the GT PHY. The
+corresponding driver is phy/phy-xilinx-vphy.
+
+It is tightly coupled with its current sole user HDMI RXSS, see xlnx,v-hdmirxss.txt
+
+The main configuration is currently fixed and built-in the driver, only the resource address and
+interrupt are configurable here.
+
+At least one lane reference must be made (by HDMI RX) to get a handle to the vphy driver. The
+(currently 4) arguments are not used and subject to change or removal. The vphy reference
+is subject to change.
+
+	vphy: vphy@a0000000 {
+		compatible = "xlnx,vphy-1.1";
+		reg = <0x0 0xa0000000 0x10000>;
+		interrupts = <0 92 4>;
+		interrupt-parent = <&gic>;
+		vphy_lane0: vphy_lane@0 {
+			#phy-cells = <4>;
+		};
+		vphy_lane1: vphy_lane@1 {
+			#phy-cells = <4>;
+		};
+		vphy_lane2: vphy_lane@2 {
+			#phy-cells = <4>;
+		};
+		vphy_lane3: vphy_lane@3 {
+			#phy-cells = <4>;
+		};
+	};
