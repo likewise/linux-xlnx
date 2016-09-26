@@ -53,20 +53,19 @@ obj-$(CONFIG_PHY_XILINX_ZYNQMP)		+= phy-zynqmp.o
 obj-$(CONFIG_PHY_XILINX_VPHY)		+= phy-xilinx-vphy.o
 
 phy-xilinx-vphy-objs := phy-vphy.o
-CFLAGS_phy-vphy.o += -I$(src)/xilinx-vphy/ -DXENV_LINUX
+CFLAGS_phy-vphy.o += -I$(src)/phy-xilinx-vphy/
 
-ccflags-y += -DXENV_LINUX
-ccflags-y += -Wno-declaration-after-statement
-ccflags-y += -Wno-unused-function
-ccflags-y += -Wno-unused-label
-ccflags-y += -Wno-unused-value
-ccflags-y += -Wno-unused-variable
-ccflags-y += -Wno-aggressive-loop-optimizations
+#ccflags-y += -Wno-declaration-after-statement
+#ccflags-y += -Wno-unused-function
+#ccflags-y += -Wno-unused-label
+#ccflags-y += -Wno-unused-value
+#ccflags-y += -Wno-unused-variable
+#ccflags-y += -Wno-aggressive-loop-optimizations
 
-phy-xilinx-vphy-objs += xilinx-vphy/xil_assert.o
-phy-xilinx-vphy-objs += xilinx-vphy/xvphy.o
-phy-xilinx-vphy-objs += xilinx-vphy/xvphy_gthe4.o
-phy-xilinx-vphy-objs += xilinx-vphy/xvphy_hdmi.o
-phy-xilinx-vphy-objs += xilinx-vphy/xvphy_hdmi_intr.o
-phy-xilinx-vphy-objs += xilinx-vphy/xvphy_intr.o
-phy-xilinx-vphy-objs += xilinx-vphy/xvphy_log.o
+phy-xilinx-vphy-objs += phy-xilinx-vphy/xil_assert.o
+phy-xilinx-vphy-objs += phy-xilinx-vphy/xvphy.o
+phy-xilinx-vphy-objs += phy-xilinx-vphy/xvphy_gthe4.o
+phy-xilinx-vphy-objs += phy-xilinx-vphy/xvphy_hdmi.o
+phy-xilinx-vphy-objs += phy-xilinx-vphy/xvphy_hdmi_intr.o
+phy-xilinx-vphy-objs += phy-xilinx-vphy/xvphy_intr.o
+phy-xilinx-vphy-objs += phy-xilinx-vphy/xvphy_log.o
