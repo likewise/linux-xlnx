@@ -11,7 +11,7 @@ obj-$(CONFIG_VIDEO_XILINX_SWITCH) += xilinx-switch.o
 obj-$(CONFIG_VIDEO_XILINX_TPG) += xilinx-tpg.o
 obj-$(CONFIG_VIDEO_XILINX_VTC) += xilinx-vtc.o
 
-obj-$(CONFIG_VIDEO_XILINX_HDMI_RX) := xilinx-hdmi-rx.o
+obj-$(CONFIG_VIDEO_XILINX_HDMI_RX) += xilinx-hdmi-rx.o
 xilinx-hdmi-rx-objs := xilinx-hdmirx.o
 CFLAGS_xilinx-hdmirx.o += -I$(src)/xilinx-hdmi-rx/ -Wno-unused-label
 xilinx-hdmi-rx-objs += xilinx-hdmi-rx/xgpio.o
