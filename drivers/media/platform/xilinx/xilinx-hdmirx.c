@@ -889,6 +889,8 @@ static int xhdmirx_probe(struct platform_device *pdev)
 		VphyHdmiRxReadyCallback, (void *)xhdmirx);
 	xvphy_mutex_unlock(xhdmirx->phy[0]);
 
+	platform_set_drvdata(pdev, xhdmirx);
+
 	ret = devm_request_threaded_irq(&pdev->dev, xhdmirx->irq, hdmirx_irq_handler, hdmirx_irq_thread,
 		IRQF_TRIGGER_HIGH, "xilinx-hdmi-rx", xhdmirx/*dev_id*/);
 
@@ -925,8 +927,6 @@ static int xhdmirx_probe(struct platform_device *pdev)
 		mutex_unlock(&xhdmirx->xhdmirx_mutex);
 		goto error_irq;
 	}
-
-	platform_set_drvdata(pdev, xhdmirx);
 
 	xvip_print_version(&xhdmirx->xvip);
 
