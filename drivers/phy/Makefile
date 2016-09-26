@@ -50,12 +50,10 @@ obj-$(CONFIG_PHY_PISTACHIO_USB)		+= phy-pistachio-usb.o
 obj-$(CONFIG_PHY_CYGNUS_PCIE)		+= phy-bcm-cygnus-pcie.o
 obj-$(CONFIG_PHY_XILINX_ZYNQMP)		+= phy-zynqmp.o
 
-
 obj-$(CONFIG_PHY_XILINX_VPHY)		+= phy-xilinx-vphy.o
-#obj-m := phy-xilinx-vphy.o
 
-phy-xilinx-vphy-objs := vphy.o
-CFLAGS_vphy.o += -I$(src)/xilinx-vphy/ -DXENV_LINUX
+phy-xilinx-vphy-objs := phy-vphy.o
+CFLAGS_phy-vphy.o += -I$(src)/xilinx-vphy/ -DXENV_LINUX
 
 ccflags-y += -DXENV_LINUX
 ccflags-y += -Wno-declaration-after-statement

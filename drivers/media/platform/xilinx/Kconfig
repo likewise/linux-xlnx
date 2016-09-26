@@ -19,6 +19,12 @@ config VIDEO_XILINX_CRESAMPLE
 	---help---
 	   Driver for the Xilinx Chroma Resampler
 
+config VIDEO_XILINX_HDMI_RX
+	tristate "Xilinx HDMI RX Subsystem"
+#	depends on PHY_XILINX_VPHY 
+	---help---
+	   Driver for the Xilinx HDMI RX Subsystem
+
 config VIDEO_XILINX_HLS
 	tristate "Xilinx Video HLS Core"
 	depends on VIDEO_XILINX
