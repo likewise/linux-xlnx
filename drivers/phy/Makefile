@@ -62,7 +62,6 @@ CFLAGS_phy-vphy.o += -I$(src)/phy-xilinx-vphy/
 #ccflags-y += -Wno-unused-variable
 #ccflags-y += -Wno-aggressive-loop-optimizations
 
-phy-xilinx-vphy-objs += phy-xilinx-vphy/xil_assert.o
 phy-xilinx-vphy-objs += phy-xilinx-vphy/xvphy.o
 phy-xilinx-vphy-objs += phy-xilinx-vphy/xvphy_gthe4.o
 phy-xilinx-vphy-objs += phy-xilinx-vphy/xvphy_hdmi.o
