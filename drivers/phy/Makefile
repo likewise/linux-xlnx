@@ -63,7 +63,6 @@ ccflags-y += -Wno-unused-value
 ccflags-y += -Wno-unused-variable
 ccflags-y += -Wno-aggressive-loop-optimizations
 
-phy-xilinx-vphy-objs += xilinx-vphy/xil_io.o
 phy-xilinx-vphy-objs += xilinx-vphy/xil_assert.o
 phy-xilinx-vphy-objs += xilinx-vphy/xvphy.o
 phy-xilinx-vphy-objs += xilinx-vphy/xvphy_gthe4.o
