@@ -47,6 +47,9 @@ struct xhdmirx_device {
 	/* mutex to prevent concurrent access to this structure */
 	struct mutex xhdmirx_mutex;
 
+	/* protects concurrent access from interrupt context */
+	spinlock_t irq_lock;
+
 	struct media_pad pad;
 
 	/* https://linuxtv.org/downloads/v4l-dvb-apis/subdev.html#v4l2-mbus-framefmt */
@@ -340,7 +343,7 @@ void XV_HdmiRxSs_IntrEnable(XV_HdmiRxSs *HdmiRxSsPtr)
 	XV_HdmiRx_DdcIntrEnable(HdmiRxSsPtr->HdmiRxPtr);
 	XV_HdmiRx_AuxIntrEnable(HdmiRxSsPtr->HdmiRxPtr);
 	XV_HdmiRx_AudioIntrEnable(HdmiRxSsPtr->HdmiRxPtr);
-	XV_HdmiRx_LinkIntrEnable(HdmiRxSsPtr->HdmiRxPtr);
+	//XV_HdmiRx_LinkIntrEnable(HdmiRxSsPtr->HdmiRxPtr);
 }
 
 void XV_HdmiRxSs_IntrDisable(XV_HdmiRxSs *HdmiRxSsPtr)
@@ -358,11 +361,21 @@ static irqreturn_t hdmirx_irq_handler(int irq, void *dev_id)
 {
 	struct xhdmirx_device *xhdmirx;
 	XV_HdmiRxSs *HdmiRxSsPtr;
+	unsigned long flags;
 	BUG_ON(!dev_id);
 	xhdmirx = (struct xhdmirx_device *)dev_id;
-	if (!xhdmirx)
-		return IRQ_NONE;
-
+	//printk(KERN_INFO "hdmirx_irq_handler()\n");
+	if (!xhdmirx) {
+		static int fault_count = 0;
+		fault_count++;
+		if (fault_count)
+		dev_err(xhdmirx->xvip.dev, "irq_handler: !dev_id\n");
+		spin_lock_irqsave(&xhdmirx->irq_lock, flags);
+		/* mask interrupt request */
+		XV_HdmiRxSs_IntrDisable(HdmiRxSsPtr);
+		spin_unlock_irqrestore(&xhdmirx->irq_lock, flags);
+		return IRQ_HANDLED;
+	}
 	HdmiRxSsPtr = (XV_HdmiRxSs *)&xhdmirx->xv_hdmirxss;
 	BUG_ON(!HdmiRxSsPtr->HdmiRxPtr);
 
@@ -381,8 +394,10 @@ static irqreturn_t hdmirx_irq_handler(int irq, void *dev_id)
 	xhdmirx->IntrStatus[6] = XV_HdmiRx_ReadReg(HdmiRxSsPtr->Config.BaseAddress, (XV_HDMIRX_LNKSTA_STA_OFFSET)) & (XV_HDMIRX_LNKSTA_STA_IRQ_MASK);
 #endif
 
+	spin_lock_irqsave(&xhdmirx->irq_lock, flags);
 	/* mask interrupt request */
 	XV_HdmiRxSs_IntrDisable(HdmiRxSsPtr);
+	spin_unlock_irqrestore(&xhdmirx->irq_lock, flags);
 
 	/* call bottom-half */
 	return IRQ_WAKE_THREAD;
@@ -393,17 +408,33 @@ static irqreturn_t hdmirx_irq_thread(int irq, void *dev_id)
 	static int irq_count = 0;
 	struct xhdmirx_device *xhdmirx;
 	XV_HdmiRxSs *HdmiRxSsPtr;
+	unsigned long flags;
+	int i;
+	char which[8] = "01234567";
+	int which_mask = 0;
 
 	BUG_ON(!dev_id);
 	xhdmirx = (struct xhdmirx_device *)dev_id;
-	if (!xhdmirx || xhdmirx->teardown)
-		return IRQ_NONE;
+	if (!xhdmirx) {
+		printk(KERN_INFO "irq_thread: !dev_id\n");
+		return IRQ_HANDLED;
+	}
+	if (xhdmirx->teardown) {
+		printk(KERN_INFO "irq_thread: teardown\n");
+		return IRQ_HANDLED;
+	}
 	HdmiRxSsPtr = (XV_HdmiRxSs *)&xhdmirx->xv_hdmirxss;
 	BUG_ON(!HdmiRxSsPtr->HdmiRxPtr);
 
 	mutex_lock(&xhdmirx->xhdmirx_mutex);
 	/* call baremetal interrupt handler, this in turn will
 	 * call the registed callbacks functions */
+
+	for (i = 0; i < 7; i++) {
+		which[i] = xhdmirx->IntrStatus[i]? '0' + i: '.';
+		which_mask |= (xhdmirx->IntrStatus[i]? 1: 0) << i;
+	}
+	which[7] = 0;
 
 #if 1
 	if (xhdmirx->IntrStatus[0]) HdmiRx_PioIntrHandler(HdmiRxSsPtr->HdmiRxPtr);
@@ -422,9 +453,15 @@ static irqreturn_t hdmirx_irq_thread(int irq, void *dev_id)
 	HdmiRx_AudIntrHandler(HdmiRxSsPtr->HdmiRxPtr);
 	HdmiRx_LinkStatusIntrHandler(HdmiRxSsPtr->HdmiRxPtr);
 #endif
-	 XV_HdmiRxSs_IntrEnable(HdmiRxSsPtr);
+	//printk(KERN_INFO "hdmirx_irq_thread() %s 0x%08x\n", which, (int)which_mask);
 
 	mutex_unlock(&xhdmirx->xhdmirx_mutex);
+	spin_lock_irqsave(&xhdmirx->irq_lock, flags);
+	/* unmask interrupt request */
+	XV_HdmiRxSs_IntrEnable(HdmiRxSsPtr);
+	spin_unlock_irqrestore(&xhdmirx->irq_lock, flags);
+	//printk(KERN_INFO "hdmirx_irq_thread() %s 0x%08x done\n", which, (int)which_mask);
+
 	return IRQ_HANDLED;
 }
 
@@ -439,7 +476,7 @@ static void RxConnectCallback(void *CallbackRef)
 	if (!xhdmirx || !HdmiRxSsPtr || !VphyPtr) return;
 
 	xhdmirx->cable_connected = !!HdmiRxSsPtr->IsStreamConnected;
-	//dev_info(xhdmirx->xvip.dev, "RxConnectCallback()\n");
+	dev_info(xhdmirx->xvip.dev, "RxConnectCallback()\n");
 	dev_info(xhdmirx->xvip.dev, "cable is %sconnected.\n", xhdmirx->cable_connected? "": "dis");
 
 	xvphy_mutex_lock(xhdmirx->phy[0]);
@@ -475,7 +512,7 @@ static void RxAudCallback(void *CallbackRef)
 	BUG_ON(!xhdmirx);
 	BUG_ON(!HdmiRxSsPtr);
 	if (!xhdmirx || !HdmiRxSsPtr) return;
-	//printk(KERN_INFO "RxAudCallback()\n");
+	printk(KERN_INFO "RxAudCallback()\n");
 	(void)HdmiRxSsPtr;
 }
 
@@ -512,7 +549,7 @@ static void RxStreamInitCallback(void *CallbackRef)
 	BUG_ON(!xhdmirx);
 	BUG_ON(!HdmiRxSsPtr);
 	if (!xhdmirx || !HdmiRxSsPtr || !VphyPtr) return;
-	//xil_printf("RxStreamInitCallback\r\n");
+	xil_printf("RxStreamInitCallback\r\n");
 	// Calculate RX MMCM parameters
 	// In the application the YUV422 colordepth is 12 bits
 	// However the HDMI transports YUV422 in 8 bits.
@@ -555,7 +592,6 @@ static void RxStreamUpCallback(void *CallbackRef)
 	if (!xhdmirx || !HdmiRxSsPtr) return;
 	if (!HdmiRxSsPtr) return;
 	dev_info(xhdmirx->xvip.dev, "stream is up.\n");
-	mutex_lock(&xhdmirx->xhdmirx_mutex);
 	Stream = &HdmiRxSsPtr->HdmiRxPtr->Stream.Video;
 	XVidC_ReportStreamInfo(Stream);
 	xhdmirx->detected_format.width = Stream->Timing.HActive;
@@ -582,8 +618,6 @@ static void RxStreamUpCallback(void *CallbackRef)
 	xhdmirx->detected_format.xfer_func = V4L2_XFER_FUNC_DEFAULT;
 	xhdmirx->detected_format.ycbcr_enc = V4L2_YCBCR_ENC_DEFAULT;
 	xhdmirx->detected_format.quantization = V4L2_QUANTIZATION_DEFAULT;
-
-	mutex_unlock(&xhdmirx->xhdmirx_mutex);
 }
 
 /* Called from non-interrupt context with xvphy mutex locked
@@ -782,6 +816,7 @@ static int xhdmirx_probe(struct platform_device *pdev)
 	struct xhdmirx_device *xhdmirx;
 	int ret;
 	unsigned int index;
+	unsigned long flags;
 
 	XV_HdmiRxSs *HdmiRxSsPtr;
 	u32 Status;
@@ -795,6 +830,7 @@ static int xhdmirx_probe(struct platform_device *pdev)
 
 	/* mutex that protects against concurrent access */
 	mutex_init(&xhdmirx->xhdmirx_mutex);
+	spin_lock_init(&xhdmirx->irq_lock);
 
 	/* parse open firmware device tree data */
 	ret = xhdmirx_parse_of(xhdmirx, &config);
@@ -854,7 +890,10 @@ static int xhdmirx_probe(struct platform_device *pdev)
 		dev_err(xhdmirx->xvip.dev, "initialization failed with error %d\r\n", Status);
 		return -EINVAL;
 	}
+
+	spin_lock_irqsave(&xhdmirx->irq_lock, flags);
 	XV_HdmiRxSs_IntrDisable(HdmiRxSsPtr);
+	spin_unlock_irqrestore(&xhdmirx->irq_lock, flags);
 
 	XV_HdmiRxSs_ReportSubcoreVersion(&xhdmirx->xv_hdmirxss);
 
@@ -948,8 +987,11 @@ static int xhdmirx_probe(struct platform_device *pdev)
 		goto error;
 	}
 
-	XV_HdmiRxSs_IntrEnable(HdmiRxSsPtr);
 	mutex_unlock(&xhdmirx->xhdmirx_mutex);
+
+	spin_lock_irqsave(&xhdmirx->irq_lock, flags);
+	XV_HdmiRxSs_IntrEnable(HdmiRxSsPtr);
+	spin_unlock_irqrestore(&xhdmirx->irq_lock, flags);
 
 	return 0;
 
@@ -977,12 +1019,17 @@ static int xhdmirx_remove(struct platform_device *pdev)
 {
 	struct xhdmirx_device *xhdmirx = platform_get_drvdata(pdev);
 	struct v4l2_subdev *subdev = &xhdmirx->xvip.subdev;
+	unsigned long flags;
+
+	spin_lock_irqsave(&xhdmirx->irq_lock, flags);
+	XV_HdmiRxSs_IntrDisable(&xhdmirx->xv_hdmirxss);
+	xhdmirx->teardown = 1;
+	spin_unlock_irqrestore(&xhdmirx->irq_lock, flags);
 
 #if 0 // @TODO mutex can not be acquired
 	mutex_lock(&xhdmirx->xhdmirx_mutex);
 #endif
 
-	xhdmirx->teardown = 1;
 #if 0
 	mutex_unlock(&xhdmirx->xhdmirx_mutex);
 #endif
