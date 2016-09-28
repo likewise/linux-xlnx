@@ -20,6 +20,7 @@
 #include <linux/interrupt.h>
 #include <linux/platform_device.h>
 #include <linux/xilinx-v4l2-controls.h>
+#include <linux/v4l2-dv-timings.h>
 
 #include <media/v4l2-async.h>
 #include <media/v4l2-ctrls.h>
@@ -54,6 +55,9 @@ struct xhdmirx_device {
 
 	/* https://linuxtv.org/downloads/v4l-dvb-apis/subdev.html#v4l2-mbus-framefmt */
 	struct v4l2_mbus_framefmt detected_format;
+
+	struct v4l2_dv_timings detected_timings;
+
 	struct v4l2_mbus_framefmt default_format;
 	const struct xvip_video_format *vip_format;
 
@@ -235,6 +239,32 @@ static int xhdmirx_dv_timings_cap(struct v4l2_subdev *subdev,
 	return 0;
 }
 
+/* Supported CEA and DMT timings */
+static const struct v4l2_dv_timings supported_timings[] = {
+	V4L2_DV_BT_CEA_1280X720P50,
+	V4L2_DV_BT_CEA_1920X1080P50,
+	V4L2_DV_BT_CEA_3840X2160P50,
+};
+
+static int xhdmirx_query_dv_timings(struct v4l2_subdev *subdev,
+			struct v4l2_dv_timings *timings)
+{
+	struct xhdmirx_device *xhdmirx = to_xhdmirx(subdev);
+	printk(KERN_INFO "xhdmirx_set_format\n");
+	struct v4l2_bt_timings *bt = &timings->bt;
+
+	if (!timings)
+		return -EINVAL;
+
+	if (!xhdmirx->hdmi_stream)
+		return -ENOLINK;
+
+	memset(timings, 0, sizeof(struct v4l2_dv_timings));
+
+	*timings = xhdmirx->detected_timings;
+	return 0;
+}
+
 /* struct v4l2_subdev_internal_ops.open */
 static int xhdmirx_open(struct v4l2_subdev *subdev, struct v4l2_subdev_fh *fh)
 {
@@ -273,6 +303,7 @@ static struct v4l2_subdev_core_ops xhdmirx_core_ops = {
 
 static struct v4l2_subdev_video_ops xhdmirx_video_ops = {
 	.s_stream = xhdmirx_s_stream,
+	.query_dv_timings = xhdmirx_query_dv_timings,
 };
 
 /* If the subdev driver intends to process video and integrate with the media framework,
@@ -618,6 +649,17 @@ static void RxStreamUpCallback(void *CallbackRef)
 	xhdmirx->detected_format.xfer_func = V4L2_XFER_FUNC_DEFAULT;
 	xhdmirx->detected_format.ycbcr_enc = V4L2_YCBCR_ENC_DEFAULT;
 	xhdmirx->detected_format.quantization = V4L2_QUANTIZATION_DEFAULT;
+
+	/* format detection is only minimally supported */
+	if (Stream->Timing.VActive == 720) {
+		xhdmirx->detected_timings = supported_timings[0];
+	} else if (Stream->Timing.VActive == 1080) {
+		xhdmirx->detected_timings = supported_timings[1];
+	/* currently assuming 2160p */
+	} else /*if (Stream->Timing.VActive == 2160)*/ {
+		xhdmirx->detected_timings = supported_timings[2];
+	}
+	xhdmirx->hdmi_stream = 1;
 }
 
 /* Called from non-interrupt context with xvphy mutex locked
