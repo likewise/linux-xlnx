@@ -21,6 +21,7 @@
 #include <linux/platform_device.h>
 #include <linux/xilinx-v4l2-controls.h>
 #include <linux/v4l2-dv-timings.h>
+#include <linux/firmware.h>
 
 #include <media/v4l2-async.h>
 #include <media/v4l2-ctrls.h>
@@ -37,6 +38,8 @@
 #include "xilinx-hdmi-rx/xstatus.h"
 
 #define HDMI_MAX_LANES	2
+
+#define EDID_BLOCKS_MAX 2
 
 struct xhdmirx_device {
 	struct xvip_device xvip;
@@ -67,6 +70,9 @@ struct xhdmirx_device {
 	struct v4l2_ctrl *pattern;
 	bool cable_connected;
 	bool hdmi_stream;
+
+	u8 edid_user[EDID_BLOCKS_MAX*128];
+	int edid_user_blocks;
 
 	/* configuration for the baseline subsystem driver instance */
 	XV_HdmiRxSs_Config config;
@@ -170,6 +176,55 @@ static int xhdmirx_set_format(struct v4l2_subdev *subdev,
 	return 0;
 }
 
+/* https://linuxtv.org/downloads/v4l-dvb-apis-new/media/kapi/v4l2-subdev.html#v4l2-sub-device-functions-and-data-structures
+ * https://linuxtv.org/downloads/v4l-dvb-apis/vidioc-g-edid.html
+ */
+static int xhdmirx_get_edid(struct v4l2_subdev *subdev, struct v4l2_edid *edid) {
+	struct xhdmirx_device *xhdmirx = to_xhdmirx(subdev);
+	int do_copy = 1;
+	if (edid->pad > 0)
+		return -EINVAL;
+	if (edid->start_block != 0)
+		return -EINVAL;
+	/* caller is only interested in the size of the EDID? */
+	if ((edid->start_block == 0) && (edid->blocks == 0)) do_copy = 0;
+	mutex_lock(&xhdmirx->xhdmirx_mutex);
+	/* user EDID active? */
+	if (xhdmirx->edid_user_blocks) {
+		if (do_copy)
+			memcpy(edid->edid, xhdmirx->edid_user, 128 * xhdmirx->edid_user_blocks);
+		edid->blocks = xhdmirx->edid_user_blocks;
+	} else {
+		if (do_copy)
+			memcpy(edid->edid, &xilinx_edid, sizeof(xilinx_edid));
+		edid->blocks = sizeof(xilinx_edid) / 128;
+	}
+	mutex_unlock(&xhdmirx->xhdmirx_mutex);
+	return 0;
+}
+
+static int xhdmirx_set_edid(struct v4l2_subdev *subdev, struct v4l2_edid *edid) {
+	struct xhdmirx_device *xhdmirx = to_xhdmirx(subdev);
+	XV_HdmiRxSs *HdmiRxSsPtr = &xhdmirx->xv_hdmirxss;
+	if (edid->pad > 0)
+		return -EINVAL;
+	if (edid->start_block != 0)
+		return -EINVAL;
+	if (edid->blocks > EDID_BLOCKS_MAX) {
+		/* notify caller of how many EDID blocks this driver supports */
+		edid->blocks = EDID_BLOCKS_MAX;
+		return -E2BIG;
+	}
+	mutex_lock(&xhdmirx->xhdmirx_mutex);
+	memcpy(xhdmirx->edid_user, edid->edid, 128 * edid->blocks);
+	xhdmirx->edid_user_blocks = edid->blocks;
+	if (edid->blocks) {
+		XV_HdmiRxSs_SetEdidParam(HdmiRxSsPtr, (u8 *)&xhdmirx->edid_user, 128 * xhdmirx->edid_user_blocks);
+	}
+	mutex_unlock(&xhdmirx->xhdmirx_mutex);
+	return 0;
+}
+
 /* -----------------------------------------------------------------------------
  * V4L2 Subdevice Operations
  */
@@ -227,8 +282,8 @@ static int xhdmirx_dv_timings_cap(struct v4l2_subdev *subdev,
 	*cap = xhdmirx_timings_cap;
 #else
 	cap->type = V4L2_DV_BT_656_1120;
-	cap->bt.max_width = 1920;
-	cap->bt.max_height = 1200;
+	cap->bt.max_width = 3840;
+	cap->bt.max_height = 2160;
 	cap->bt.min_pixelclock = 25000000;
 	cap->bt.max_pixelclock = 225000000;
 	cap->bt.standards = V4L2_DV_BT_STD_CEA861 | V4L2_DV_BT_STD_DMT |
@@ -314,8 +369,9 @@ static struct v4l2_subdev_pad_ops xhdmirx_pad_ops = {
 	.enum_frame_size	= xhdmirx_enum_frame_size,
 	.get_fmt			= xhdmirx_get_format,
 	.set_fmt			= xhdmirx_set_format,
-
-#if 0
+#if 0 /* @TODO work-in-progress */
+	.get_edid			= xhdmirx_get_edid,
+	.set_edid			= xhdmirx_set_edid,
 	.enum_dv_timings	= xhdmirx_enum_dv_timings,
 #endif
 	.dv_timings_cap		= xhdmirx_dv_timings_cap,
@@ -496,7 +552,9 @@ static irqreturn_t hdmirx_irq_thread(int irq, void *dev_id)
 	return IRQ_HANDLED;
 }
 
-/* callbacks from HDMI RX SS interrupt handler */
+/* callbacks from HDMI RX SS interrupt handler
+ * these are called with the xhdmirx->mutex locked and the xvphy_mutex non-locked
+ * to prevent mutex deadlock, always lock the xhdmirx first, then the xvphy mutex */
 static void RxConnectCallback(void *CallbackRef)
 {
 	struct xhdmirx_device *xhdmirx = (struct xhdmirx_device *)CallbackRef;
@@ -511,15 +569,16 @@ static void RxConnectCallback(void *CallbackRef)
 	dev_info(xhdmirx->xvip.dev, "cable is %sconnected.\n", xhdmirx->cable_connected? "": "dis");
 
 	xvphy_mutex_lock(xhdmirx->phy[0]);
-	// RX cable is disconnected
-	if (HdmiRxSsPtr->IsStreamConnected == (FALSE))
+	// RX cable is connected
+	if (HdmiRxSsPtr->IsStreamConnected)
 	{
-		VphyPtr->HdmiRxTmdsClockRatio = 0; // Clear GT RX TMDS clock ratio
-		XVphy_IBufDsEnable(VphyPtr, 0, XVPHY_DIR_RX, (FALSE));
+		XVphy_IBufDsEnable(VphyPtr, 0, XVPHY_DIR_RX, (TRUE));
 	}
 	else
 	{
-		XVphy_IBufDsEnable(VphyPtr, 0, XVPHY_DIR_RX, (TRUE));
+		/* c lear GT RX TMDS clock ratio */
+		VphyPtr->HdmiRxTmdsClockRatio = 0;
+		XVphy_IBufDsEnable(VphyPtr, 0, XVPHY_DIR_RX, (FALSE));
 	}
 	xvphy_mutex_unlock(xhdmirx->phy[0]);
 }
@@ -613,6 +672,8 @@ static void RxStreamInitCallback(void *CallbackRef)
 	xvphy_mutex_unlock(xhdmirx->phy[0]);
 }
 
+
+/* @TODO Once this upstream V4L2 patch lands, consider VIC support: https://patchwork.linuxtv.org/patch/37137/ */
 static void RxStreamUpCallback(void *CallbackRef)
 {
 	struct xhdmirx_device *xhdmirx = (struct xhdmirx_device *)CallbackRef;
@@ -620,36 +681,125 @@ static void RxStreamUpCallback(void *CallbackRef)
 	XVidC_VideoStream *Stream;
 	BUG_ON(!xhdmirx);
 	BUG_ON(!HdmiRxSsPtr);
-	if (!xhdmirx || !HdmiRxSsPtr) return;
-	if (!HdmiRxSsPtr) return;
+	BUG_ON(!HdmiRxSsPtr->HdmiRxPtr);
+	if (!xhdmirx || !HdmiRxSsPtr || !HdmiRxSsPtr->HdmiRxPtr) return;
 	dev_info(xhdmirx->xvip.dev, "stream is up.\n");
 	Stream = &HdmiRxSsPtr->HdmiRxPtr->Stream.Video;
+#if 0
 	XVidC_ReportStreamInfo(Stream);
+#else
+	XV_HdmiRx_DebugInfo(HdmiRxSsPtr->HdmiRxPtr);
+#endif
+	/* http://lxr.free-electrons.com/source/include/uapi/linux/videodev2.h#L1229 */
 	xhdmirx->detected_format.width = Stream->Timing.HActive;
 	xhdmirx->detected_format.height = Stream->Timing.VActive;
 
 	/* @TODO correct mapping, see https://linuxtv.org/downloads/v4l-dvb-apis/field-order.html#v4l2-field */
 	xhdmirx->detected_format.field = Stream->IsInterlaced? V4L2_FIELD_INTERLACED: V4L2_FIELD_NONE;
 	/* https://linuxtv.org/downloads/v4l-dvb-apis/ch02s05.html#v4l2-colorspace */
-	xhdmirx->detected_format.colorspace = V4L2_COLORSPACE_REC709;
+	if (Stream->ColorFormatId == XVIDC_CSF_RGB)
+		xhdmirx->detected_format.colorspace = V4L2_COLORSPACE_SRGB;
+	else
+		xhdmirx->detected_format.colorspace = V4L2_COLORSPACE_REC709;
+
+	/* https://linuxtv.org/downloads/v4l-dvb-apis/subdev.html#v4l2-mbus-framefmt */
 	if (Stream->ColorFormatId == XVIDC_CSF_RGB) {
 		/* red blue green */
 		xhdmirx->detected_format.code = MEDIA_BUS_FMT_RBG888_1X24;
-		xhdmirx->detected_format.colorspace = V4L2_COLORSPACE_SRGB;
 	} else if (Stream->ColorFormatId == XVIDC_CSF_YCRCB_444) {
 		xhdmirx->detected_format.code = MEDIA_BUS_FMT_VUY8_1X24;
-		xhdmirx->detected_format.colorspace = V4L2_COLORSPACE_REC709;
 	} else if (Stream->ColorFormatId == XVIDC_CSF_YCRCB_422) {
 		xhdmirx->detected_format.code = MEDIA_BUS_FMT_UYVY8_1X16;
-		xhdmirx->detected_format.colorspace = V4L2_COLORSPACE_REC709;
 	} else if (Stream->ColorFormatId == XVIDC_CSF_YCRCB_420) {
-		xhdmirx->detected_format.colorspace = V4L2_COLORSPACE_REC709;
+		xhdmirx->detected_format.code = MEDIA_BUS_FMT_VUY8_1X24;
 	}
 
 	xhdmirx->detected_format.xfer_func = V4L2_XFER_FUNC_DEFAULT;
 	xhdmirx->detected_format.ycbcr_enc = V4L2_YCBCR_ENC_DEFAULT;
 	xhdmirx->detected_format.quantization = V4L2_QUANTIZATION_DEFAULT;
 
+#if 1
+	/* map to v4l2_dv_timings */
+	xhdmirx->detected_timings.type =  V4L2_DV_BT_656_1120;
+
+	/*
+	 * @width:      total width of the active video in pixels
+1199  * @height:     total height of the active video in lines
+1200  * @interlaced: Interlaced or progressive
+1201  * @polarities: Positive or negative polarities
+1202  * @pixelclock: Pixel clock in HZ. Ex. 74.25MHz->74250000
+1203  * @hfrontporch:Horizontal front porch in pixels
+1204  * @hsync:      Horizontal Sync length in pixels
+1205  * @hbackporch: Horizontal back porch in pixels
+1206  * @vfrontporch:Vertical front porch in lines
+1207  * @vsync:      Vertical Sync length in lines
+1208  * @vbackporch: Vertical back porch in lines
+1209  * @il_vfrontporch:Vertical front porch for the even field
+1210  *              (aka field 2) of interlaced field formats
+1211  * @il_vsync:   Vertical Sync length for the even field
+1212  *              (aka field 2) of interlaced field formats
+1213  * @il_vbackporch:Vertical back porch for the even field
+1214  *              (aka field 2) of interlaced field formats
+1215  * @standards:  Standards the timing belongs to
+1216  * @flags:      Flags
+1217  * @reserved:   Reserved fields, must be zeroed.
+*/
+
+	/* comments are from HDMI side */
+	/* Read Active Pixels */
+	xhdmirx->detected_timings.bt.width = Stream->Timing.HActive;
+	/* Active lines field 1 */
+	xhdmirx->detected_timings.bt.height = Stream->Timing.VActive;
+	/* Interlaced */
+	xhdmirx->detected_timings.bt.interlaced = !!Stream->IsInterlaced;
+	xhdmirx->detected_timings.bt.polarities =
+	/* Vsync polarity, Positive == 1 */
+		(Stream->Timing.VSyncPolarity? V4L2_DV_VSYNC_POS_POL: 0) |
+	/* Hsync polarity, Positive == 1 */
+		(Stream->Timing.HSyncPolarity? V4L2_DV_HSYNC_POS_POL: 0);
+	xhdmirx->detected_timings.bt.pixelclock =
+#if 1
+		XVidC_GetPixelClockHzByHVFr(
+			Stream->Timing.HTotal,
+			Stream->Timing.F0PVTotal,
+			Stream->FrameRate);
+#else
+		HdmiRxSsPtr->HdmiRxPtr->Stream.PixelClk;
+#endif
+	printk(KERN_INFO "HdmiRxSsPtr->HdmiRxPtr->Stream.PixelClk = %d\n", HdmiRxSsPtr->HdmiRxPtr->Stream.PixelClk);
+	/* Read HFront Porch */
+	xhdmirx->detected_timings.bt.hfrontporch = Stream->Timing.HFrontPorch;
+	/* Read Hsync Width */
+	xhdmirx->detected_timings.bt.hsync = Stream->Timing.HSyncWidth;
+	/* Read HBack Porch */
+	xhdmirx->detected_timings.bt.hbackporch = Stream->Timing.HBackPorch;
+	/* Read VFront Porch field 1*/
+	xhdmirx->detected_timings.bt.vfrontporch = Stream->Timing.F0PVFrontPorch;
+	/* Read VSync Width field 1*/
+	xhdmirx->detected_timings.bt.vsync = Stream->Timing.F0PVSyncWidth;
+	/* Read VBack Porch field 1 */
+	xhdmirx->detected_timings.bt.vbackporch = Stream->Timing.F0PVBackPorch;
+	/* Read VFront Porch field 2*/
+	xhdmirx->detected_timings.bt.il_vfrontporch = Stream->Timing.F1VFrontPorch;
+	/* Read VSync Width field 2*/
+	xhdmirx->detected_timings.bt.il_vsync = Stream->Timing.F1VSyncWidth;
+	/* Read VBack Porch field 2 */
+	xhdmirx->detected_timings.bt.il_vbackporch = Stream->Timing.F1VBackPorch;
+	xhdmirx->detected_timings.bt.standards = V4L2_DV_BT_STD_CEA861;
+	xhdmirx->detected_timings.bt.flags = V4L2_DV_FL_IS_CE_VIDEO;
+
+	/* Read Total Pixels */
+	(void)Stream->Timing.HTotal;
+	/* Total lines field 1 */
+	(void)Stream->Timing.F0PVTotal;
+	/* Total lines field 2 */
+	(void)Stream->Timing.F1VTotal;
+
+	// Calculate and set the frame rate field
+	(void)Stream->FrameRate;
+	// Lookup the video mode id (Xilinx), XVIDC_VM_CUSTOM
+	(void)Stream->VmId;
+#else
 	/* format detection is only minimally supported */
 	if (Stream->Timing.VActive == 720) {
 		xhdmirx->detected_timings = supported_timings[0];
@@ -659,7 +809,9 @@ static void RxStreamUpCallback(void *CallbackRef)
 	} else /*if (Stream->Timing.VActive == 2160)*/ {
 		xhdmirx->detected_timings = supported_timings[2];
 	}
+#endif
 	xhdmirx->hdmi_stream = 1;
+	v4l2_print_dv_timings("xilinx-hdmi-rx", "", & xhdmirx->detected_timings, 1);
 }
 
 /* Called from non-interrupt context with xvphy mutex locked
@@ -858,6 +1010,9 @@ static int xhdmirx_probe(struct platform_device *pdev)
 	struct xhdmirx_device *xhdmirx;
 	int ret;
 	unsigned int index;
+
+	const struct firmware *fw_edid;
+	const char *fw_edid_name = "xilinx/xilinx-hdmi-rx-edid.bin";
 	unsigned long flags;
 
 	XV_HdmiRxSs *HdmiRxSsPtr;
@@ -891,6 +1046,8 @@ static int xhdmirx_probe(struct platform_device *pdev)
 	}
 
 	/* @TODO compiler issue, or am I just staring blind? if change to "index < 3", the case for index == 3 is also run.
+	 * Possibly a compiler issue with aggressive loop unrolling optimization.
+	 * We only need to "init" one vphy lane, as the VPHY will initialize all other lanes, so this is not an issue now.
 	 * -- Leon Woestenberg <leon@sidebranch.com>
 	 */
 	for (index = 0; index < 2; index++) {
@@ -922,7 +1079,30 @@ static int xhdmirx_probe(struct platform_device *pdev)
 	/* initialize the source configuration structure */
 	hdmirx_config_init(&config, xhdmirx->xvip.iomem);
 
-	XV_HdmiRxSs_SetEdidParam(HdmiRxSsPtr, (u8 *)&xilinx_edid, sizeof(xilinx_edid));
+	if (request_firmware(&fw_edid, fw_edid_name, xhdmirx->xvip.dev) == 0) {
+		int blocks = fw_edid->size / 128;
+		if ((blocks == 0) || (blocks > EDID_BLOCKS_MAX) || (fw_edid->size % 128)) {
+			dev_info(xhdmirx->xvip.dev, "%s must be n * 128 bytes, with 1 <= n <= %d, using Xilinx built-in EDID instead.\n",
+				fw_edid_name, EDID_BLOCKS_MAX);
+		} else {
+			memcpy(xhdmirx->edid_user, fw_edid->data, 128 * blocks);
+			xhdmirx->edid_user_blocks = blocks;
+		}
+	}
+#if 0 /* kernel already prints something similar */
+	else {
+		dev_info(xhdmirx->xvip.dev, "%s EDID firmware could not be loaded, using Xilinx built-in EDID.\n", fw_edid_name);
+	}
+#endif
+	release_firmware(fw_edid);
+	if (xhdmirx->edid_user_blocks) {
+		dev_info(xhdmirx->xvip.dev, "Using %d EDID block%s (%d bytes) from '%s'.\n",
+			xhdmirx->edid_user_blocks, xhdmirx->edid_user_blocks > 1? "s":"", 128 * xhdmirx->edid_user_blocks, fw_edid_name);
+		XV_HdmiRxSs_SetEdidParam(HdmiRxSsPtr, (u8 *)&xhdmirx->edid_user, 128 * xhdmirx->edid_user_blocks);
+	} else {
+		dev_info(xhdmirx->xvip.dev, "Using Xilinx built-in EDID.\n");
+		XV_HdmiRxSs_SetEdidParam(HdmiRxSsPtr, (u8 *)&xilinx_edid, sizeof(xilinx_edid));
+	}
 
 	// Initialize top level and all included sub-cores
 	Status = XV_HdmiRxSs_CfgInitialize(HdmiRxSsPtr, &config,
