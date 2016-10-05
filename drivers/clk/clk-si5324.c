@@ -116,6 +116,9 @@ static inline u8 si5324_reg_read(struct si5324_driver_data *drvdata, u8 reg)
 		dev_err(&drvdata->client->dev,
 			"unable to read from reg%02x\n", reg);
 		return 0;
+	} else {
+		dev_info(&drvdata->client->dev, "Read value 0x%02x from reg0x@%02x\n",
+			(int)val, (int)reg);
 	}
 
 	return (u8)val;
@@ -130,6 +133,8 @@ static inline int si5324_bulk_read(struct si5324_driver_data *drvdata,
 static inline int si5324_reg_write(struct si5324_driver_data *drvdata,
 				   u8 reg, u8 val)
 {
+	dev_info(&drvdata->client->dev, "si5324_reg_write() 0x%02x @0x%02x\n", (int)val, (int)reg);
+
 	return regmap_write(drvdata->regmap, reg, val);
 }
 
@@ -410,31 +415,7 @@ static const struct clk_ops si5324_clkin_ops = {
 	.recalc_rate = si5324_clkin_recalc_rate,
 };
 
-/*
- * Si5324 pll a/b
- *
- * Feedback Multisynth Divider Equations [2]
- *
- * fVCO = fIN * (a + b/c)
- *
- * with 15 + 0/1048575 <= (a + b/c) <= 90 + 0/1048575 and
- * fIN = fXTAL or fIN = fCLKIN/CLKIN_DIV
- *
- * Feedback Multisynth Register Equations
- *
- * (1) MSNx_P1[17:0] = 128 * a + floor(128 * b/c) - 512
- * (2) MSNx_P2[19:0] = 128 * b - c * floor(128 * b/c) = (128*b) mod c
- * (3) MSNx_P3[19:0] = c
- *
- * Transposing (2) yields: (4) floor(128 * b/c) = (128 * b / MSNx_P2)/c
- *
- * Using (4) on (1) yields:
- * MSNx_P1 = 128 * a + (128 * b/MSNx_P2)/c - 512
- * MSNx_P1 + 512 + MSNx_P2/c = 128 * a + 128 * b/c
- *
- * a + b/c = (MSNx_P1 + MSNx_P2/MSNx_P3 + 512)/128
- *         = (MSNx_P1*MSNx_P3 + MSNx_P2 + 512*MSNx_P3)/(128*MSNx_P3)
- *
+/* Select other clock input to the PLL
  */
 static int _si5324_pll_reparent(struct si5324_driver_data *drvdata,
 				int num, enum si5324_pll_src parent)
