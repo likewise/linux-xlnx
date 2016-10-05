@@ -54,14 +54,20 @@ struct xhdmirx_device {
 	/* protects concurrent access from interrupt context */
 	spinlock_t irq_lock;
 
+	/* schedule (future) work */
+	struct workqueue_struct *work_queue;
+	struct delayed_work delayed_work_enable_hotplug;
+
+	/* V4L media output pad to construct the video pipeline */
 	struct media_pad pad;
 
 	/* https://linuxtv.org/downloads/v4l-dvb-apis/subdev.html#v4l2-mbus-framefmt */
 	struct v4l2_mbus_framefmt detected_format;
 
 	struct v4l2_dv_timings detected_timings;
-
+#if 0
 	struct v4l2_mbus_framefmt default_format;
+#endif
 	const struct xvip_video_format *vip_format;
 
 	struct v4l2_ctrl_handler ctrl_handler;
@@ -203,6 +209,25 @@ static int xhdmirx_get_edid(struct v4l2_subdev *subdev, struct v4l2_edid *edid) 
 	return 0;
 }
 
+static void xhdmirx_set_hpd(struct xhdmirx_device *xhdmirx, int enable)
+{
+	BUG_ON(!xhdmirx);
+	XV_HdmiRxSs *HdmiRxSsPtr = &xhdmirx->xv_hdmirxss;
+	XV_HdmiRx_SetHpd(HdmiRxSsPtr->HdmiRxPtr, enable);
+}
+
+static void xhdmirx_delayed_work_enable_hotplug(struct work_struct *work)
+{
+	struct delayed_work *dwork = to_delayed_work(work);
+	struct xhdmirx_device *xhdmirx = container_of(dwork, struct xhdmirx_device,
+						delayed_work_enable_hotplug);
+#if 0
+	struct v4l2_subdev *subdev = &xhdmirx->subdev;
+	v4l2_dbg(2, debug, subdev, "%s: enable hotplug\n", __func__);
+#endif
+	xhdmirx_set_hpd(xhdmirx, 1 /*xhdmirx->edid.present*/);
+}
+
 static int xhdmirx_set_edid(struct v4l2_subdev *subdev, struct v4l2_edid *edid) {
 	struct xhdmirx_device *xhdmirx = to_xhdmirx(subdev);
 	XV_HdmiRxSs *HdmiRxSsPtr = &xhdmirx->xv_hdmirxss;
@@ -216,11 +241,19 @@ static int xhdmirx_set_edid(struct v4l2_subdev *subdev, struct v4l2_edid *edid) 
 		return -E2BIG;
 	}
 	mutex_lock(&xhdmirx->xhdmirx_mutex);
-	memcpy(xhdmirx->edid_user, edid->edid, 128 * edid->blocks);
 	xhdmirx->edid_user_blocks = edid->blocks;
+
+	/* Disable hotplug and I2C access to EDID RAM from DDC port */
+	cancel_delayed_work_sync(&xhdmirx->delayed_work_enable_hotplug);
+	xhdmirx_set_hpd(xhdmirx, 0);
+
 	if (edid->blocks) {
-		XV_HdmiRxSs_SetEdidParam(HdmiRxSsPtr, (u8 *)&xhdmirx->edid_user, 128 * xhdmirx->edid_user_blocks);
-	}
+		memcpy(xhdmirx->edid_user, edid->edid, 128 * edid->blocks);
+		XV_HdmiRxSs_LoadEdid(HdmiRxSsPtr, (u8 *)&xhdmirx->edid_user, 128 * xhdmirx->edid_user_blocks);
+		/* enable hotplug after 100 ms */
+		queue_delayed_work(xhdmirx->work_queue,
+				&xhdmirx->delayed_work_enable_hotplug, HZ / 10);
+		}
 	mutex_unlock(&xhdmirx->xhdmirx_mutex);
 	return 0;
 }
@@ -282,10 +315,10 @@ static int xhdmirx_dv_timings_cap(struct v4l2_subdev *subdev,
 	*cap = xhdmirx_timings_cap;
 #else
 	cap->type = V4L2_DV_BT_656_1120;
-	cap->bt.max_width = 3840;
+	cap->bt.max_width = 4096;
 	cap->bt.max_height = 2160;
 	cap->bt.min_pixelclock = 25000000;
-	cap->bt.max_pixelclock = 225000000;
+	cap->bt.max_pixelclock = 297000000;
 	cap->bt.standards = V4L2_DV_BT_STD_CEA861 | V4L2_DV_BT_STD_DMT |
 			 V4L2_DV_BT_STD_GTF | V4L2_DV_BT_STD_CVT;
 	cap->bt.capabilities = V4L2_DV_BT_CAP_PROGRESSIVE |
@@ -294,12 +327,14 @@ static int xhdmirx_dv_timings_cap(struct v4l2_subdev *subdev,
 	return 0;
 }
 
+#if 0 /* replaced by full timing - might be needed again later for VIC mapping */
 /* Supported CEA and DMT timings */
 static const struct v4l2_dv_timings supported_timings[] = {
 	V4L2_DV_BT_CEA_1280X720P50,
 	V4L2_DV_BT_CEA_1920X1080P50,
 	V4L2_DV_BT_CEA_3840X2160P50,
 };
+#endif
 
 static int xhdmirx_query_dv_timings(struct v4l2_subdev *subdev,
 			struct v4l2_dv_timings *timings)
@@ -369,9 +404,9 @@ static struct v4l2_subdev_pad_ops xhdmirx_pad_ops = {
 	.enum_frame_size	= xhdmirx_enum_frame_size,
 	.get_fmt			= xhdmirx_get_format,
 	.set_fmt			= xhdmirx_set_format,
-#if 0 /* @TODO work-in-progress */
 	.get_edid			= xhdmirx_get_edid,
 	.set_edid			= xhdmirx_set_edid,
+#if 0 /* @TODO not sure if we need this */
 	.enum_dv_timings	= xhdmirx_enum_dv_timings,
 #endif
 	.dv_timings_cap		= xhdmirx_dv_timings_cap,
@@ -703,6 +738,7 @@ static void RxStreamUpCallback(void *CallbackRef)
 		xhdmirx->detected_format.colorspace = V4L2_COLORSPACE_REC709;
 
 	/* https://linuxtv.org/downloads/v4l-dvb-apis/subdev.html#v4l2-mbus-framefmt */
+	/* see UG934 page 8 */
 	if (Stream->ColorFormatId == XVIDC_CSF_RGB) {
 		/* red blue green */
 		xhdmirx->detected_format.code = MEDIA_BUS_FMT_RBG888_1X24;
@@ -711,41 +747,17 @@ static void RxStreamUpCallback(void *CallbackRef)
 	} else if (Stream->ColorFormatId == XVIDC_CSF_YCRCB_422) {
 		xhdmirx->detected_format.code = MEDIA_BUS_FMT_UYVY8_1X16;
 	} else if (Stream->ColorFormatId == XVIDC_CSF_YCRCB_420) {
-		xhdmirx->detected_format.code = MEDIA_BUS_FMT_VUY8_1X24;
+		/* similar mapping as 4:2:2 w/ omitted chroma every other line */
+		xhdmirx->detected_format.code = MEDIA_BUS_FMT_UYVY8_1X16;
 	}
 
 	xhdmirx->detected_format.xfer_func = V4L2_XFER_FUNC_DEFAULT;
 	xhdmirx->detected_format.ycbcr_enc = V4L2_YCBCR_ENC_DEFAULT;
 	xhdmirx->detected_format.quantization = V4L2_QUANTIZATION_DEFAULT;
 
-#if 1
 	/* map to v4l2_dv_timings */
 	xhdmirx->detected_timings.type =  V4L2_DV_BT_656_1120;
 
-	/*
-	 * @width:      total width of the active video in pixels
-1199  * @height:     total height of the active video in lines
-1200  * @interlaced: Interlaced or progressive
-1201  * @polarities: Positive or negative polarities
-1202  * @pixelclock: Pixel clock in HZ. Ex. 74.25MHz->74250000
-1203  * @hfrontporch:Horizontal front porch in pixels
-1204  * @hsync:      Horizontal Sync length in pixels
-1205  * @hbackporch: Horizontal back porch in pixels
-1206  * @vfrontporch:Vertical front porch in lines
-1207  * @vsync:      Vertical Sync length in lines
-1208  * @vbackporch: Vertical back porch in lines
-1209  * @il_vfrontporch:Vertical front porch for the even field
-1210  *              (aka field 2) of interlaced field formats
-1211  * @il_vsync:   Vertical Sync length for the even field
-1212  *              (aka field 2) of interlaced field formats
-1213  * @il_vbackporch:Vertical back porch for the even field
-1214  *              (aka field 2) of interlaced field formats
-1215  * @standards:  Standards the timing belongs to
-1216  * @flags:      Flags
-1217  * @reserved:   Reserved fields, must be zeroed.
-*/
-
-	/* comments are from HDMI side */
 	/* Read Active Pixels */
 	xhdmirx->detected_timings.bt.width = Stream->Timing.HActive;
 	/* Active lines field 1 */
@@ -799,17 +811,7 @@ static void RxStreamUpCallback(void *CallbackRef)
 	(void)Stream->FrameRate;
 	// Lookup the video mode id (Xilinx), XVIDC_VM_CUSTOM
 	(void)Stream->VmId;
-#else
-	/* format detection is only minimally supported */
-	if (Stream->Timing.VActive == 720) {
-		xhdmirx->detected_timings = supported_timings[0];
-	} else if (Stream->Timing.VActive == 1080) {
-		xhdmirx->detected_timings = supported_timings[1];
-	/* currently assuming 2160p */
-	} else /*if (Stream->Timing.VActive == 2160)*/ {
-		xhdmirx->detected_timings = supported_timings[2];
-	}
-#endif
+
 	xhdmirx->hdmi_stream = 1;
 	v4l2_print_dv_timings("xilinx-hdmi-rx", "", & xhdmirx->detected_timings, 1);
 }
@@ -1028,6 +1030,15 @@ static int xhdmirx_probe(struct platform_device *pdev)
 	/* mutex that protects against concurrent access */
 	mutex_init(&xhdmirx->xhdmirx_mutex);
 	spin_lock_init(&xhdmirx->irq_lock);
+	/* work queues */
+	xhdmirx->work_queue = create_singlethread_workqueue("xilinx-hdmi-rx");
+	if (!xhdmirx->work_queue) {
+		dev_info(xhdmirx->xvip.dev, "Could not create work queue\n");
+		return -ENOMEM;
+	}
+
+	INIT_DELAYED_WORK(&xhdmirx->delayed_work_enable_hotplug,
+		xhdmirx_delayed_work_enable_hotplug);
 
 	/* parse open firmware device tree data */
 	ret = xhdmirx_parse_of(xhdmirx, &config);
@@ -1079,6 +1090,9 @@ static int xhdmirx_probe(struct platform_device *pdev)
 	/* initialize the source configuration structure */
 	hdmirx_config_init(&config, xhdmirx->xvip.iomem);
 
+	/* sets pointer to the EDID used by XV_HdmiRxSs_LoadDefaultEdid() */
+	XV_HdmiRxSs_SetEdidParam(HdmiRxSsPtr, (u8 *)&xilinx_edid, sizeof(xilinx_edid));
+
 	if (request_firmware(&fw_edid, fw_edid_name, xhdmirx->xvip.dev) == 0) {
 		int blocks = fw_edid->size / 128;
 		if ((blocks == 0) || (blocks > EDID_BLOCKS_MAX) || (fw_edid->size % 128)) {
@@ -1098,10 +1112,10 @@ static int xhdmirx_probe(struct platform_device *pdev)
 	if (xhdmirx->edid_user_blocks) {
 		dev_info(xhdmirx->xvip.dev, "Using %d EDID block%s (%d bytes) from '%s'.\n",
 			xhdmirx->edid_user_blocks, xhdmirx->edid_user_blocks > 1? "s":"", 128 * xhdmirx->edid_user_blocks, fw_edid_name);
-		XV_HdmiRxSs_SetEdidParam(HdmiRxSsPtr, (u8 *)&xhdmirx->edid_user, 128 * xhdmirx->edid_user_blocks);
+		XV_HdmiRxSs_LoadEdid(HdmiRxSsPtr, (u8 *)&xhdmirx->edid_user, 128 * xhdmirx->edid_user_blocks);
 	} else {
 		dev_info(xhdmirx->xvip.dev, "Using Xilinx built-in EDID.\n");
-		XV_HdmiRxSs_SetEdidParam(HdmiRxSsPtr, (u8 *)&xilinx_edid, sizeof(xilinx_edid));
+		XV_HdmiRxSs_LoadDefaultEdid(HdmiRxSsPtr);
 	}
 
 	// Initialize top level and all included sub-cores
@@ -1248,6 +1262,8 @@ static int xhdmirx_remove(struct platform_device *pdev)
 	xhdmirx->teardown = 1;
 	spin_unlock_irqrestore(&xhdmirx->irq_lock, flags);
 
+	cancel_delayed_work(&xhdmirx->delayed_work_enable_hotplug);
+	destroy_workqueue(xhdmirx->work_queue);
 #if 0 // @TODO mutex can not be acquired
 	mutex_lock(&xhdmirx->xhdmirx_mutex);
 #endif
