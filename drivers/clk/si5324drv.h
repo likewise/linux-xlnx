@@ -109,19 +109,34 @@
 
 typedef struct {
     // Current Si5342 parameters
-    u32 n1_min;
-    u32 n1_max;
+
+    /* high-speed output divider */
+    u32 n1_hs_min;
+    u32 n1_hs_max;
     u32 n1_hs;
-    u32 nc_ls_min;
-    u32 nc_ls_max;
-    u32 nc_ls;
+
+    /* low-speed output divider for clkout1 */
+    u32 nc1_ls_min;
+    u32 nc1_ls_max;
+    u32 nc1_ls;
+
+    /* low-speed output divider for clkout2 */
+    u32 nc2_ls_min;
+    u32 nc2_ls_max;
+    u32 nc2_ls;
+
+    /* high-speed feedback divider (PLL multiplier) */
     u32 n2_hs;
+    /* low-speed feedback divider (PLL multiplier) */
     u32 n2_ls_min;
     u32 n2_ls_max;
     u32 n2_ls;
-    u32 n3_min;
-    u32 n3_max;
-    u32 n3;
+
+    /* input divider for clk1 */
+    u32 n31_min;
+    u32 n31_max;
+    u32 n31;
+
     // Current frequencies (fixed point 36.28 notation)
     u64 fin;
     u64 fout;
@@ -130,7 +145,7 @@ typedef struct {
     u64 best_delta_fout;
     u64 best_fout;
     u32 best_n1_hs;
-    u32 best_nc_ls;
+    u32 best_nc1_ls;
     u32 best_n2_hs;
     u32 best_n2_ls;
     u32 best_n3;

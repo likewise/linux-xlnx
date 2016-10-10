@@ -6,6 +6,7 @@
  * References:
  * [1] "Si5324 Data Sheet"
  *     https://www.silabs.com/Support%20Documents/TechnicalDocs/Si5324.pdf
+ * [2] http://www.silabs.com/Support%20Documents/TechnicalDocs/Si53xxReferenceManual.pdf
  *
  * This program is free software; you can redistribute  it and/or modify it
  * under  the terms of  the GNU General  Public License as published by the
@@ -36,19 +37,39 @@ struct si5324_driver_data;
 
 struct si5324_parameters {
 	// Current Si5342 parameters
-	u32 n1_min;
-	u32 n1_max;
+
+	/* high-speed output divider */
+	u32 n1_hs_min;
+	u32 n1_hs_max;
 	u32 n1_hs;
-	u32 nc_ls_min;
-	u32 nc_ls_max;
-	u32 nc_ls;
+
+	/* low-speed output divider for clkout1 */
+	u32 nc1_ls_min;
+	u32 nc1_ls_max;
+	u32 nc1_ls;
+
+	/* low-speed output divider for clkout2 */
+	u32 nc2_ls_min;
+	u32 nc2_ls_max;
+	u32 nc2_ls;
+
+	/* high-speed feedback divider (PLL multiplier) */
 	u32 n2_hs;
+	/* low-speed feedback divider (PLL multiplier) */
 	u32 n2_ls_min;
 	u32 n2_ls_max;
 	u32 n2_ls;
-	u32 n3_min;
-	u32 n3_max;
-	u32 n3;
+
+	/* input divider for clk1 */
+	u32 n31_min;
+	u32 n31_max;
+	u32 n31;
+
+	/* input divider for clk1 */
+	u32 n32_min;
+	u32 n32_max;
+	u32 n32;
+
 	// Current frequencies (fixed point 36.28 notation)
 	u64 fin;
 	u64 fout;
@@ -57,7 +78,7 @@ struct si5324_parameters {
 	u64 best_delta_fout;
 	u64 best_fout;
 	u32 best_n1_hs;
-	u32 best_nc_ls;
+	u32 best_nc1_ls;
 	u32 best_n2_hs;
 	u32 best_n2_ls;
 	u32 best_n3;
@@ -155,9 +176,12 @@ static inline int si5324_bulk_scatter_write(struct si5324_driver_data *drvdata,
 					u8 count/*number of reg/val pairs*/, const u8 *buf)
 {
 	int i;
+	int result = 0;
 	for (i = 0; i < count; i++) {
-		si5324_reg_write(drvdata, buf[i * 2]/*reg*/, buf[i * 2 + 1]/*val*/);
+		result = si5324_reg_write(drvdata, buf[i * 2]/*reg*/, buf[i * 2 + 1]/*val*/);
+		if (result) return result;
 	}
+	return result;
 }
 
 static void si5324_initialize(struct si5324_driver_data *drvdata)
@@ -195,95 +219,165 @@ static void si5324_initialize(struct si5324_driver_data *drvdata)
 	si5324_reg_write(drvdata, 137, 0x01);   // FASTLOCK=1 (enable fast locking)
 }
 
-#define SI5324_PARAMETERS_LENGTH		30
+#define SI5324_PARAMETERS_REG		25
+#define SI5324_PARAMETERS_LENGTH		24
+
+/*
+ *  0 25 N1_HS[2:0]
+ *  6 31 NC1_LS[19:16]
+ *  7 32 NC1_LS[15:8]
+ *  8 33 NC1_LS[7:0]
+ *  9 34 NC2_LS[19:16]
+ * 10 35 NC2_LS[15:8]
+ * 11 36 NC2_LS[7:0]
+ * 15 40 N2_HS[2:0] N2_LS[19:16]
+ * 16 41 N2_LS[15:8]
+ * 17 42 N2_LS[7:0]
+ * 18 43 N31[18:16]
+ * 19 44 N31[15:8]
+ * 20 45 N31[7:0]
+ * 21 46 N32[18:16]
+ * 22 47 N32[15:8]
+ * 23 48 N32[7:0]
+ */
 
 static void si5324_read_parameters(struct si5324_driver_data *drvdata,
 				   u8 reg, struct si5324_parameters *params)
 {
-#if 0
 	u8 buf[SI5324_PARAMETERS_LENGTH];
 
-	switch (reg) {
-	case SI5324_CLK6_PARAMETERS:
-	case SI5324_CLK7_PARAMETERS:
-		buf[0] = si5324_reg_read(drvdata, reg);
-		params->p1 = buf[0];
-		params->p2 = 0;
-		params->p3 = 1;
-		break;
-	default:
-		si5324_bulk_read(drvdata, reg, SI5324_PARAMETERS_LENGTH, buf);
-		params->p1 = ((buf[2] & 0x03) << 16) | (buf[3] << 8) | buf[4];
-		params->p2 = ((buf[5] & 0x0f) << 16) | (buf[6] << 8) | buf[7];
-		params->p3 = ((buf[5] & 0xf0) << 12) | (buf[0] << 8) | buf[1];
-	}
-#endif
+	si5324_bulk_read(drvdata, 25, 1, &buf[0]);
+	si5324_bulk_read(drvdata, 31, 6, &buf[6]);
+	si5324_bulk_read(drvdata, 40, 9, &buf[15]);
+
+	/* high-speed output divider */
+	params->n1_hs = (buf[0] >> 5);
+	params->n1_hs += 4;
+	printk(KERN_INFO "N1_HS = %u\n", params->n1_hs);
+	/* low-speed output divider for clkout1 */
+	params->nc1_ls = ((buf[6] & 0x0f) << 16) | (buf[ 7] << 8) | buf[ 8];
+	params->nc1_ls += 1;
+	printk(KERN_INFO "NC1_LS = %u\n", params->nc1_ls);
+	/* low-speed output divider for clkout2 */
+	params->nc2_ls = ((buf[9] & 0x0f) << 16) | (buf[10] << 8) | buf[11];
+	params->nc2_ls += 1;
+	printk(KERN_INFO "NC2_LS = %u\n", params->nc2_ls);
+	/* low-speed feedback divider (PLL multiplier) */
+	params->n2_ls = ((buf[15] & 0x0f) << 16) | (buf[16] << 8) | buf[17];
+	params->n2_ls += 1;
+	printk(KERN_INFO "N2_LS = %u\n", params->n2_ls);
+	/* high-speed feedback divider (PLL multiplier) */
+	params->n2_hs = buf[15] >> 5;
+	params->n2_hs += 4;
+	printk(KERN_INFO "N2_HS = %u\n", params->n2_hs);
+	/* input divider for clk1 */
+	params->n31 = ((buf[18] & 0x0f) << 16) | (buf[19] << 8) | buf[20];
+	params->n31 += 1;
+	printk(KERN_INFO "N31 = %u\n", params->n31);
+	/* input divider for clk2 */
+	params->n32 = ((buf[21] & 0x0f) << 16) | (buf[22] << 8) | buf[23];
+	params->n32 += 1;
+	printk(KERN_INFO "N32 = %u\n", params->n32);
 	params->valid = 1;
 }
 
 static void si5324_write_parameters(struct si5324_driver_data *drvdata,
 				    u8 reg, struct si5324_parameters *params)
 {
-#if 0
 	u8 buf[SI5324_PARAMETERS_LENGTH];
-	switch (reg) {
-	case SI5324_CLK6_PARAMETERS:
-	case SI5324_CLK7_PARAMETERS:
-		buf[0] = params->p1 & 0xff;
-		si5324_reg_write(drvdata, reg, buf[0]);
-		break;
-	default:
-		buf[0] = ((params->p3 & 0x0ff00) >> 8) & 0xff;
-		buf[1] = params->p3 & 0xff;
-		/* save rdiv and divby4 */
-		buf[2] = si5324_reg_read(drvdata, reg + 2) & ~0x03;
-		buf[2] |= ((params->p1 & 0x30000) >> 16) & 0x03;
-		buf[3] = ((params->p1 & 0x0ff00) >> 8) & 0xff;
-		buf[4] = params->p1 & 0xff;
-		buf[5] = ((params->p3 & 0xf0000) >> 12) |
-			((params->p2 & 0xf0000) >> 16);
-		buf[6] = ((params->p2 & 0x0ff00) >> 8) & 0xff;
-		buf[7] = params->p2 & 0xff;
-		si5324_bulk_write(drvdata, reg, SI5324_PARAMETERS_LENGTH, buf);
-	}
-#endif
+	u32 reg_val;
+	/* high-speed output divider */
+	reg_val = params->n1_hs - 4;
+	buf[0] = reg_val << 5;
+	/* low-speed output divider for clkout1 */
+	reg_val = params->nc1_ls - 1;
+	buf[6] = (reg_val >> 16) & 0x0f;
+	buf[7] = (reg_val >> 8) & 0xff;
+	buf[8] = reg_val & 0xff;
+	/* low-speed output divider for clkout2 */
+	reg_val = params->nc2_ls;
+	buf[ 9] = (reg_val >> 16) & 0x0f;
+	buf[10] = (reg_val >> 8) & 0xff;
+	buf[11] = reg_val & 0xff;
+	/* low-speed feedback divider (PLL multiplier) */
+	reg_val = params->n2_ls + 1;
+	buf[15] = (reg_val >> 16) & 0x0f;
+	buf[16] = (reg_val >> 8) & 0xff;
+	buf[17] = reg_val & 0xff;
+	/* high-speed feedback divider (PLL multiplier) */
+	reg_val = params->n2_hs - 4;
+	buf[15] |= reg_val << 5;
+	/* input divider for clk1 */
+	reg_val = params->n31;
+	buf[18] = (reg_val >> 16) & 0x0f;
+	buf[19] = (reg_val >> 8) & 0xff;
+	buf[20] = reg_val & 0xff;
+	/* input divider for clk2 */
+	reg_val = params->n31;
+	buf[21] = (reg_val >> 16) & 0x0f;
+	buf[22] = (reg_val >> 8) & 0xff;
+	buf[23] = reg_val & 0xff;
+	si5324_bulk_write(drvdata, 25, 1, &buf[0]);
+	si5324_bulk_write(drvdata, 31, 6, &buf[6]);
+	si5324_bulk_write(drvdata, 40, 9, &buf[15]);
+
 }
 
 static bool si5324_regmap_is_volatile(struct device *dev, unsigned int reg)
 {
-#if 0
-	switch (reg) {
-	case SI5324_INTERRUPT_STATUS:
-	case SI5324_PLL_RESET:
-		return true;
-	}
-#endif
+
 	return false;
+}
+
+static bool si5324_regmap_is_readable(struct device *dev, unsigned int reg)
+{
+	bool result = true;
+	/* reserved registers */
+	if (reg >= 12 && reg <= 18)
+		result =  false;
+	else if (reg >= 26 && reg <= 30)
+		result =  false;
+	else if (reg >= 37 && reg <= 39)
+		result =  false;
+	else if (reg >= 49 && reg <= 54)
+		result =  false;
+	else if (reg >= 56 && reg <= 127)
+		result =  false;
+	else if (reg >= 144)
+		result =  false;
+#if 0
+	printk(KERN_INFO "si5324_regmap_is_readable(reg0x%02x) = %u\n", reg, result);
+#endif
+	return result;
 }
 
 static bool si5324_regmap_is_writeable(struct device *dev, unsigned int reg)
 {
+	bool result = true;
 	/* reserved registers */
 	if (reg >= 12 && reg <= 18)
-		return false;
-	if (reg >= 26 && reg <= 30)
-		return false;
-	if (reg >= 37 && reg <= 39)
-		return false;
-	if (reg >= 49 && reg <= 54)
-		return false;
-	if (reg >= 56 && reg <= 127)
-		return false;
-	if (reg >= 144)
-		return false;
+		result =  false;
+	else if (reg >= 26 && reg <= 30)
+		result =  false;
+	else if (reg >= 37 && reg <= 39)
+		result =  false;
+	else if (reg >= 49 && reg <= 54)
+		result =  false;
+	else if (reg >= 56 && reg <= 127)
+		result =  false;
+	else if (reg >= 144)
+		result =  false;
 	/* read-only */
-	if (reg >= 128 && reg <= 130)
-		return false;
-	if (reg >= 134 && reg <= 135)
-		return false;
-	if (reg == 137)
-		return false;
-	return true;
+	else if (reg >= 128 && reg <= 130)
+		result =  false;
+	else if (reg >= 134 && reg <= 135)
+		result =  false;
+	else if (reg == 137)
+		result =  false;
+#if 0
+	printk(KERN_INFO "si5324_regmap_is_writeable(reg0x%02x) = %u\n", reg, result);
+#endif
+	return result;
 }
 
 static const struct regmap_config si5324_regmap_config = {
@@ -292,6 +386,7 @@ static const struct regmap_config si5324_regmap_config = {
 	.cache_type = REGCACHE_RBTREE,
 	.max_register = 144,
 	.writeable_reg = si5324_regmap_is_writeable,
+	.readable_reg = si5324_regmap_is_readable,
 	.volatile_reg = si5324_regmap_is_volatile,
 };
 
@@ -302,6 +397,7 @@ static int si5324_xtal_prepare(struct clk_hw *hw)
 {
 	struct si5324_driver_data *drvdata =
 		container_of(hw, struct si5324_driver_data, xtal);
+	printk(KERN_INFO "si5324_xtal_prepare\n");
 	/* enable free-run */
 	si5324_set_bits(drvdata, SI5324_REG0,
 			SI5324_REG0_FREE_RUN, SI5324_REG0_FREE_RUN);
@@ -315,6 +411,7 @@ static void si5324_xtal_unprepare(struct clk_hw *hw)
 {
 	struct si5324_driver_data *drvdata =
 		container_of(hw, struct si5324_driver_data, xtal);
+	printk(KERN_INFO "si5324_xtal_unprepare\n");
 }
 
 static const struct clk_ops si5324_xtal_ops = {
@@ -330,16 +427,17 @@ static int si5324_clkin_prepare(struct clk_hw *hw)
 	struct si5324_driver_data *drvdata;
 	struct si5324_hw_data *hwdata =
 		container_of(hw, struct si5324_hw_data, hw);
+	printk(KERN_INFO "si5324_clkin_prepare() for hwdata->num = %d\n", hwdata->num);
 
 	/* clkin1? */
-	if (hwdata->num == 0) {
+	if (hwdata->num == 0/*@TODO: verify if this should be 1*/) {
 		drvdata = container_of(hw, struct si5324_driver_data, clkin1);
 		/* disable free-run */
 		si5324_set_bits(drvdata, SI5324_REG0, SI5324_REG0_FREE_RUN, 0);
 		/* clkin1 powered, clkin2 powered-down*/
 		si5324_set_bits(drvdata, SI5324_POWERDOWN,
 			SI5324_PD_CK1 || SI5324_PD_CK2, SI5324_PD_CK2);
-	} else if (hwdata->num == 1) {
+	} else if (hwdata->num == 1/*@TODO: verify if this should be 2*/) {
 		drvdata = container_of(hw, struct si5324_driver_data, clkin2);
 		/* disable free-run */
 		si5324_set_bits(drvdata, SI5324_REG0, SI5324_REG0_FREE_RUN, 0);
@@ -356,18 +454,20 @@ static void si5324_clkin_unprepare(struct clk_hw *hw)
 	struct si5324_driver_data *drvdata;
 	struct si5324_hw_data *hwdata =
 		container_of(hw, struct si5324_hw_data, hw);
-	if (hwdata->num == 0) {
+	printk(KERN_INFO "si5324_clkin_unprepare\n");
+	if (hwdata->num == 0/*@TODO:1?*/) {
 		drvdata = container_of(hw, struct si5324_driver_data, clkin1);
-	} else if (hwdata->num == 1) {
+	} else if (hwdata->num == 1/*@TODO:2?*/) {
 		drvdata = container_of(hw, struct si5324_driver_data, clkin2);
 	} else {
 	}
 }
 
 /*
- * CMOS clock source constraints:
- * The input frequency range of the PLL is 10Mhz to 40MHz.
- * If CLKIN is >40MHz, the input divider must be used.
+ * @recalc_rate	Recalculate the rate of this clock, by querying hardware. The
+ *		parent rate is an input parameter.  It is up to the caller to
+ *		ensure that the prepare_mutex is held across this call.
+ *		Returns the calculated rate.
  */
 static unsigned long si5324_clkin_recalc_rate(struct clk_hw *hw,
 					unsigned long parent_rate)
@@ -377,35 +477,36 @@ static unsigned long si5324_clkin_recalc_rate(struct clk_hw *hw,
 	unsigned char idiv;
 	struct si5324_hw_data *hwdata =
 		container_of(hw, struct si5324_hw_data, hw);
-	(void)rate;
-	(void)idiv;
+	idiv = 1;
+
 	if (hwdata->num == 0) {
-		drvdata = container_of(hw, struct si5324_driver_data, clkin1);
+		drvdata = container_of(hw, struct si5324_driver_data, xtal);
+		printk(KERN_INFO "si5324_clkin_recalc_rate(parent_rate=%lu for xtal)\n", parent_rate);
 	} else if (hwdata->num == 1) {
+		drvdata = container_of(hw, struct si5324_driver_data, clkin1);
+		printk(KERN_INFO "si5324_clkin_recalc_rate(parent_rate=%lu for clkin1)\n", parent_rate);
+	} else if (hwdata->num == 2) {
 		drvdata = container_of(hw, struct si5324_driver_data, clkin2);
+		printk(KERN_INFO "si5324_clkin_recalc_rate(parent_rate=%lu for clkin2)\n", parent_rate);
 	} else {
-	}
-	rate = parent_rate;
-#if 0
-	if (parent_rate > 160000000) {
-		idiv = SI5324_CLKIN_DIV_8;
-		rate /= 8;
-	} else if (parent_rate > 80000000) {
-		idiv = SI5324_CLKIN_DIV_4;
-		rate /= 4;
-	} else if (parent_rate > 40000000) {
-		idiv = SI5324_CLKIN_DIV_2;
-		rate /= 2;
-	} else {
-		idiv = SI5324_CLKIN_DIV_1;
+		printk(KERN_INFO "si5324_clkin_recalc_rate() hwdata->num = %d\n", hwdata->num);
+		return 0;
 	}
 
+	rate = parent_rate;
+
+	/* f3 (behind /N3x) is out of range, i,e, >2MHz? */
+	if (rate > 2000000) {
+		/* set input divider */
+		idiv = (rate + 2000000 - 1) / 2000000;
+		rate = parent_rate / idiv;
+	}
+/*
 	si5324_set_bits(drvdata, SI5324_PLL_INPUT_SOURCE,
 			SI5324_CLKIN_DIV_MASK, idiv);
-
+*/
 	dev_dbg(&drvdata->client->dev, "%s - clkin div = %d, rate = %lu\n",
 		__func__, (1 << (idiv >> 6)), rate);
-#endif
 	return rate;
 }
 
@@ -420,9 +521,6 @@ static const struct clk_ops si5324_clkin_ops = {
 static int _si5324_pll_reparent(struct si5324_driver_data *drvdata,
 				int num, enum si5324_pll_src parent)
 {
-	if (parent == SI5324_PLL_SRC_DEFAULT)
-		return 0;
-
 	if (parent == SI5324_PLL_SRC_XTAL) {
 		/* enable free-run */
 		si5324_set_bits(drvdata, SI5324_REG0,
@@ -468,46 +566,42 @@ static int si5324_pll_set_parent(struct clk_hw *hw, u8 index)
 {
 	struct si5324_hw_data *hwdata =
 		container_of(hw, struct si5324_hw_data, hw);
+	enum si5324_pll_src parent;
+	printk(KERN_INFO "si5324_pll_set_parent(index=%d)\n", index);
 
-	if (index > 2)
+	if (index == 0)
+		parent = SI5324_PLL_SRC_XTAL;
+	else if (index == 1)
+		parent = SI5324_PLL_SRC_CLKIN1;
+	else if (index == 2)
+		parent = SI5324_PLL_SRC_CLKIN2;
+	else
 		return -EINVAL;
 
-	return _si5324_pll_reparent(hwdata->drvdata, hwdata->num,
-			     (index == 0) ? SI5324_PLL_SRC_XTAL :
-			     SI5324_PLL_SRC_CLKIN1);
+	return _si5324_pll_reparent(hwdata->drvdata, hwdata->num, parent);
 }
 
 static unsigned long si5324_pll_recalc_rate(struct clk_hw *hw,
 					    unsigned long parent_rate)
 {
+	unsigned long rate;
 	struct si5324_hw_data *hwdata =
 		container_of(hw, struct si5324_hw_data, hw);
-	return parent_rate;
-#if 0
-	u8 reg = (hwdata->num == 0) ? SI5324_PLLA_PARAMETERS :
-		SI5324_PLLB_PARAMETERS;
-	unsigned long long rate;
+	printk(KERN_INFO "si5324_pll_recalc_rate(parent_rate=%lu)\n",
+		parent_rate);
 
 	if (!hwdata->params.valid)
-		si5324_read_parameters(hwdata->drvdata, reg, &hwdata->params);
+		si5324_read_parameters(hwdata->drvdata, 24, &hwdata->params);
+	WARN_ON(!hwdata->params.valid);
 
-	if (hwdata->params.p3 == 0)
-		return parent_rate;
-
-	/* fVCO = fIN * (P1*P3 + 512*P3 + P2)/(128*P3) */
-	rate  = hwdata->params.p1 * hwdata->params.p3;
-	rate += 512 * hwdata->params.p3;
-	rate += hwdata->params.p2;
-	rate *= parent_rate;
-	do_div(rate, 128 * hwdata->params.p3);
+	rate = parent_rate * hwdata->params.n2_ls * hwdata->params.n2_hs;
 
 	dev_dbg(&hwdata->drvdata->client->dev,
-		"%s - %s: p1 = %lu, p2 = %lu, p3 = %lu, parent_rate = %lu, rate = %lu\n",
+		"%s - %s: n2_ls = %u, n2_hs = %u, parent_rate = %lu, rate = %lu\n",
 		__func__, clk_hw_get_name(hw),
-		hwdata->params.p1, hwdata->params.p2, hwdata->params.p3,
+		hwdata->params.n2_ls, hwdata->params.n2_hs,
 		parent_rate, (unsigned long)rate);
-	return (unsigned long)rate;
-#endif
+	return rate;
 }
 
 static long si5324_pll_round_rate(struct clk_hw *hw, unsigned long rate,
@@ -515,6 +609,9 @@ static long si5324_pll_round_rate(struct clk_hw *hw, unsigned long rate,
 {
 	struct si5324_hw_data *hwdata =
 		container_of(hw, struct si5324_hw_data, hw);
+	printk(KERN_INFO "si5324_pll_round_rate(rate=%lu, parent_rate=%lu)\n",
+		rate, *parent_rate);
+
 #if 0
 	unsigned long rfrac, denom, a, b, c;
 	unsigned long long lltmp;
@@ -573,6 +670,8 @@ static int si5324_pll_set_rate(struct clk_hw *hw, unsigned long rate,
 {
 	struct si5324_hw_data *hwdata =
 		container_of(hw, struct si5324_hw_data, hw);
+	printk(KERN_INFO "si5324_pll_set_rate(rate=%lu, parent_rate=%lu)\n",
+		rate, parent_rate);
 #if 0
 	u8 reg = (hwdata->num == 0) ? SI5324_PLLA_PARAMETERS :
 		SI5324_PLLB_PARAMETERS;
@@ -700,26 +799,25 @@ static unsigned long si5324_clkout_recalc_rate(struct clk_hw *hw,
 {
 	struct si5324_hw_data *hwdata =
 		container_of(hw, struct si5324_hw_data, hw);
-	/* clkout2 divider is three registers higher up clkout1 divider */
-	unsigned char reg = SI5324_NC1_LS_H + (hwdata->num * 3);
-	/* common divider */
-	unsigned char n1_hs;
-	/* output clock specific divider */
-	unsigned char nc_ls_h;
-	unsigned char nc_ls_m;
-	unsigned char nc_ls_l;
-	unsigned long nc_ls;
+	unsigned long rate = 0;
 
-	/* obtain divider values from hardware */
-	n1_hs = si5324_reg_read(hwdata->drvdata, SI5324_N1_HS_OUTPUT_DIVIDER) >> 5;
-	n1_hs += 4;
+	printk(KERN_INFO "si5324_clkout_recalc_rate(parent_rate=%lu) clkout%d\n",
+		parent_rate, hwdata->num);
 
-	nc_ls_h = si5324_reg_read(hwdata->drvdata, reg);
-	nc_ls_m = si5324_reg_read(hwdata->drvdata, reg + 1);
-	nc_ls_l = si5324_reg_read(hwdata->drvdata, reg + 2);
-	nc_ls = (nc_ls_h << 16) || (nc_ls_m << 8) || nc_ls_l;
-	nc_ls += 1;
-	return (parent_rate / n1_hs) / nc_ls;
+	if (!hwdata->params.valid)
+		si5324_read_parameters(hwdata->drvdata, 24, &hwdata->params);
+	WARN_ON(!hwdata->params.valid);
+
+	/* clkout1? */
+	if (hwdata->num == 0)
+		rate = (parent_rate / hwdata->params.n1_hs) / hwdata->params.nc1_ls;
+	/* clkout2? */
+	else if (hwdata->num == 1)
+		rate = (parent_rate / hwdata->params.n1_hs) / hwdata->params.nc2_ls;
+
+	printk(KERN_INFO "si5324_clkout_recalc_rate(parent_rate=%lu) => clkout%d=%lu\n",
+		parent_rate, hwdata->num, rate);
+	return rate;
 }
 
 static long si5324_clkout_round_rate_bsp(struct clk_hw *hw, unsigned long rate,
@@ -731,10 +829,14 @@ static long si5324_clkout_round_rate_bsp(struct clk_hw *hw, unsigned long rate,
 	u8  buf[14*2]; // Need to set 14 registers
 	int i;
 
+	printk(KERN_INFO "si5324_clkout_round_rate_bsp(rate=%lu, parent_rate=%lu)\n",
+		rate, *parent_rate);
+
 	// Calculate the frequency settings for the Si5324
-	result = Si5324_CalcFreqSettings(114285000, 114285000,
+	result = Si5324_CalcFreqSettings(114285000, rate,
 	                                 &N1_hs, &NCn_ls, &N2_hs, &N2_ls, &N3n,
 	                                 &BwSel);
+	return result;
 }
 
 /* round_rate selects the rate closest to the requested one.
@@ -748,6 +850,12 @@ static long si5324_clkout_round_rate(struct clk_hw *hw, unsigned long rate,
 		container_of(hw, struct si5324_hw_data, hw);
 	unsigned char rdiv;
 
+	printk(KERN_INFO "si5324_clkout_round_rate(rate=%lu, parent_rate=%lu)\n",
+		rate, *parent_rate);
+
+	dev_info(&hwdata->drvdata->client->dev,
+		"%s - %s: parent_rate = %lu, rate = %lu\n",
+		__func__, clk_hw_get_name(hw), *parent_rate, rate);
 #if 0
 	if (rate > SI5324_CLKOUT_MAX_FREQ)
 		rate = SI5324_CLKOUT_MAX_FREQ;
@@ -802,17 +910,25 @@ static int si5324_clkout_set_rate(struct clk_hw *hw, unsigned long rate,
 	u8  buf[14*2]; // Need to set 14 registers
 	int i;
 
+	printk(KERN_INFO "si5324_clkout_set_rate(parent_rate=%lu, rate = %lu)\n",
+		parent_rate, rate);
+
 	// Calculate the frequency settings for the Si5324
-	result = Si5324_CalcFreqSettings(114285000, 114285000,
+	result = Si5324_CalcFreqSettings(114285000, rate,
 	                                 &N1_hs, &NCn_ls, &N2_hs, &N2_ls, &N3n,
 	                                 &BwSel);
+	printk(KERN_INFO "N1_HS = %u\n", (unsigned int)N1_hs + 4);
+	printk(KERN_INFO "NC1_LS = %u\n", (unsigned int)NCn_ls + 1);
+	printk(KERN_INFO "N2_HS = %u\n", (unsigned int)N2_hs + 4);
+	printk(KERN_INFO "N2_LS = %u\n", (unsigned int)N2_ls + 1);
+	printk(KERN_INFO "N3 = %u\n", (unsigned int)N3n + 1);
 
-	    i = 0;
+	i = 0;
 
 	// Free running mode or use a reference clock
 	buf[i] = 0;
-	    // Enable free running mode
-	    buf[i+1] = 0x54;
+	// Enable free running mode
+	buf[i+1] = 0x54;
 	i += 2;
 
 	// Loop bandwidth
@@ -822,8 +938,8 @@ static int si5324_clkout_set_rate(struct clk_hw *hw, unsigned long rate,
 
 	// Enable reference clock 2 in free running mode
 	buf[i] = 11;
-	    //Enable input clock 2
-	    buf[i+1] = 0x40;
+	//Enable input clock 2
+	buf[i+1] = 0x40;
 	i += 2;
 
 	// N1_HS
@@ -851,10 +967,10 @@ static int si5324_clkout_set_rate(struct clk_hw *hw, unsigned long rate,
 	buf[i+5]  = (u8)( N2_ls & 0x000000FF       );
 	i += 6;
 
-	    // N32
-	    buf[i]   = 46;
-	    buf[i+2] = 47;
-	    buf[i+4] = 48;
+	// N31
+	buf[i]   = 43;
+	buf[i+2] = 44;
+	buf[i+4] = 45;
 	buf[i+1] = (u8)((N3n & 0x00070000) >> 16);
 	buf[i+3] = (u8)((N3n & 0x0000FF00) >>  8);
 	buf[i+5] = (u8)( N3n & 0x000000FF       );
@@ -866,6 +982,7 @@ static int si5324_clkout_set_rate(struct clk_hw *hw, unsigned long rate,
 	i += 2;
 
 	return si5324_bulk_scatter_write(hwdata->drvdata, 14, buf);
+	hwdata->params.valid = 0;
 }
 
 static const struct clk_ops si5324_clkout_ops = {
@@ -922,12 +1039,15 @@ static int si5324_dt_parse(struct i2c_client *client)
 
 		switch (val) {
 		case 0:
+			dev_info(&client->dev, "using xtal as parent for pll\n");
 			pdata->pll_src = SI5324_PLL_SRC_XTAL;
 			break;
 		case 1:
+			dev_info(&client->dev, "using clkin1 as parent for pll\n");
 			pdata->pll_src = SI5324_PLL_SRC_CLKIN1;
 			break;
 		case 2:
+			dev_info(&client->dev, "using clkin2 as parent for pll\n");
 			pdata->pll_src = SI5324_PLL_SRC_CLKIN2;
 			break;
 		default:
@@ -994,8 +1114,10 @@ static int si5324_dt_parse(struct i2c_client *client)
 			}
 		}
 
-		if (!of_property_read_u32(child, "clock-frequency", &val))
+		if (!of_property_read_u32(child, "clock-frequency", &val)) {
+			dev_info(&client->dev, "clock-frequency = %u\n", val);
 			pdata->clkout[num].rate = val;
+		}
 
 		pdata->clkout[num].pll_master =
 			of_property_read_bool(child, "silabs,pll-master");
@@ -1051,6 +1173,8 @@ static int si5324_i2c_probe(struct i2c_client *client,
 		PTR_ERR(drvdata->pclkin2) == -EPROBE_DEFER)
 		return -EPROBE_DEFER;
 
+	dev_err(&client->dev, "drvdata->pxtal =%p\n", drvdata->pxtal);
+
 	drvdata->regmap = devm_regmap_init_i2c(client, &si5324_regmap_config);
 	if (IS_ERR(drvdata->regmap)) {
 		dev_err(&client->dev, "failed to allocate register map\n");
@@ -1094,8 +1218,10 @@ static int si5324_i2c_probe(struct i2c_client *client,
 		}
 	}
 
-	if (!IS_ERR(drvdata->pxtal))
+	if (!IS_ERR(drvdata->pxtal)) {
+		dev_info(&client->dev, "Enabling xtal clock\n");
 		clk_prepare_enable(drvdata->pxtal);
+	}
 	if (!IS_ERR(drvdata->pclkin1))
 		clk_prepare_enable(drvdata->pclkin1);
 	if (!IS_ERR(drvdata->pclkin2))
@@ -1109,6 +1235,7 @@ static int si5324_i2c_probe(struct i2c_client *client,
 	if (!IS_ERR(drvdata->pxtal)) {
 		drvdata->pxtal_name = __clk_get_name(drvdata->pxtal);
 		init.parent_names = &drvdata->pxtal_name;
+		dev_info(&client->dev, "xtal parent name: %s\n", init.parent_names[0]);
 		init.num_parents = 1;
 	}
 	drvdata->xtal.init = &init;
@@ -1169,6 +1296,7 @@ static int si5324_i2c_probe(struct i2c_client *client,
 	init.name = si5324_pll_name;
 	init.ops = &si5324_pll_ops;
 	init.flags = 0;
+	init.flags |= CLK_SET_RATE_PARENT;
 	init.parent_names = parent_names;
 	init.num_parents = num_parents;
 	clk = devm_clk_register(&client->dev, &drvdata->pll.hw);

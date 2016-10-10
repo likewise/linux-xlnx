@@ -93,7 +93,7 @@ int Si5324_FindN2ls(si5324_settings_t *settings) {
     u32 mult;
 
     n2_ls_div_n3 = settings->fosc / (settings->fin >> 28) / settings->n2_hs / 2;
-    Si5324_RatApprox(n2_ls_div_n3, settings->n3_max, &(settings->n2_ls), &(settings->n3));
+    Si5324_RatApprox(n2_ls_div_n3, settings->n31_max, &(settings->n2_ls), &(settings->n31));
     settings->n2_ls *= 2;
     // Rational approximation returns the smalles ratio possible. Upscaling
     // might be needed when when one or both of the numbers are too low.
@@ -101,60 +101,60 @@ int Si5324_FindN2ls(si5324_settings_t *settings) {
         mult =  settings->n2_ls_min / settings->n2_ls;
         mult = (settings->n2_ls_min % settings->n2_ls) ? mult + 1 : mult;
         settings->n2_ls *= mult;
-        settings->n3    *= mult;
+        settings->n31    *= mult;
     }
-    if (settings->n3 < settings->n3_min) {
-        mult =  settings->n3_min / settings->n3;
-        mult = (settings->n3_min % settings->n3) ? mult + 1 : mult;
+    if (settings->n31 < settings->n31_min) {
+        mult =  settings->n31_min / settings->n31;
+        mult = (settings->n31_min % settings->n31) ? mult + 1 : mult;
         settings->n2_ls *= mult;
-        settings->n3    *= mult;
+        settings->n31    *= mult;
     }
     if (SI5324_DEBUG) {
-        xil_printf("\t\t\tTrying N2_LS = %d N3 = %d.\n",
-            settings->n2_ls, settings->n3);
+        printk(KERN_INFO "Trying N2_LS = %d N3 = %d.\n",
+            settings->n2_ls, settings->n31);
     }
     // Check if N2_LS and N3 are within the required ranges
     if ((settings->n2_ls < settings->n2_ls_min) || (settings->n2_ls > settings->n2_ls_max)) {
-         xil_printf("\t\t\tN2_LS out of range.\n");
-    } else if ((settings->n3 < settings->n3_min) || (settings->n3 > settings->n3_max)) {
-        xil_printf("\t\t\tN3 out of range.\n");
+         printk(KERN_INFO "N2_LS out of range.\n");
+    } else if ((settings->n31 < settings->n31_min) || (settings->n31 > settings->n31_max)) {
+        printk(KERN_INFO "N3 out of range.\n");
     }
     else {
         // N2_LS and N3 values within range: check actual output frequency
-        f3_actual = settings->fin / settings->n3;
+        f3_actual = settings->fin / settings->n31;
         fosc_actual = f3_actual * settings->n2_hs * settings->n2_ls;
-        fout_actual = fosc_actual / (settings->n1_hs * settings->nc_ls);
+        fout_actual = fosc_actual / (settings->n1_hs * settings->nc1_ls);
         delta_fout = fout_actual - settings->fout;
         // Check actual frequencies for validity
         if ((f3_actual < ((u64)SI5324_F3_MIN) << 28) || (f3_actual > ((u64)SI5324_F3_MAX) << 28)) {
             if (SI5324_DEBUG) {
-                xil_printf("\t\t\tF3 frequency out of range.\n");
+                printk(KERN_INFO "F3 frequency out of range.\n");
             }
         } else if ((fosc_actual < ((u64)SI5324_FOSC_MIN) << 28) || (fosc_actual > ((u64)SI5324_FOSC_MAX) << 28)) {
             if (SI5324_DEBUG) {
-                xil_printf("\t\t\tFosc frequency out of range.\n");
+                printk(KERN_INFO "Fosc frequency out of range.\n");
             }
         } else if ((fout_actual < ((u64)SI5324_FOUT_MIN) << 28) || (fout_actual >((u64)SI5324_FOUT_MAX) << 28)) {
             if (SI5324_DEBUG) {
-                xil_printf("\t\t\tFout frequency out of range.\n");
+                printk(KERN_INFO "Fout frequency out of range.\n");
             }
         } else {
             if (SI5324_DEBUG) {
-                xil_printf("\t\t\tFound solution: fout = %dHz delta = %dHz.\n",
+                printk(KERN_INFO "Found solution: fout = %dHz delta = %dHz.\n",
                     (u32)(fout_actual >> 28), (u32)(delta_fout >> 28));
-                xil_printf("\t\t\t                fosc = %dkHz f3 = %dHz.\n",
+                printk(KERN_INFO "                fosc = %dkHz f3 = %dHz.\n",
                     (u32)((fosc_actual >> 28) / 1000), (u32)(f3_actual >> 28));
             }
             if (((u64)llabs(delta_fout)) < settings->best_delta_fout) {
                 // Found a better solution: remember this one!
                 if (SI5324_DEBUG) {
-                    xil_printf("\t\t\tThis solution is the best yet!\n");
+                    printk(KERN_INFO "This solution is the best yet!\n");
                 }
                 settings->best_n1_hs = settings->n1_hs;
-                settings->best_nc_ls = settings->nc_ls;
+                settings->best_nc1_ls = settings->nc1_ls;
                 settings->best_n2_hs = settings->n2_hs;
                 settings->best_n2_ls = settings->n2_ls;
-                settings->best_n3 = settings->n3;
+                settings->best_n3 = settings->n31;
                 settings->best_fout = fout_actual;
                 settings->best_delta_fout = llabs(delta_fout);
                 if (delta_fout == 0) {
@@ -184,7 +184,7 @@ int Si5324_FindN2(si5324_settings_t *settings) {
 
     for (settings->n2_hs = SI5324_N2_HS_MAX; settings->n2_hs >= SI5324_N2_HS_MIN; settings->n2_hs--) {
         if (SI5324_DEBUG) {
-            xil_printf("\t\tTrying N2_HS = %d.\n", settings->n2_hs);
+            printk(KERN_INFO "Trying N2_HS = %d.\n", settings->n2_hs);
         }
         settings->n2_ls_min = (u32)(settings->fosc / ((u64)(SI5324_F3_MAX * settings->n2_hs) << 28));
         if (settings->n2_ls_min < SI5324_N2_LS_MIN) {
@@ -216,25 +216,25 @@ int Si5324_FindN2(si5324_settings_t *settings) {
  */
 int Si5324_CalcNclsLimits(si5324_settings_t *settings) {
     // Calculate limits for NCn_LS
-    settings->nc_ls_min = settings->n1_min / settings->n1_hs;
-    if (settings->nc_ls_min < SI5324_NC_LS_MIN) {
-        settings->nc_ls_min = SI5324_NC_LS_MIN;
+    settings->nc1_ls_min = settings->n1_hs_min / settings->n1_hs;
+    if (settings->nc1_ls_min < SI5324_NC_LS_MIN) {
+        settings->nc1_ls_min = SI5324_NC_LS_MIN;
     }
     // Make sure NC_ls_min is one or even
-    if ((settings->nc_ls_min > 1) && ((settings->nc_ls_min & 0x1) == 1)) {
-        settings->nc_ls_min++;
+    if ((settings->nc1_ls_min > 1) && ((settings->nc1_ls_min & 0x1) == 1)) {
+        settings->nc1_ls_min++;
     }
-    settings->nc_ls_max = settings->n1_max / settings->n1_hs;
-    if (settings->nc_ls_max > SI5324_NC_LS_MAX) {
-        settings->nc_ls_max = SI5324_NC_LS_MAX;
+    settings->nc1_ls_max = settings->n1_hs_max / settings->n1_hs;
+    if (settings->nc1_ls_max > SI5324_NC_LS_MAX) {
+        settings->nc1_ls_max = SI5324_NC_LS_MAX;
     }
     // Make sure NC_ls_max is even
-    if ((settings->nc_ls_max & 0x1) == 1) {
-        settings->nc_ls_max--;
+    if ((settings->nc1_ls_max & 0x1) == 1) {
+        settings->nc1_ls_max--;
     }
     // Check if actual N1 is within limits
-    if ((settings->nc_ls_max * settings->n1_hs < settings->n1_min) ||
-        (settings->nc_ls_min * settings->n1_hs > settings->n1_max)) {
+    if ((settings->nc1_ls_max * settings->n1_hs < settings->n1_hs_min) ||
+        (settings->nc1_ls_min * settings->n1_hs > settings->n1_hs_max)) {
         // No valid NC_ls possible: take next N1_hs
         return -1;
     }
@@ -258,21 +258,21 @@ int Si5324_FindNcls(si5324_settings_t *settings) {
     u32 result;
 
     fosc_1 = settings->fout * settings->n1_hs;
-    for (settings->nc_ls = settings->nc_ls_min; settings->nc_ls <= settings->nc_ls_max;) {
-        settings->fosc = fosc_1 * settings->nc_ls;
+    for (settings->nc1_ls = settings->nc1_ls_min; settings->nc1_ls <= settings->nc1_ls_max;) {
+        settings->fosc = fosc_1 * settings->nc1_ls;
         if (SI5324_DEBUG) {
-            xil_printf("\tTrying NCn_LS = %d: fosc = %dkHz.\n",
-                    settings->nc_ls, (u32)((settings->fosc >> 28) / 1000));
+            printk(KERN_INFO "Trying NCn_LS = %d: fosc = %dkHz.\n",
+                    settings->nc1_ls, (u32)((settings->fosc >> 28) / 1000));
         }
         result = Si5324_FindN2(settings);
         if (result) {
             // Best possible result found. Skip the rest of the possibilities.
             break;
         }
-        if (settings->nc_ls == 1) {
-            settings->nc_ls++;
+        if (settings->nc1_ls == 1) {
+            settings->nc1_ls++;
         } else {
-            settings->nc_ls += 2;
+            settings->nc1_ls += 2;
         }
     }
     return result;
@@ -309,32 +309,32 @@ int Si5324_CalcFreqSettings(u32 ClkInFreq, u32 ClkOutFreq,
 
     // Calculate some limits for N1_HS * NCn_LS and for N3 base on the input
     // and output frequencies.
-    settings.n1_min = (int)(SI5324_FOSC_MIN / ClkOutFreq);
-    if (settings.n1_min < SI5324_N1_HS_MIN * SI5324_NC_LS_MIN) {
-        settings.n1_min = SI5324_N1_HS_MIN * SI5324_NC_LS_MIN;
+    settings.n1_hs_min = (int)(SI5324_FOSC_MIN / ClkOutFreq);
+    if (settings.n1_hs_min < SI5324_N1_HS_MIN * SI5324_NC_LS_MIN) {
+        settings.n1_hs_min = SI5324_N1_HS_MIN * SI5324_NC_LS_MIN;
     }
-    settings.n1_max = (int)(SI5324_FOSC_MAX / ClkOutFreq);
-    if (settings.n1_max > SI5324_N1_HS_MAX * SI5324_NC_LS_MAX) {
-        settings.n1_max = SI5324_N1_HS_MAX * SI5324_NC_LS_MAX;
+    settings.n1_hs_max = (int)(SI5324_FOSC_MAX / ClkOutFreq);
+    if (settings.n1_hs_max > SI5324_N1_HS_MAX * SI5324_NC_LS_MAX) {
+        settings.n1_hs_max = SI5324_N1_HS_MAX * SI5324_NC_LS_MAX;
     }
-    settings.n3_min = ClkInFreq / SI5324_F3_MAX;
-    if (settings.n3_min < SI5324_N3_MIN) {
-        settings.n3_min = SI5324_N3_MIN;
+    settings.n31_min = ClkInFreq / SI5324_F3_MAX;
+    if (settings.n31_min < SI5324_N3_MIN) {
+        settings.n31_min = SI5324_N3_MIN;
     }
-    settings.n3_max = ClkInFreq / SI5324_F3_MIN;
-    if (settings.n3_max > SI5324_N3_MAX) {
-        settings.n3_max = SI5324_N3_MAX;
+    settings.n31_max = ClkInFreq / SI5324_F3_MIN;
+    if (settings.n31_max > SI5324_N3_MAX) {
+        settings.n31_max = SI5324_N3_MAX;
     }
     // Find a valid oscillator frequency with the highest setting of N1_HS
     // possible (reduces power)
     for (settings.n1_hs = SI5324_N1_HS_MAX; settings.n1_hs >= SI5324_N1_HS_MIN; settings.n1_hs--) {
         if (SI5324_DEBUG) {
-            xil_printf("Trying N1_HS = %d.\n", settings.n1_hs);
+            printk(KERN_INFO "Trying N1_HS = %d.\n", settings.n1_hs);
         }
         result = Si5324_CalcNclsLimits(&settings);
         if (result) {
             if (SI5324_DEBUG) {
-                xil_printf("\tNo valid settings for NCn_LS.\n");
+                printk(KERN_INFO "No valid settings for NCn_LS.\n");
             }
             continue;
         }
@@ -346,18 +346,18 @@ int Si5324_CalcFreqSettings(u32 ClkInFreq, u32 ClkOutFreq,
     }
     if (settings.best_delta_fout /= settings.fout) {
         if (SI5324_DEBUG) {
-            xil_printf("Si5324: ERROR: No valid settings found.");
+            printk(KERN_INFO "Si5324: ERROR: No valid settings found.");
         }
         return SI5324_ERR_FREQ;
     }
     if (SI5324_DEBUG) {
-        xil_printf("Si5324: Found solution: fout = %dHz.\n",
+        printk(KERN_INFO "Si5324: Found solution: fout = %dHz.\n",
                    (u32)(settings.best_fout >> 28));
     }
 
     // Post processing: convert temporary values to actual register settings
     *N1_hs  = (u8)settings.best_n1_hs - 4;
-    *NCn_ls =     settings.best_nc_ls - 1;
+    *NCn_ls =     settings.best_nc1_ls - 1;
     *N2_hs  = (u8)settings.best_n2_hs - 4;
     *N2_ls  =     settings.best_n2_ls - 1;
     *N3n    =     settings.best_n3    - 1;
