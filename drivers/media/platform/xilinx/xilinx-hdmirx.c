@@ -202,7 +202,7 @@ static int xhdmirx_get_edid(struct v4l2_subdev *subdev, struct v4l2_edid *edid) 
 		edid->blocks = xhdmirx->edid_user_blocks;
 	} else {
 		if (do_copy)
-			memcpy(edid->edid, &xilinx_edid, sizeof(xilinx_edid));
+			memcpy(edid->edid, &xilinx_edid[0], sizeof(xilinx_edid));
 		edid->blocks = sizeof(xilinx_edid) / 128;
 	}
 	mutex_unlock(&xhdmirx->xhdmirx_mutex);
@@ -1091,7 +1091,7 @@ static int xhdmirx_probe(struct platform_device *pdev)
 	hdmirx_config_init(&config, xhdmirx->xvip.iomem);
 
 	/* sets pointer to the EDID used by XV_HdmiRxSs_LoadDefaultEdid() */
-	XV_HdmiRxSs_SetEdidParam(HdmiRxSsPtr, (u8 *)&xilinx_edid, sizeof(xilinx_edid));
+	XV_HdmiRxSs_SetEdidParam(HdmiRxSsPtr, (u8 *)&xilinx_edid[0], sizeof(xilinx_edid));
 
 	if (request_firmware(&fw_edid, fw_edid_name, xhdmirx->xvip.dev) == 0) {
 		int blocks = fw_edid->size / 128;
