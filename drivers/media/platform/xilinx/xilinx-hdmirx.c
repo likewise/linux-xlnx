@@ -1093,6 +1093,15 @@ static int xhdmirx_probe(struct platform_device *pdev)
 	/* sets pointer to the EDID used by XV_HdmiRxSs_LoadDefaultEdid() */
 	XV_HdmiRxSs_SetEdidParam(HdmiRxSsPtr, (u8 *)&xilinx_edid[0], sizeof(xilinx_edid));
 
+	// Initialize top level and all included sub-cores
+	Status = XV_HdmiRxSs_CfgInitialize(HdmiRxSsPtr, &config,
+		(uintptr_t)xhdmirx->xvip.iomem);
+	if (Status != XST_SUCCESS)
+	{
+		dev_err(xhdmirx->xvip.dev, "initialization failed with error %d\r\n", Status);
+		return -EINVAL;
+	}
+
 	if (request_firmware(&fw_edid, fw_edid_name, xhdmirx->xvip.dev) == 0) {
 		int blocks = fw_edid->size / 128;
 		if ((blocks == 0) || (blocks > EDID_BLOCKS_MAX) || (fw_edid->size % 128)) {
@@ -1116,15 +1125,6 @@ static int xhdmirx_probe(struct platform_device *pdev)
 	} else {
 		dev_info(xhdmirx->xvip.dev, "Using Xilinx built-in EDID.\n");
 		XV_HdmiRxSs_LoadDefaultEdid(HdmiRxSsPtr);
-	}
-
-	// Initialize top level and all included sub-cores
-	Status = XV_HdmiRxSs_CfgInitialize(HdmiRxSsPtr, &config,
-		(uintptr_t)xhdmirx->xvip.iomem);
-	if (Status != XST_SUCCESS)
-	{
-		dev_err(xhdmirx->xvip.dev, "initialization failed with error %d\r\n", Status);
-		return -EINVAL;
 	}
 
 	spin_lock_irqsave(&xhdmirx->irq_lock, flags);
