@@ -138,7 +138,7 @@ static inline u8 si5324_reg_read(struct si5324_driver_data *drvdata, u8 reg)
 			"unable to read from reg%02x\n", reg);
 		return 0;
 	} else {
-		dev_info(&drvdata->client->dev, "Read value 0x%02x from reg0x@%02x\n",
+		dev_info(&drvdata->client->dev, "Read value 0x%02x @%02d\n",
 			(int)val, (int)reg);
 	}
 
@@ -154,7 +154,7 @@ static inline int si5324_bulk_read(struct si5324_driver_data *drvdata,
 static inline int si5324_reg_write(struct si5324_driver_data *drvdata,
 				   u8 reg, u8 val)
 {
-	dev_info(&drvdata->client->dev, "si5324_reg_write() 0x%02x @0x%02x\n", (int)val, (int)reg);
+	dev_info(&drvdata->client->dev, "si5324_reg_write() 0x%02x @%02d\n", (int)val, (int)reg);
 
 	return regmap_write(drvdata->regmap, reg, val);
 }
@@ -967,10 +967,10 @@ static int si5324_clkout_set_rate(struct clk_hw *hw, unsigned long rate,
 	buf[i+5]  = (u8)( N2_ls & 0x000000FF       );
 	i += 6;
 
-	// N31
-	buf[i]   = 43;
-	buf[i+2] = 44;
-	buf[i+4] = 45;
+	// N32 (CLKIN2 or XTAL in FREERUNNING mode)
+	buf[i]   = 46;
+	buf[i+2] = 47;
+	buf[i+4] = 48;
 	buf[i+1] = (u8)((N3n & 0x00070000) >> 16);
 	buf[i+3] = (u8)((N3n & 0x0000FF00) >>  8);
 	buf[i+5] = (u8)( N3n & 0x000000FF       );
@@ -1172,9 +1172,9 @@ static int si5324_i2c_probe(struct i2c_client *client,
 		PTR_ERR(drvdata->pclkin1) == -EPROBE_DEFER ||
 		PTR_ERR(drvdata->pclkin2) == -EPROBE_DEFER)
 		return -EPROBE_DEFER;
-
+#if 0
 	dev_err(&client->dev, "drvdata->pxtal =%p\n", drvdata->pxtal);
-
+#endif
 	drvdata->regmap = devm_regmap_init_i2c(client, &si5324_regmap_config);
 	if (IS_ERR(drvdata->regmap)) {
 		dev_err(&client->dev, "failed to allocate register map\n");
