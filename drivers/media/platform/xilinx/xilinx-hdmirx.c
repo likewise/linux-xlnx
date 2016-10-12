@@ -37,7 +37,7 @@
 #include "xilinx-hdmi-rx/xil_printf.h"
 #include "xilinx-hdmi-rx/xstatus.h"
 
-#define HDMI_MAX_LANES	2
+#define HDMI_MAX_LANES	4
 
 #define EDID_BLOCKS_MAX 2
 
@@ -506,7 +506,7 @@ static irqreturn_t hdmirx_irq_handler(int irq, void *dev_id)
 	}
 
 #if 1
-	/* read status registers */
+	/* read status registers @TODO fix */
 	xhdmirx->IntrStatus[0] = XV_HdmiRx_ReadReg(HdmiRxSsPtr->Config.BaseAddress, (XV_HDMIRX_PIO_STA_OFFSET)) & (XV_HDMIRX_PIO_STA_IRQ_MASK);
 	xhdmirx->IntrStatus[1] = XV_HdmiRx_ReadReg(HdmiRxSsPtr->Config.BaseAddress, (XV_HDMIRX_TMR_STA_OFFSET)) & (XV_HDMIRX_TMR_STA_IRQ_MASK);
 	xhdmirx->IntrStatus[2] = XV_HdmiRx_ReadReg(HdmiRxSsPtr->Config.BaseAddress, (XV_HDMIRX_VTD_STA_OFFSET)) & (XV_HDMIRX_VTD_STA_IRQ_MASK);
@@ -673,6 +673,7 @@ static void RxStreamInitCallback(void *CallbackRef)
 	u32 Status;
 	BUG_ON(!xhdmirx);
 	BUG_ON(!HdmiRxSsPtr);
+	BUG_ON(!VphyPtr);
 	if (!xhdmirx || !HdmiRxSsPtr || !VphyPtr) return;
 	xil_printf("RxStreamInitCallback\r\n");
 	// Calculate RX MMCM parameters
@@ -707,7 +708,6 @@ static void RxStreamInitCallback(void *CallbackRef)
 	xvphy_mutex_unlock(xhdmirx->phy[0]);
 }
 
-
 /* @TODO Once this upstream V4L2 patch lands, consider VIC support: https://patchwork.linuxtv.org/patch/37137/ */
 static void RxStreamUpCallback(void *CallbackRef)
 {
@@ -722,7 +722,8 @@ static void RxStreamUpCallback(void *CallbackRef)
 	Stream = &HdmiRxSsPtr->HdmiRxPtr->Stream.Video;
 #if 0
 	XVidC_ReportStreamInfo(Stream);
-#else
+#endif
+#if 0
 	XV_HdmiRx_DebugInfo(HdmiRxSsPtr->HdmiRxPtr);
 #endif
 	/* http://lxr.free-electrons.com/source/include/uapi/linux/videodev2.h#L1229 */
@@ -821,6 +822,7 @@ static void RxStreamUpCallback(void *CallbackRef)
 static void VphyHdmiRxInitCallback(void *CallbackRef)
 {
 	struct xhdmirx_device *xhdmirx = (struct xhdmirx_device *)CallbackRef;
+	XV_HdmiRxSs *HdmiRxSsPtr = &xhdmirx->xv_hdmirxss;
 	XVphy *VphyPtr = xhdmirx->xvphy;
 	BUG_ON(!xhdmirx);
 	BUG_ON(!VphyPtr);
@@ -834,9 +836,9 @@ static void VphyHdmiRxInitCallback(void *CallbackRef)
 	mutex_lock(&xhdmirx->xhdmirx_mutex);
 	xvphy_mutex_lock(xhdmirx->phy[0]);
 
-	XV_HdmiRxSs_RefClockChangeInit(&xhdmirx->xv_hdmirxss);
+	XV_HdmiRxSs_RefClockChangeInit(HdmiRxSsPtr);
 	/* @NOTE maybe implement xvphy_set_hdmirx_tmds_clockratio(); */
-	VphyPtr->HdmiRxTmdsClockRatio = xhdmirx->xv_hdmirxss.TMDSClockRatio;
+	VphyPtr->HdmiRxTmdsClockRatio = HdmiRxSsPtr->TMDSClockRatio;
 	/* unlock RX SS but keep XVPHY locked */
 	mutex_unlock(&xhdmirx->xhdmirx_mutex);
 }
@@ -867,7 +869,7 @@ static void VphyHdmiRxReadyCallback(void *CallbackRef)
 	mutex_lock(&xhdmirx->xhdmirx_mutex);
 	xvphy_mutex_lock(xhdmirx->phy[0]);
 	/* @NOTE too much peeking around in Vphy */
-	RxPllType = XVphy_GetPllType(xhdmirx->xvphy, 0, XVPHY_DIR_RX,
+	RxPllType = XVphy_GetPllType(VphyPtr, 0, XVPHY_DIR_RX,
 		XVPHY_CHANNEL_ID_CH1);
 	if (!(RxPllType == XVPHY_PLL_TYPE_CPLL)) {
 		XV_HdmiRxSs_SetStream(&xhdmirx->xv_hdmirxss, VphyPtr->HdmiRxRefClkHz,
@@ -1061,7 +1063,7 @@ static int xhdmirx_probe(struct platform_device *pdev)
 	 * We only need to "init" one vphy lane, as the VPHY will initialize all other lanes, so this is not an issue now.
 	 * -- Leon Woestenberg <leon@sidebranch.com>
 	 */
-	for (index = 0; index < 2; index++) {
+	for (index = 0; index < 1; index++) {
 		printk(KERN_INFO "entering loop with index = %d\n",index);
 		char phy_name[32];
 
@@ -1134,19 +1136,19 @@ static int xhdmirx_probe(struct platform_device *pdev)
 	XV_HdmiRxSs_ReportSubcoreVersion(&xhdmirx->xv_hdmirxss);
 
 	/* RX SS callback setup (from xapp1287/xhdmi_example.c:2146) */
-	XV_HdmiRxSs_SetCallback(&xhdmirx->xv_hdmirxss, XV_HDMIRXSS_HANDLER_CONNECT,
+	XV_HdmiRxSs_SetCallback(HdmiRxSsPtr, XV_HDMIRXSS_HANDLER_CONNECT,
 		RxConnectCallback, (void *)xhdmirx);
-	XV_HdmiRxSs_SetCallback(&xhdmirx->xv_hdmirxss,XV_HDMIRXSS_HANDLER_AUX,
+	XV_HdmiRxSs_SetCallback(HdmiRxSsPtr,XV_HDMIRXSS_HANDLER_AUX,
 		RxAuxCallback,(void *)xhdmirx);
-	XV_HdmiRxSs_SetCallback(&xhdmirx->xv_hdmirxss,XV_HDMIRXSS_HANDLER_AUD,
+	XV_HdmiRxSs_SetCallback(HdmiRxSsPtr,XV_HDMIRXSS_HANDLER_AUD,
 		RxAudCallback, (void *)xhdmirx);
-	XV_HdmiRxSs_SetCallback(&xhdmirx->xv_hdmirxss, XV_HDMIRXSS_HANDLER_LNKSTA,
+	XV_HdmiRxSs_SetCallback(HdmiRxSsPtr, XV_HDMIRXSS_HANDLER_LNKSTA,
 		RxLnkStaCallback, (void *)xhdmirx);
-	XV_HdmiRxSs_SetCallback(&xhdmirx->xv_hdmirxss, XV_HDMIRXSS_HANDLER_STREAM_DOWN,
+	XV_HdmiRxSs_SetCallback(HdmiRxSsPtr, XV_HDMIRXSS_HANDLER_STREAM_DOWN,
 		RxStreamDownCallback, (void *)xhdmirx);
-	XV_HdmiRxSs_SetCallback(&xhdmirx->xv_hdmirxss, XV_HDMIRXSS_HANDLER_STREAM_INIT,
+	XV_HdmiRxSs_SetCallback(HdmiRxSsPtr, XV_HDMIRXSS_HANDLER_STREAM_INIT,
 		RxStreamInitCallback, (void *)xhdmirx);
-	XV_HdmiRxSs_SetCallback(&xhdmirx->xv_hdmirxss, XV_HDMIRXSS_HANDLER_STREAM_UP,
+	XV_HdmiRxSs_SetCallback(HdmiRxSsPtr, XV_HDMIRXSS_HANDLER_STREAM_UP,
 		RxStreamUpCallback, (void *)xhdmirx);
 
 	/* get a reference to the XVphy data structure */

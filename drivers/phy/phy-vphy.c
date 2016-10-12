@@ -159,6 +159,10 @@ EXPORT_SYMBOL_GPL(XVphy_SetHdmiCallback);
 EXPORT_SYMBOL_GPL(XVphy_HdmiCfgCalcMmcmParam);
 EXPORT_SYMBOL_GPL(XVphy_MmcmStart);
 
+/* exclusively required by TX */
+EXPORT_SYMBOL_GPL(XVphy_Clkout1OBufTdsEnable);
+EXPORT_SYMBOL_GPL(XVphy_SetHdmiTxParam);
+
 static irqreturn_t xvphy_irq_handler(int irq, void *dev_id)
 {
 	struct xvphy_dev *vphydev;

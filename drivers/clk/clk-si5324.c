@@ -801,10 +801,10 @@ static unsigned long si5324_clkout_recalc_rate(struct clk_hw *hw,
 		container_of(hw, struct si5324_hw_data, hw);
 	unsigned long rate = 0;
 
-	printk(KERN_INFO "si5324_clkout_recalc_rate(parent_rate=%lu) clkout%d\n",
+	printk(KERN_INFO "si5324_clkout_recalc_rate(parent_rate=%lu) clkout%d (invalid)\n",
 		parent_rate, hwdata->num);
 
-	if (!hwdata->params.valid)
+	//if (!hwdata->params.valid)
 		si5324_read_parameters(hwdata->drvdata, 24, &hwdata->params);
 	WARN_ON(!hwdata->params.valid);
 
@@ -815,7 +815,7 @@ static unsigned long si5324_clkout_recalc_rate(struct clk_hw *hw,
 	else if (hwdata->num == 1)
 		rate = (parent_rate / hwdata->params.n1_hs) / hwdata->params.nc2_ls;
 
-	printk(KERN_INFO "si5324_clkout_recalc_rate(parent_rate=%lu) => clkout%d=%lu\n",
+	printk(KERN_INFO "si5324_clkout_recalc_rate(parent_rate=%lu) => clkout%d=%lu (invalid)\n",
 		parent_rate, hwdata->num, rate);
 	return rate;
 }
