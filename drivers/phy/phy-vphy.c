@@ -162,6 +162,7 @@ EXPORT_SYMBOL_GPL(XVphy_MmcmStart);
 /* exclusively required by TX */
 EXPORT_SYMBOL_GPL(XVphy_Clkout1OBufTdsEnable);
 EXPORT_SYMBOL_GPL(XVphy_SetHdmiTxParam);
+EXPORT_SYMBOL_GPL(XVphy_IsBonded);
 
 static irqreturn_t xvphy_irq_handler(int irq, void *dev_id)
 {
@@ -198,6 +199,7 @@ static irqreturn_t xvphy_irq_thread(int irq, void *dev_id)
 	if (!vphydev)
 		return IRQ_NONE;
 
+	printk(KERN_DEBUG "xvphy_irq_thread()\n");
 	/* call baremetal interrupt handler with mutex locked */
 	mutex_lock(&vphydev->xvphy_mutex);
 
@@ -217,6 +219,8 @@ static irqreturn_t xvphy_irq_thread(int irq, void *dev_id)
 		XVPHY_INTR_HANDLER_TYPE_RX_CLKDET_FREQ_CHANGE |
 		XVPHY_INTR_HANDLER_TYPE_TX_TMR_TIMEOUT |
 		XVPHY_INTR_HANDLER_TYPE_RX_TMR_TIMEOUT);
+
+	XVphy_LogDisplay(&vphydev->xvphy);
 	return IRQ_HANDLED;
 }
 
@@ -372,21 +376,21 @@ typedef struct {
 #endif
 
 static XVphy_Config config = {
-		XPAR_VID_PHY_CONTROLLER_0_DEVICE_ID,
-		XPAR_VID_PHY_CONTROLLER_0_BASEADDR,
-		XPAR_VID_PHY_CONTROLLER_0_TRANSCEIVER,
-		XPAR_VID_PHY_CONTROLLER_0_TX_NO_OF_CHANNELS,
-		XPAR_VID_PHY_CONTROLLER_0_RX_NO_OF_CHANNELS,
-		XPAR_VID_PHY_CONTROLLER_0_TX_PROTOCOL,
-		XPAR_VID_PHY_CONTROLLER_0_RX_PROTOCOL,
-		XPAR_VID_PHY_CONTROLLER_0_TX_REFCLK_SEL,
-		XPAR_VID_PHY_CONTROLLER_0_RX_REFCLK_SEL,
-		XPAR_VID_PHY_CONTROLLER_0_TX_PLL_SELECTION,
-		XPAR_VID_PHY_CONTROLLER_0_RX_PLL_SELECTION,
-		XPAR_VID_PHY_CONTROLLER_0_NIDRU,
-		XPAR_VID_PHY_CONTROLLER_0_NIDRU_REFCLK_SEL,
-		XPAR_VID_PHY_CONTROLLER_0_INPUT_PIXELS_PER_CLOCK,
-		XPAR_VID_PHY_CONTROLLER_0_TX_BUFFER_BYPASS
+	XPAR_VID_PHY_CONTROLLER_0_DEVICE_ID,
+	XPAR_VID_PHY_CONTROLLER_0_BASEADDR,
+	XPAR_VID_PHY_CONTROLLER_0_TRANSCEIVER,
+	XPAR_VID_PHY_CONTROLLER_0_TX_NO_OF_CHANNELS,
+	XPAR_VID_PHY_CONTROLLER_0_RX_NO_OF_CHANNELS,
+	XPAR_VID_PHY_CONTROLLER_0_TX_PROTOCOL,
+	XPAR_VID_PHY_CONTROLLER_0_RX_PROTOCOL,
+	XPAR_VID_PHY_CONTROLLER_0_TX_REFCLK_SEL,
+	XPAR_VID_PHY_CONTROLLER_0_RX_REFCLK_SEL,
+	XPAR_VID_PHY_CONTROLLER_0_TX_PLL_SELECTION,
+	XPAR_VID_PHY_CONTROLLER_0_RX_PLL_SELECTION,
+	XPAR_VID_PHY_CONTROLLER_0_NIDRU,
+	XPAR_VID_PHY_CONTROLLER_0_NIDRU_REFCLK_SEL,
+	XPAR_VID_PHY_CONTROLLER_0_INPUT_PIXELS_PER_CLOCK,
+	XPAR_VID_PHY_CONTROLLER_0_TX_BUFFER_BYPASS
 };
 
 static void vphy_config_init(XVphy_Config *config, void __iomem *iomem)
@@ -505,19 +509,12 @@ static int xvphy_probe(struct platform_device *pdev)
 			return PTR_ERR(provider);
 	}
 
-	// Initialize Video PHY
-	///// @TODO
-	// The GT needs to be initialized after the HDMI RX and TX.
-	// The reason for this is the GtRxInitStartCallback
-	// calls the RX stream down callback.
-	/////
-
 	/* initialize configuration data */
 	vphy_config_init(&config, vphydev->iomem);
 
 	/* Initialize HDMI VPHY */
 	Status = XVphy_HdmiInitialize(&vphydev->xvphy, 0,
-				&config, 100*1000*1000/*@TODO logic clock*/);
+		&config, 50*1000*1000/*@TODO get logic clock from DT*/);
 	if (Status != XST_SUCCESS) {
 		printk(KERN_INFO "HDMI VPHY initialization error\n\r");
 		return XST_FAILURE;
@@ -525,6 +522,10 @@ static int xvphy_probe(struct platform_device *pdev)
 
 	Data = XVphy_GetVersion(&vphydev->xvphy);
 	xil_printf("VPhy version : %02d.%02d (%04x)\n\r", ((Data >> 24) & 0xFF), ((Data >> 16) & 0xFF), (Data & 0xFFFF));
+
+	vphydev->dev = &pdev->dev;
+	/* set a pointer to our driver data */
+	platform_set_drvdata(pdev, vphydev);
 
 	ret = devm_request_threaded_irq(&pdev->dev, vphydev->irq, xvphy_irq_handler, xvphy_irq_thread,
 			IRQF_TRIGGER_HIGH /*IRQF_SHARED*/, "xilinx-vphy", vphydev/*dev_id*/);
@@ -534,9 +535,11 @@ static int xvphy_probe(struct platform_device *pdev)
 		return ret;
 	}
 
-	vphydev->dev = &pdev->dev;
-	/* set a pointer to our driver data */
-	platform_set_drvdata(pdev, vphydev);
+	dev_info(&pdev->dev, "config.DruIsPresent = %d\n", config.DruIsPresent);
+	if (vphydev->xvphy.Config.DruIsPresent == (TRUE)) {
+		dev_info(&pdev->dev, "DRU reference clock frequency %0d Hz\n\r",
+						XVphy_DruGetRefClkFreqHz(&vphydev->xvphy));
+	}
 	printk(KERN_INFO "HDMI VPHY initialization completed\n\r");
 
 	return 0;

@@ -22,6 +22,7 @@
 #include <linux/xilinx-v4l2-controls.h>
 #include <linux/v4l2-dv-timings.h>
 #include <linux/firmware.h>
+#include <linux/clk.h>
 
 #include <media/v4l2-async.h>
 #include <media/v4l2-ctrls.h>
@@ -76,6 +77,9 @@ struct xhdmirx_device {
 	struct v4l2_ctrl *pattern;
 	bool cable_connected;
 	bool hdmi_stream;
+
+	/* NI-DRU clock input */
+	struct clk *clkp;
 
 	u8 edid_user[EDID_BLOCKS_MAX*128];
 	int edid_user_blocks;
@@ -720,10 +724,10 @@ static void RxStreamUpCallback(void *CallbackRef)
 	if (!xhdmirx || !HdmiRxSsPtr || !HdmiRxSsPtr->HdmiRxPtr) return;
 	dev_info(xhdmirx->xvip.dev, "stream is up.\n");
 	Stream = &HdmiRxSsPtr->HdmiRxPtr->Stream.Video;
-#if 0
+#if 1
 	XVidC_ReportStreamInfo(Stream);
 #endif
-#if 0
+#if 1
 	XV_HdmiRx_DebugInfo(HdmiRxSsPtr->HdmiRxPtr);
 #endif
 	/* http://lxr.free-electrons.com/source/include/uapi/linux/videodev2.h#L1229 */
@@ -1018,6 +1022,7 @@ static int xhdmirx_probe(struct platform_device *pdev)
 	const struct firmware *fw_edid;
 	const char *fw_edid_name = "xilinx/xilinx-hdmi-rx-edid.bin";
 	unsigned long flags;
+	unsigned long dru_clk_rate;
 
 	XV_HdmiRxSs *HdmiRxSsPtr;
 	u32 Status;
@@ -1057,6 +1062,36 @@ static int xhdmirx_probe(struct platform_device *pdev)
 		dev_err(&pdev->dev, "platform_get_irq() failed\n");
 		return xhdmirx->irq;
 	}
+
+	if (!xhdmirx->clkp) {
+		xhdmirx->clkp = devm_clk_get(&pdev->dev, "dru-clk");
+		if (IS_ERR(xhdmirx->clkp)) {
+			ret = PTR_ERR(xhdmirx->clkp);
+			xhdmirx->clkp = NULL;
+			dev_err(&pdev->dev, "failed to get the dru-clk.\n");
+			if (ret == -EPROBE_DEFER) {
+				dev_err(&pdev->dev, "defering initialization as dru-clk failed.\n");
+			}
+			return ret;
+		}
+	}
+	dev_info(&pdev->dev, "got dru-clk\n");
+
+	ret = clk_prepare_enable(xhdmirx->clkp);
+	if (ret) {
+		dev_err(&pdev->dev, "failed to enable dru-clk\n");
+		return ret;
+	}
+	dev_info(&pdev->dev, "enabled dru-clk\n");
+
+	dev_info(xhdmirx->xvip.dev, "Initializing Si570 (U56) NI-DRU clock to 125 MHz\n");
+
+	dru_clk_rate = clk_get_rate(xhdmirx->clkp);
+	dev_info(&pdev->dev, "dru-clk rate = %lu\n", dru_clk_rate);
+	/* http://events.linuxfoundation.org/sites/events/files/slides/gregory-clement-common-clock-framework-how-to-use-it.pdf */
+	dru_clk_rate = clk_set_rate(xhdmirx->clkp, 125*1000*1000);
+	dru_clk_rate = clk_get_rate(xhdmirx->clkp);
+	dev_info(&pdev->dev, "dru-clk rate = %lu\n", dru_clk_rate);
 
 	/* @TODO compiler issue, or am I just staring blind? if change to "index < 3", the case for index == 3 is also run.
 	 * Possibly a compiler issue with aggressive loop unrolling optimization.
