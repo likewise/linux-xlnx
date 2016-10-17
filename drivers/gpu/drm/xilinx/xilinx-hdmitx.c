@@ -1,9 +1,3 @@
-#include <linux/device.h>
-#include <linux/gpio/consumer.h>
-#include <linux/module.h>
-#include <linux/of.h>
-#include <linux/phy/phy.h>
-#include <linux/interrupt.h>
 /*
  * Xilinx Video HDMI TX Subsystem driver
  *
@@ -16,22 +10,19 @@
  * it under the terms of the GNU General Public License version 2 as
  * published by the Free Software Foundation.
  */
+#include <linux/device.h>
+#include <linux/gpio/consumer.h>
+#include <linux/module.h>
+#include <linux/of.h>
+#include <linux/phy/phy.h>
+#include <linux/interrupt.h>
 
 #include <linux/workqueue.h>
 #include <linux/platform_device.h>
-#include <linux/xilinx-v4l2-controls.h>
 #include <linux/clk.h>
-
-#include <media/v4l2-async.h>
-#include <media/v4l2-ctrls.h>
-#include <media/v4l2-subdev.h>
-
-#include "xilinx-hls-common.h"
-#include "xilinx-vip.h"
-#include "xilinx-vtc.h"
+#include "linux/delay.h"
 
 #include "linux/phy/phy-vphy.h"
-#include "linux/delay.h"
 
 /* baseline driver includes */
 #include "xilinx-hdmi-tx/xv_hdmitxss.h"
@@ -41,13 +32,19 @@
 #define NUM_SUBCORE_IRQ 2
 #define HDMI_MAX_LANES	4
 
+#if 0
 #define mutex_lock(x)
 #define mutex_unlock(x)
 #define xvphy_mutex_lock(x)
 #define xvphy_mutex_unlock(x)
+#endif
 
 struct xhdmitx_device {
-	struct xvip_device xvip;
+	struct device *dev;
+	void __iomem *iomem;
+	/* video streaming bus clock */
+	struct clk *clk;
+
 	/* interrupt number */
 	int irq;
 	bool teardown;
@@ -62,7 +59,7 @@ struct xhdmitx_device {
 	struct workqueue_struct *work_queue;
 	struct delayed_work delayed_work_enable_hotplug;
 	/* input clock */
-	struct clk *clkp;
+	struct clk *tx_clk;
 	bool cable_connected;
 	bool hdmi_stream;
 
@@ -119,7 +116,7 @@ static irqreturn_t hdmitx_irq_handler(int irq, void *dev_id)
 		static int fault_count = 0;
 		fault_count++;
 		if (fault_count)
-		dev_err(xhdmitx->xvip.dev, "irq_handler: !dev_id\n");
+		dev_err(xhdmitx->dev, "irq_handler: !dev_id\n");
 		spin_lock_irqsave(&xhdmitx->irq_lock, flags);
 		/* mask interrupt request */
 		XV_HdmiTxSs_IntrDisable(HdmiTxSsPtr);
@@ -224,17 +221,17 @@ static void TxConnectCallback(void *CallbackRef)
 	BUG_ON(!HdmiTxSsPtr);
 	BUG_ON(!VphyPtr);
 	BUG_ON(!xhdmitx->phy[0]);
-	dev_info(xhdmitx->xvip.dev, "TxConnectCallback():\n");
+	dev_info(xhdmitx->dev, "TxConnectCallback():\n");
 
 	xvphy_mutex_lock(xhdmitx->phy[0]);
 	if (HdmiTxSsPtr->IsStreamConnected) {
-		dev_info(xhdmitx->xvip.dev, "TxConnectCallback(): TX connected\n");
+		dev_info(xhdmitx->dev, "TxConnectCallback(): TX connected\n");
 		/* Check HDMI sink version */
 		XV_HdmiTxSs_DetectHdmi20(HdmiTxSsPtr);
 		XVphy_IBufDsEnable(VphyPtr, 0, XVPHY_DIR_TX, (TRUE));
 	}
 	else {
-		dev_info(xhdmitx->xvip.dev, "TxConnectCallback(): TX disconnected\n");
+		dev_info(xhdmitx->dev, "TxConnectCallback(): TX disconnected\n");
 		XVphy_IBufDsEnable(VphyPtr, 0, XVPHY_DIR_TX, (FALSE));
 	}
 	xvphy_mutex_unlock(xhdmitx->phy[0]);
@@ -255,7 +252,7 @@ static void TxStreamUpCallback(void *CallbackRef)
 	VphyPtr = xhdmitx->xvphy;
 	BUG_ON(!VphyPtr);
 
-	dev_info(xhdmitx->xvip.dev, "TxStreamUpCallback(): TX stream is up\n");
+	dev_info(xhdmitx->dev, "TxStreamUpCallback(): TX stream is up\n");
 
 	XVphy_PllType TxPllType;
 	u64 TxLineRate;
@@ -334,7 +331,7 @@ static void TxStreamDownCallback(void *CallbackRef)
 	VphyPtr = xhdmitx->xvphy;
 	BUG_ON(!VphyPtr);
 
-	dev_info(xhdmitx->xvip.dev, "TX stream is down\n\r");
+	dev_info(xhdmitx->dev, "TX stream is down\n\r");
 }
 
 static void TxVsCallback(void *CallbackRef)
@@ -365,7 +362,7 @@ static void VphyHdmiTxInitCallback(void *CallbackRef)
 
 	VphyPtr = xhdmitx->xvphy;
 	BUG_ON(!VphyPtr);
-	dev_info(xhdmitx->xvip.dev, "VphyHdmiTxInitCallback\r\n");
+	dev_info(xhdmitx->dev, "VphyHdmiTxInitCallback\r\n");
 
 	/* a pair of mutexes must be locked in fixed order to prevent deadlock,
 	 * and the order is RX SS then XVPHY, so first unlock XVPHY then lock both */
@@ -392,7 +389,7 @@ static void VphyHdmiTxReadyCallback(void *CallbackRef)
 	VphyPtr = xhdmitx->xvphy;
 	BUG_ON(!VphyPtr);
 
-	dev_info(xhdmitx->xvip.dev, "VphyHdmiTxReadyCallback\r\n");
+	dev_info(xhdmitx->dev, "VphyHdmiTxReadyCallback\r\n");
 }
 
 static void EnableColorBar(struct xhdmitx_device *xhdmitx,
@@ -421,11 +418,11 @@ static void EnableColorBar(struct xhdmitx_device *xhdmitx,
 	HdmiTxSsVidStreamPtr = XV_HdmiTxSs_GetVideoStream(HdmiTxSsPtr);
 
 	if (XVphy_IsBonded(VphyPtr, 0, XVPHY_CHANNEL_ID_CH1)) {
-		dev_info(xhdmitx->xvip.dev, "Both the GT RX and GT TX are clocked by the RX reference clock.\n");
+		dev_info(xhdmitx->dev, "Both the GT RX and GT TX are clocked by the RX reference clock.\n");
 	}
 
 	if (VideoMode < XVIDC_VM_NUM_SUPPORTED) {
-		dev_info(xhdmitx->xvip.dev, "Starting colorbar\n\r");
+		dev_info(xhdmitx->dev, "Starting colorbar\n\r");
 
 		// Disable TX TDMS clock
 		XVphy_Clkout1OBufTdsEnable(VphyPtr, XVPHY_DIR_TX, (FALSE));
@@ -452,7 +449,7 @@ static void EnableColorBar(struct xhdmitx_device *xhdmitx,
 					HdmiTxSsVidStreamPtr->ColorFormatId);
 
 	if (Result == (XST_FAILURE)) {
-		dev_info(xhdmitx->xvip.dev, "Unable to set requested TX video resolution.\n\r");
+		dev_info(xhdmitx->dev, "Unable to set requested TX video resolution.\n\r");
 	}
 
 	/* Disable RX clock forwarding */
@@ -461,18 +458,18 @@ static void EnableColorBar(struct xhdmitx_device *xhdmitx,
 	xvphy_mutex_unlock(xhdmitx->phy[0]);
 	mutex_unlock(&xhdmitx->xhdmitx_mutex);
 
-	tx_clk_rate = clk_set_rate(xhdmitx->clkp, 50 * 1000 * 1000);
+	tx_clk_rate = clk_set_rate(xhdmitx->tx_clk, 50 * 1000 * 1000);
 
-	dev_info(xhdmitx->xvip.dev, "50 MHz\n");
+	dev_info(xhdmitx->dev, "50 MHz\n");
 
 	mdelay(60 * 1000);
 
-	dev_info(xhdmitx->xvip.dev, "tx-clk setting rate = %u\n", VphyPtr->HdmiTxRefClkHz);
+	dev_info(xhdmitx->dev, "tx-clk setting rate = %u\n", VphyPtr->HdmiTxRefClkHz);
 
-	tx_clk_rate = clk_set_rate(xhdmitx->clkp, VphyPtr->HdmiTxRefClkHz);
+	tx_clk_rate = clk_set_rate(xhdmitx->tx_clk, VphyPtr->HdmiTxRefClkHz);
 
-	tx_clk_rate = clk_get_rate(xhdmitx->clkp);
-	dev_info(xhdmitx->xvip.dev, "tx-clk rate = %lu\n", tx_clk_rate);
+	tx_clk_rate = clk_get_rate(xhdmitx->tx_clk);
+	dev_info(xhdmitx->dev, "tx-clk rate = %lu\n", tx_clk_rate);
 }
 
 #define XPAR_HDMI_OUTPUT_V_HDMI_TX_SS_0_V_HDMI_TX_PRESENT         1
@@ -578,14 +575,12 @@ XV_HdmiTx_Config *XV_HdmiTx_LookupConfig(u16 DeviceId)
 {
 	return (XV_HdmiTx_Config *)&XV_HdmiTx_FixedConfig;
 }
-
-XGpio_Config *XGpio_LookupConfig(u16 DeviceId)
+XGpio_Config *XGpio_LookupConfig_TX(u16 DeviceId)
 {
 	BUG_ON(1);
 	return (XGpio_Config *)NULL;
 }
-
-XV_axi4s_remap_Config* XV_axi4s_remap_LookupConfig(u16 DeviceId) {
+XV_axi4s_remap_Config* XV_axi4s_remap_LookupConfig_TX(u16 DeviceId) {
 	BUG_ON(1);
 	return NULL;
 }
@@ -603,7 +598,7 @@ static void hdmitx_config_init(XV_HdmiTxSs_Config *config, void __iomem *iomem)
 
 static int xhdmitx_parse_of(struct xhdmitx_device *xhdmitx, XV_HdmiTxSs_Config *config)
 {
-	struct device *dev = xhdmitx->xvip.dev;
+	struct device *dev = xhdmitx->dev;
 	struct device_node *node = dev->of_node;
 	(void)dev;
 	(void)node;
@@ -634,6 +629,7 @@ static int xhdmitx_probe(struct platform_device *pdev)
 	unsigned int index;
 	unsigned long tx_clk_rate;
 	unsigned long flags;
+	struct resource *res;
 
 	XV_HdmiTxSs *HdmiTxSsPtr;
 	u32 Status;
@@ -643,7 +639,7 @@ static int xhdmitx_probe(struct platform_device *pdev)
 	if (!xhdmitx)
 		return -ENOMEM;
 	/* store pointer of the real device inside platform device */
-	xhdmitx->xvip.dev = &pdev->dev;
+	xhdmitx->dev = &pdev->dev;
 
 	/* mutex that protects against concurrent access */
 	mutex_init(&xhdmitx->xhdmitx_mutex);
@@ -651,7 +647,7 @@ static int xhdmitx_probe(struct platform_device *pdev)
 	/* work queues */
 	xhdmitx->work_queue = create_singlethread_workqueue("xilinx-hdmi-tx");
 	if (!xhdmitx->work_queue) {
-		dev_info(xhdmitx->xvip.dev, "Could not create work queue\n");
+		dev_info(xhdmitx->dev, "Could not create work queue\n");
 		return -ENOMEM;
 	}
 #if 0
@@ -664,11 +660,17 @@ static int xhdmitx_probe(struct platform_device *pdev)
 	if (ret < 0)
 		return ret;
 
-	ret = xvip_init_resources(&xhdmitx->xvip);
-	if (ret < 0) {
-		destroy_workqueue(xhdmitx->work_queue);
-		return ret;
-	}
+	res = platform_get_resource(pdev, IORESOURCE_MEM, 0);
+	xhdmitx->iomem = devm_ioremap_resource(xhdmitx->dev, res);
+	if (IS_ERR(xhdmitx->iomem))
+		return PTR_ERR(xhdmitx->iomem);
+
+	/* video streaming bus clock */
+	xhdmitx->clk = devm_clk_get(xhdmitx->dev, NULL);
+	if (IS_ERR(xhdmitx->clk))
+		return PTR_ERR(xhdmitx->clk);
+
+	clk_prepare_enable(xhdmitx->clk);
 
 	/* get irq */
 	xhdmitx->irq = platform_get_irq(pdev, 0);
@@ -679,10 +681,10 @@ static int xhdmitx_probe(struct platform_device *pdev)
 	}
 
 #if 0
-	xhdmitx->clkp = devm_clk_get(&pdev->dev, "tx-clk0");
-	if (IS_ERR(xhdmitx->clkp)) {
-		ret = PTR_ERR(xhdmitx->clkp);
-		xhdmitx->clkp = NULL;
+	xhdmitx->tx_clk = devm_clk_get(&pdev->dev, "tx-clk0");
+	if (IS_ERR(xhdmitx->tx_clk)) {
+		ret = PTR_ERR(xhdmitx->tx_clk);
+		xhdmitx->tx_clk = NULL;
 		dev_err(&pdev->dev, "failed to get the tx-clk0.\n");
 		if (ret == -EPROBE_DEFER) {
 			dev_err(&pdev->dev, "defering initialization as tx-clk0 failed.\n");
@@ -691,11 +693,11 @@ static int xhdmitx_probe(struct platform_device *pdev)
 	}
 #endif
 
-	if (!xhdmitx->clkp) {
-		xhdmitx->clkp = devm_clk_get(&pdev->dev, "tx-clk");
-		if (IS_ERR(xhdmitx->clkp)) {
-			ret = PTR_ERR(xhdmitx->clkp);
-			xhdmitx->clkp = NULL;
+	if (!xhdmitx->tx_clk) {
+		xhdmitx->tx_clk = devm_clk_get(&pdev->dev, "tx-clk");
+		if (IS_ERR(xhdmitx->tx_clk)) {
+			ret = PTR_ERR(xhdmitx->tx_clk);
+			xhdmitx->tx_clk = NULL;
 			dev_err(&pdev->dev, "failed to get the tx-clk.\n");
 			if (ret == -EPROBE_DEFER) {
 				dev_err(&pdev->dev, "defering initialization as tx-clk failed.\n");
@@ -705,20 +707,20 @@ static int xhdmitx_probe(struct platform_device *pdev)
 	}
 	dev_info(&pdev->dev, "got tx-clk\n");
 
-	ret = clk_prepare_enable(xhdmitx->clkp);
+	ret = clk_prepare_enable(xhdmitx->tx_clk);
 	if (ret) {
 		dev_err(&pdev->dev, "failed to enable tx-clk\n");
 		return ret;
 	}
 	dev_info(&pdev->dev, "enabled tx-clk\n");
 
-	dev_info(xhdmitx->xvip.dev, "Initializing Si5324 TX clock to 50 MHz\n");
+	dev_info(xhdmitx->dev, "Initializing Si5324 TX clock to 50 MHz\n");
 
-	tx_clk_rate = clk_get_rate(xhdmitx->clkp);
+	tx_clk_rate = clk_get_rate(xhdmitx->tx_clk);
 	dev_info(&pdev->dev, "tx-clk rate = %lu\n", tx_clk_rate);
 	/* http://events.linuxfoundation.org/sites/events/files/slides/gregory-clement-common-clock-framework-how-to-use-it.pdf */
-	tx_clk_rate = clk_set_rate(xhdmitx->clkp, 50*1000*1000);
-	tx_clk_rate = clk_get_rate(xhdmitx->clkp);
+	tx_clk_rate = clk_set_rate(xhdmitx->tx_clk, 50*1000*1000);
+	tx_clk_rate = clk_get_rate(xhdmitx->tx_clk);
 	dev_info(&pdev->dev, "tx-clk rate = %lu\n", tx_clk_rate);
 
 	/* @TODO spread phy[index] over RX/TX as */
@@ -728,17 +730,17 @@ static int xhdmitx_probe(struct platform_device *pdev)
 		snprintf(phy_name, sizeof(phy_name), "hdmi-phy%d", index);
 
 		index = 0;
-		xhdmitx->phy[index] = devm_phy_get(xhdmitx->xvip.dev, phy_name);
+		xhdmitx->phy[index] = devm_phy_get(xhdmitx->dev, phy_name);
 		if (IS_ERR(xhdmitx->phy[index])) {
 			ret = PTR_ERR(xhdmitx->phy[index]);
-			dev_err(xhdmitx->xvip.dev, "failed to get phy lane %s, error %d\n",
+			dev_err(xhdmitx->dev, "failed to get phy lane %s, error %d\n",
 				phy_name, ret);
 			goto error_phy;
 		}
 
 		ret = phy_init(xhdmitx->phy[index]);
 		if (ret) {
-			dev_err(xhdmitx->xvip.dev,
+			dev_err(xhdmitx->dev,
 				"failed to init phy lane %d\n", index);
 			goto error_phy;
 		}
@@ -749,18 +751,18 @@ static int xhdmitx_probe(struct platform_device *pdev)
 	mutex_lock(&xhdmitx->xhdmitx_mutex);
 
 	/* initialize the source configuration structure */
-	hdmitx_config_init(&config, xhdmitx->xvip.iomem);
+	hdmitx_config_init(&config, xhdmitx->iomem);
 
 	printk(KERN_INFO "HdmiTxSsPtr = %p\n", HdmiTxSsPtr);
 	printk(KERN_INFO "&config = %p\n", &config);
-	printk(KERN_INFO "xhdmitx->xvip.iomem = %lx\n", (unsigned long)xhdmitx->xvip.iomem);
+	printk(KERN_INFO "xhdmitx->iomem = %lx\n", (unsigned long)xhdmitx->iomem);
 
 	// Initialize top level and all included sub-cores
 	Status = XV_HdmiTxSs_CfgInitialize(HdmiTxSsPtr, &config,
-		(uintptr_t)xhdmitx->xvip.iomem);
+		(uintptr_t)xhdmitx->iomem);
 	if (Status != XST_SUCCESS)
 	{
-		dev_err(xhdmitx->xvip.dev, "initialization failed with error %d\n", Status);
+		dev_err(xhdmitx->dev, "initialization failed with error %d\n", Status);
 		return -EINVAL;
 	}
 
@@ -797,7 +799,7 @@ static int xhdmitx_probe(struct platform_device *pdev)
 
 	platform_set_drvdata(pdev, xhdmitx);
 
-	/* Request the interrupt, xvip_init_resources() does not request interrupts */
+	/* Request the interrupt */
 	ret = devm_request_threaded_irq(&pdev->dev, xhdmitx->irq, hdmitx_irq_handler, hdmitx_irq_thread,
 		IRQF_TRIGGER_HIGH /*| IRQF_SHARED*/, "xilinx-hdmitxss", xhdmitx/*dev_id*/);
 	if (ret) {
@@ -825,7 +827,7 @@ error_phy:
 static int xhdmitx_remove(struct platform_device *pdev)
 {
 	struct xhdmitx_device *xhdmitx = platform_get_drvdata(pdev);
-	//if (xhdmitx->clkp) clk_put(xhdmitx->clkp);
+	//if (xhdmitx->tx_clk) clk_put(xhdmitx->tx_clk);
 	if (xhdmitx->work_queue) destroy_workqueue(xhdmitx->work_queue);
 	return 0;
 }

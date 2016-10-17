@@ -25,6 +25,14 @@
 #include "phy-xilinx-vphy/xil_printf.h"
 #include "phy-xilinx-vphy/xstatus.h"
 
+/* common RX/TX */
+#include "phy-xilinx-vphy/xgpio.h"
+#include "phy-xilinx-vphy/xgpio_i.h"
+#include "phy-xilinx-vphy/xgpio_l.h"
+#include "phy-xilinx-vphy/xvidc.h"
+#include "phy-xilinx-vphy/xvidc_edid.h"
+#include "phy-xilinx-vphy/xv_axi4s_remap.h"
+#include "phy-xilinx-vphy/xv_axi4s_remap_hw.h"
 /**
  * struct xvphy_lane - representation of a lane
  * @phy: pointer to the kernel PHY device
@@ -163,6 +171,29 @@ EXPORT_SYMBOL_GPL(XVphy_MmcmStart);
 EXPORT_SYMBOL_GPL(XVphy_Clkout1OBufTdsEnable);
 EXPORT_SYMBOL_GPL(XVphy_SetHdmiTxParam);
 EXPORT_SYMBOL_GPL(XVphy_IsBonded);
+
+/* common functionality shared between RX and TX */
+EXPORT_SYMBOL_GPL(XVidC_ReportTiming);
+EXPORT_SYMBOL_GPL(XVidC_SetVideoStream);
+EXPORT_SYMBOL_GPL(XVidC_ReportStreamInfo);
+EXPORT_SYMBOL_GPL(XVidC_EdidGetManName);
+EXPORT_SYMBOL_GPL(XVidC_Set3DVideoStream);
+EXPORT_SYMBOL_GPL(XVidC_GetPixelClockHzByVmId);
+EXPORT_SYMBOL_GPL(XGpio_DiscreteWrite);
+EXPORT_SYMBOL_GPL(XGpio_SetDataDirection);
+EXPORT_SYMBOL_GPL(XGpio_CfgInitialize);
+EXPORT_SYMBOL_GPL(XV_axi4s_remap_Set_width);
+EXPORT_SYMBOL_GPL(XV_axi4s_remap_Set_outPixRepeat);
+EXPORT_SYMBOL_GPL(XV_axi4s_remap_Start);
+EXPORT_SYMBOL_GPL(XV_axi4s_remap_Set_height);
+EXPORT_SYMBOL_GPL(XV_axi4s_remap_Set_inPixClk);
+EXPORT_SYMBOL_GPL(XV_axi4s_remap_Set_inPixDrop);
+EXPORT_SYMBOL_GPL(XV_axi4s_remap_Set_inHDMI420);
+EXPORT_SYMBOL_GPL(XV_axi4s_remap_CfgInitialize);
+EXPORT_SYMBOL_GPL(XV_axi4s_remap_Set_ColorFormat);
+EXPORT_SYMBOL_GPL(XV_axi4s_remap_EnableAutoRestart);
+EXPORT_SYMBOL_GPL(XV_axi4s_remap_Set_outPixClk);
+EXPORT_SYMBOL_GPL(XV_axi4s_remap_Set_outHDMI420);
 
 static irqreturn_t xvphy_irq_handler(int irq, void *dev_id)
 {

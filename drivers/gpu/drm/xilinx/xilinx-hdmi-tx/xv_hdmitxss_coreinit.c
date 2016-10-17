@@ -431,7 +431,7 @@ int XV_HdmiTxSs_SubcoreInitRemapperReset(XV_HdmiTxSs *HdmiTxSsPtr)
 
   if (HdmiTxSsPtr->RemapperResetPtr) {
     /* Get core configuration */
-    ConfigPtr  = XGpio_LookupConfig(HdmiTxSsPtr->Config.RemapperReset.DeviceId);
+    ConfigPtr  = XGpio_LookupConfig_TX(HdmiTxSsPtr->Config.RemapperReset.DeviceId);
     if (ConfigPtr == NULL) {
       xil_printf("HDMITXSS ERR:: Reset module for Remapper not found\r\n");
       return(XST_FAILURE);
@@ -482,7 +482,7 @@ int XV_HdmiTxSs_SubcoreInitRemapper(XV_HdmiTxSs *HdmiTxSsPtr)
 
   if (HdmiTxSsPtr->RemapperPtr) {
     /* Get core configuration */
-    ConfigPtr  = XV_axi4s_remap_LookupConfig(HdmiTxSsPtr->Config.Remapper.DeviceId);
+    ConfigPtr  = XV_axi4s_remap_LookupConfig_TX(HdmiTxSsPtr->Config.Remapper.DeviceId);
     if (ConfigPtr == NULL) {
       xil_printf("HDMITXSS ERR:: Remapper not found\r\n");
       return(XST_FAILURE);

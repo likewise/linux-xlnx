@@ -159,7 +159,7 @@ typedef struct {
  * Initialization functions in xgpio_sinit.c
  */
 int XGpio_Initialize(XGpio *InstancePtr, u16 DeviceId);
-XGpio_Config *XGpio_LookupConfig(u16 DeviceId);
+XGpio_Config *XGpio_LookupConfig_RX(u16 DeviceId);
 
 /*
  * API Basic functions implemented in xgpio.c

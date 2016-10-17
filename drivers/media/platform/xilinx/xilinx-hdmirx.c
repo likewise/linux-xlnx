@@ -43,7 +43,10 @@
 #define EDID_BLOCKS_MAX 2
 
 struct xhdmirx_device {
-	struct xvip_device xvip;
+	struct device xvip;
+	struct device *dev;
+	void __iomem *iomem;
+	struct clk *clk;
 	/* interrupt number */
 	int irq;
 	bool teardown;
@@ -58,6 +61,8 @@ struct xhdmirx_device {
 	/* schedule (future) work */
 	struct workqueue_struct *work_queue;
 	struct delayed_work delayed_work_enable_hotplug;
+
+	struct v4l2_subdev subdev;
 
 	/* V4L media output pad to construct the video pipeline */
 	struct media_pad pad;
@@ -116,7 +121,7 @@ static const u8 xilinx_edid[] = {
 
 static inline struct xhdmirx_device *to_xhdmirx(struct v4l2_subdev *subdev)
 {
-	return container_of(subdev, struct xhdmirx_device, xvip.subdev);
+	return container_of(subdev, struct xhdmirx_device, subdev);
 }
 
 /* -----------------------------------------------------------------------------
@@ -144,7 +149,7 @@ __xhdmirx_get_pad_format_ptr(struct xhdmirx_device *xhdmirx,
 	switch (which) {
 	case V4L2_SUBDEV_FORMAT_TRY:
 		printk(KERN_INFO "__xhdmirx_get_pad_format(): V4L2_SUBDEV_FORMAT_TRY\n");
-		return v4l2_subdev_get_try_format(&xhdmirx->xvip.subdev, cfg, pad);
+		return v4l2_subdev_get_try_format(&xhdmirx->subdev, cfg, pad);
 	case V4L2_SUBDEV_FORMAT_ACTIVE:
 		printk(KERN_INFO "__xhdmirx_get_pad_format(): V4L2_SUBDEV_FORMAT_ACTIVE\n");
 		printk(KERN_INFO "detected_format->width = %u\n", xhdmirx->detected_format.width);
@@ -442,14 +447,14 @@ static const struct media_entity_operations xhdmirx_media_ops = {
 static int __maybe_unused xhdmirx_pm_suspend(struct device *dev)
 {
 	struct xhdmirx_device *xhdmirx = dev_get_drvdata(dev);
-	xvip_suspend(&xhdmirx->xvip);
+	//xvip_suspend(&xhdmirx->xvip);
 	return 0;
 }
 
 static int __maybe_unused xhdmirx_pm_resume(struct device *dev)
 {
 	struct xhdmirx_device *xhdmirx = dev_get_drvdata(dev);
-	xvip_resume(&xhdmirx->xvip);
+	//xvip_resume(&xhdmirx->xvip);
 	return 0;
 }
 
@@ -495,7 +500,7 @@ static irqreturn_t hdmirx_irq_handler(int irq, void *dev_id)
 		static int fault_count = 0;
 		fault_count++;
 		if (fault_count)
-		dev_err(xhdmirx->xvip.dev, "irq_handler: !dev_id\n");
+		dev_err(xhdmirx->dev, "irq_handler: !dev_id\n");
 		spin_lock_irqsave(&xhdmirx->irq_lock, flags);
 		/* mask interrupt request */
 		XV_HdmiRxSs_IntrDisable(HdmiRxSsPtr);
@@ -604,8 +609,8 @@ static void RxConnectCallback(void *CallbackRef)
 	if (!xhdmirx || !HdmiRxSsPtr || !VphyPtr) return;
 
 	xhdmirx->cable_connected = !!HdmiRxSsPtr->IsStreamConnected;
-	dev_info(xhdmirx->xvip.dev, "RxConnectCallback()\n");
-	dev_info(xhdmirx->xvip.dev, "cable is %sconnected.\n", xhdmirx->cable_connected? "": "dis");
+	dev_info(xhdmirx->dev, "RxConnectCallback()\n");
+	dev_info(xhdmirx->dev, "cable is %sconnected.\n", xhdmirx->cable_connected? "": "dis");
 
 	xvphy_mutex_lock(xhdmirx->phy[0]);
 	// RX cable is connected
@@ -664,7 +669,7 @@ static void RxStreamDownCallback(void *CallbackRef)
 	if (!xhdmirx || !HdmiRxSsPtr) return;
 	(void)HdmiRxSsPtr;
 	//printk(KERN_INFO "RxStreamDownCallback()\n");
-	dev_info(xhdmirx->xvip.dev, "stream is down.\n");
+	dev_info(xhdmirx->dev, "stream is down.\n");
 	xhdmirx->hdmi_stream = 0;
 }
 
@@ -722,7 +727,7 @@ static void RxStreamUpCallback(void *CallbackRef)
 	BUG_ON(!HdmiRxSsPtr);
 	BUG_ON(!HdmiRxSsPtr->HdmiRxPtr);
 	if (!xhdmirx || !HdmiRxSsPtr || !HdmiRxSsPtr->HdmiRxPtr) return;
-	dev_info(xhdmirx->xvip.dev, "stream is up.\n");
+	dev_info(xhdmirx->dev, "stream is up.\n");
 	Stream = &HdmiRxSsPtr->HdmiRxPtr->Stream.Video;
 #if 1
 	XVidC_ReportStreamInfo(Stream);
@@ -952,16 +957,17 @@ static XV_HdmiRxSs_Config config = {
  * initialized from device-tree so that multiple instances are possible */
 static XGpio_Config XGpio_FixedConfig = {
 #ifdef XPAR_XGPIO_NUM_INSTANCES
+#error
 	 XPAR_GPIO_0_DEVICE_ID,
 	 XPAR_GPIO_0_BASEADDR,
 	 XPAR_GPIO_0_INTERRUPT_PRESENT,
 	 XPAR_GPIO_0_IS_DUAL
 #endif
 };
-XGpio_Config *XGpio_LookupConfig(u16 DeviceId) {
+XGpio_Config *XGpio_LookupConfig_RX(u16 DeviceId) {
 	return (XGpio_Config *)&XGpio_FixedConfig;
 }
-XV_axi4s_remap_Config* XV_axi4s_remap_LookupConfig(u16 DeviceId) {
+XV_axi4s_remap_Config* XV_axi4s_remap_LookupConfig_RX(u16 DeviceId) {
 	BUG_ON(1);
 	return NULL;
 }
@@ -988,7 +994,7 @@ static void hdmirx_config_init(XV_HdmiRxSs_Config *config, void __iomem *iomem)
 
 static int xhdmirx_parse_of(struct xhdmirx_device *xhdmirx, XV_HdmiRxSs_Config *config)
 {
-	struct device *dev = xhdmirx->xvip.dev;
+	struct device *dev = xhdmirx->dev;
 	struct device_node *node = dev->of_node;
 	(void)dev;
 	(void)node;
@@ -1018,6 +1024,7 @@ static int xhdmirx_probe(struct platform_device *pdev)
 	struct xhdmirx_device *xhdmirx;
 	int ret;
 	unsigned int index;
+	struct resource *res;
 
 	const struct firmware *fw_edid;
 	const char *fw_edid_name = "xilinx/xilinx-hdmi-rx-edid.bin";
@@ -1032,7 +1039,7 @@ static int xhdmirx_probe(struct platform_device *pdev)
 	if (!xhdmirx)
 		return -ENOMEM;
 	/* store pointer of the real device inside platform device */
-	xhdmirx->xvip.dev = &pdev->dev;
+	xhdmirx->dev = &pdev->dev;
 
 	/* mutex that protects against concurrent access */
 	mutex_init(&xhdmirx->xhdmirx_mutex);
@@ -1040,7 +1047,7 @@ static int xhdmirx_probe(struct platform_device *pdev)
 	/* work queues */
 	xhdmirx->work_queue = create_singlethread_workqueue("xilinx-hdmi-rx");
 	if (!xhdmirx->work_queue) {
-		dev_info(xhdmirx->xvip.dev, "Could not create work queue\n");
+		dev_info(xhdmirx->dev, "Could not create work queue\n");
 		return -ENOMEM;
 	}
 
@@ -1052,10 +1059,22 @@ static int xhdmirx_probe(struct platform_device *pdev)
 	if (ret < 0)
 		return ret;
 
+	res = platform_get_resource(pdev, IORESOURCE_MEM, 0);
+	xhdmirx->iomem = devm_ioremap_resource(xhdmirx->dev, res);
+	if (IS_ERR(xhdmirx->iomem))
+		return PTR_ERR(xhdmirx->iomem);
+
+	/* video streaming bus clock */
+	xhdmirx->clk = devm_clk_get(xhdmirx->dev, NULL);
+	if (IS_ERR(xhdmirx->clk))
+		return PTR_ERR(xhdmirx->clk);
+
+	clk_prepare_enable(xhdmirx->clk);
+#if 0
 	ret = xvip_init_resources(&xhdmirx->xvip);
 	if (ret < 0)
 		return ret;
-
+#endif
 	/* get irq */
 	xhdmirx->irq = platform_get_irq(pdev, 0);
 	if (xhdmirx->irq <= 0) {
@@ -1084,7 +1103,7 @@ static int xhdmirx_probe(struct platform_device *pdev)
 	}
 	dev_info(&pdev->dev, "enabled dru-clk\n");
 
-	dev_info(xhdmirx->xvip.dev, "Initializing Si570 (U56) NI-DRU clock to 125 MHz\n");
+	dev_info(xhdmirx->dev, "Initializing Si570 (U56) NI-DRU clock to 125 MHz\n");
 
 	dru_clk_rate = clk_get_rate(xhdmirx->clkp);
 	dev_info(&pdev->dev, "dru-clk rate = %lu\n", dru_clk_rate);
@@ -1103,17 +1122,17 @@ static int xhdmirx_probe(struct platform_device *pdev)
 		char phy_name[32];
 
 		snprintf(phy_name, sizeof(phy_name), "hdmi-phy%d", index);
-		dev_info(xhdmirx->xvip.dev, "%s\n", phy_name);
-		xhdmirx->phy[index] = devm_phy_get(xhdmirx->xvip.dev, phy_name);
+		dev_info(xhdmirx->dev, "%s\n", phy_name);
+		xhdmirx->phy[index] = devm_phy_get(xhdmirx->dev, phy_name);
 		if (IS_ERR(xhdmirx->phy[index])) {
 			ret = PTR_ERR(xhdmirx->phy[index]);
-			dev_err(xhdmirx->xvip.dev, "failed to get phy lane %s, error %d\n", phy_name, ret);
+			dev_err(xhdmirx->dev, "failed to get phy lane %s, error %d\n", phy_name, ret);
 			goto error_phy;
 		}
 
 		ret = phy_init(xhdmirx->phy[index]);
 		if (ret) {
-			dev_err(xhdmirx->xvip.dev,
+			dev_err(xhdmirx->dev,
 				"failed to init phy lane %d\n", index);
 			goto error_phy;
 		}
@@ -1125,24 +1144,24 @@ static int xhdmirx_probe(struct platform_device *pdev)
 	mutex_lock(&xhdmirx->xhdmirx_mutex);
 
 	/* initialize the source configuration structure */
-	hdmirx_config_init(&config, xhdmirx->xvip.iomem);
+	hdmirx_config_init(&config, xhdmirx->iomem);
 
 	/* sets pointer to the EDID used by XV_HdmiRxSs_LoadDefaultEdid() */
 	XV_HdmiRxSs_SetEdidParam(HdmiRxSsPtr, (u8 *)&xilinx_edid[0], sizeof(xilinx_edid));
 
 	// Initialize top level and all included sub-cores
 	Status = XV_HdmiRxSs_CfgInitialize(HdmiRxSsPtr, &config,
-		(uintptr_t)xhdmirx->xvip.iomem);
+		(uintptr_t)xhdmirx->iomem);
 	if (Status != XST_SUCCESS)
 	{
-		dev_err(xhdmirx->xvip.dev, "initialization failed with error %d\r\n", Status);
+		dev_err(xhdmirx->dev, "initialization failed with error %d\r\n", Status);
 		return -EINVAL;
 	}
 
-	if (request_firmware(&fw_edid, fw_edid_name, xhdmirx->xvip.dev) == 0) {
+	if (request_firmware(&fw_edid, fw_edid_name, xhdmirx->dev) == 0) {
 		int blocks = fw_edid->size / 128;
 		if ((blocks == 0) || (blocks > EDID_BLOCKS_MAX) || (fw_edid->size % 128)) {
-			dev_info(xhdmirx->xvip.dev, "%s must be n * 128 bytes, with 1 <= n <= %d, using Xilinx built-in EDID instead.\n",
+			dev_info(xhdmirx->dev, "%s must be n * 128 bytes, with 1 <= n <= %d, using Xilinx built-in EDID instead.\n",
 				fw_edid_name, EDID_BLOCKS_MAX);
 		} else {
 			memcpy(xhdmirx->edid_user, fw_edid->data, 128 * blocks);
@@ -1151,16 +1170,16 @@ static int xhdmirx_probe(struct platform_device *pdev)
 	}
 #if 0 /* kernel already prints something similar */
 	else {
-		dev_info(xhdmirx->xvip.dev, "%s EDID firmware could not be loaded, using Xilinx built-in EDID.\n", fw_edid_name);
+		dev_info(xhdmirx->dev, "%s EDID firmware could not be loaded, using Xilinx built-in EDID.\n", fw_edid_name);
 	}
 #endif
 	release_firmware(fw_edid);
 	if (xhdmirx->edid_user_blocks) {
-		dev_info(xhdmirx->xvip.dev, "Using %d EDID block%s (%d bytes) from '%s'.\n",
+		dev_info(xhdmirx->dev, "Using %d EDID block%s (%d bytes) from '%s'.\n",
 			xhdmirx->edid_user_blocks, xhdmirx->edid_user_blocks > 1? "s":"", 128 * xhdmirx->edid_user_blocks, fw_edid_name);
 		XV_HdmiRxSs_LoadEdid(HdmiRxSsPtr, (u8 *)&xhdmirx->edid_user, 128 * xhdmirx->edid_user_blocks);
 	} else {
-		dev_info(xhdmirx->xvip.dev, "Using Xilinx built-in EDID.\n");
+		dev_info(xhdmirx->dev, "Using Xilinx built-in EDID.\n");
 		XV_HdmiRxSs_LoadDefaultEdid(HdmiRxSsPtr);
 	}
 
@@ -1213,7 +1232,7 @@ static int xhdmirx_probe(struct platform_device *pdev)
 	}
 
 	/* Initialize V4L2 subdevice */
-	subdev = &xhdmirx->xvip.subdev;
+	subdev = &xhdmirx->subdev;
 	v4l2_subdev_init(subdev, &xhdmirx_ops);
 	subdev->dev = &pdev->dev;
 	subdev->internal_ops = &xhdmirx_internal_ops;
@@ -1240,7 +1259,7 @@ static int xhdmirx_probe(struct platform_device *pdev)
 		goto error_irq;
 	}
 
-	xvip_print_version(&xhdmirx->xvip);
+	//xvip_print_version(&xhdmirx->xvip);
 
 	/* assume detected format */
 	xhdmirx->detected_format.width = 1280;
@@ -1284,14 +1303,13 @@ error_phy:
 	}
 error_resource:
 	printk(KERN_INFO "xhdmirx_probe() error_resource:\n");
-	xvip_cleanup_resources(&xhdmirx->xvip);
 	return ret;
 }
 
 static int xhdmirx_remove(struct platform_device *pdev)
 {
 	struct xhdmirx_device *xhdmirx = platform_get_drvdata(pdev);
-	struct v4l2_subdev *subdev = &xhdmirx->xvip.subdev;
+	struct v4l2_subdev *subdev = &xhdmirx->subdev;
 	unsigned long flags;
 
 	spin_lock_irqsave(&xhdmirx->irq_lock, flags);
@@ -1312,8 +1330,7 @@ static int xhdmirx_remove(struct platform_device *pdev)
 	v4l2_async_unregister_subdev(subdev);
 	v4l2_ctrl_handler_free(&xhdmirx->ctrl_handler);
 	media_entity_cleanup(&subdev->entity);
-
-	xvip_cleanup_resources(&xhdmirx->xvip);
+	clk_disable_unprepare(xhdmirx->clk);
 	dev_info(&pdev->dev, "removed.\n");
 	return 0;
 }

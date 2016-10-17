@@ -68,3 +68,11 @@ phy-xilinx-vphy-objs += phy-xilinx-vphy/xvphy_hdmi.o
 phy-xilinx-vphy-objs += phy-xilinx-vphy/xvphy_hdmi_intr.o
 phy-xilinx-vphy-objs += phy-xilinx-vphy/xvphy_intr.o
 phy-xilinx-vphy-objs += phy-xilinx-vphy/xvphy_log.o
+
+phy-xilinx-vphy-objs += phy-xilinx-vphy/xgpio.o
+phy-xilinx-vphy-objs += phy-xilinx-vphy/xgpio_extra.o
+phy-xilinx-vphy-objs += phy-xilinx-vphy/xgpio_intr.o
+phy-xilinx-vphy-objs += phy-xilinx-vphy/xv_axi4s_remap.o
+phy-xilinx-vphy-objs += phy-xilinx-vphy/xvidc.o
+phy-xilinx-vphy-objs += phy-xilinx-vphy/xvidc_edid.o
+phy-xilinx-vphy-objs += phy-xilinx-vphy/xvidc_timings_table.o
