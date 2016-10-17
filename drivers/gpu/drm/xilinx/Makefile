@@ -30,3 +30,5 @@ xilinx-hdmi-tx-objs += xilinx-hdmi-tx/xvtc_intr.o
 #xilinx-hdmi-tx-objs += xilinx-hdmi-tx/xvidc_edid.o
 #xilinx-hdmi-tx-objs += xilinx-hdmi-tx/xvidc_timings_table.o
 
+KBUILD_EXTRA_SYMBOLS += ../../../phy/Modules.symvers
+

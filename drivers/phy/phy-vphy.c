@@ -179,6 +179,8 @@ EXPORT_SYMBOL_GPL(XVidC_ReportStreamInfo);
 EXPORT_SYMBOL_GPL(XVidC_EdidGetManName);
 EXPORT_SYMBOL_GPL(XVidC_Set3DVideoStream);
 EXPORT_SYMBOL_GPL(XVidC_GetPixelClockHzByVmId);
+EXPORT_SYMBOL_GPL(XVidC_GetVideoModeId);
+EXPORT_SYMBOL_GPL(XVidC_GetPixelClockHzByHVFr);
 EXPORT_SYMBOL_GPL(XGpio_DiscreteWrite);
 EXPORT_SYMBOL_GPL(XGpio_SetDataDirection);
 EXPORT_SYMBOL_GPL(XGpio_CfgInitialize);
