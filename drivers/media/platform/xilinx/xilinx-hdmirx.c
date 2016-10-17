@@ -1210,7 +1210,9 @@ static int xhdmirx_probe(struct platform_device *pdev)
 
 	BUG_ON(!xhdmirx->xvphy);
 
+	dev_info(xhdmirx->dev, "trying to lock xpvhy mutex\n");
 	xvphy_mutex_lock(xhdmirx->phy[0]);
+	dev_info(xhdmirx->dev, "got xpvhy mutex\n");
 	/* the callback is not specific to a single lane, but we need to
 	 * provide one of the phy's as reference */
 	XVphy_SetHdmiCallback(xhdmirx->xvphy, XVPHY_HDMI_HANDLER_RXINIT,
@@ -1219,6 +1221,7 @@ static int xhdmirx_probe(struct platform_device *pdev)
 	XVphy_SetHdmiCallback(xhdmirx->xvphy, XVPHY_HDMI_HANDLER_RXREADY,
 		VphyHdmiRxReadyCallback, (void *)xhdmirx);
 	xvphy_mutex_unlock(xhdmirx->phy[0]);
+	dev_info(xhdmirx->dev, "unlock xpvhy mutex\n");
 
 	platform_set_drvdata(pdev, xhdmirx);
 

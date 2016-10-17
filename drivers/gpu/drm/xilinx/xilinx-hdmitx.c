@@ -212,6 +212,7 @@ static irqreturn_t hdmitx_irq_thread(int irq, void *dev_id)
 	return IRQ_HANDLED;
 }
 
+/* entered with both tx and vphy mutex taken */
 static void EnableColorBar(struct xhdmitx_device *xhdmitx,
 	XVidC_VideoMode      VideoMode,
 	XVidC_ColorFormat    ColorFormat,
@@ -233,8 +234,8 @@ static void EnableColorBar(struct xhdmitx_device *xhdmitx,
 	VphyPtr = xhdmitx->xvphy;
 	BUG_ON(!VphyPtr);
 
-	mutex_lock(&xhdmitx->xhdmitx_mutex);
-	xvphy_mutex_lock(xhdmitx->phy[0]);
+	//mutex_lock(&xhdmitx->xhdmitx_mutex);
+	//xvphy_mutex_lock(xhdmitx->phy[0]);
 	HdmiTxSsVidStreamPtr = XV_HdmiTxSs_GetVideoStream(HdmiTxSsPtr);
 
 	if (XVphy_IsBonded(VphyPtr, 0, XVPHY_CHANNEL_ID_CH1)) {
@@ -275,8 +276,8 @@ static void EnableColorBar(struct xhdmitx_device *xhdmitx,
 	/* Disable RX clock forwarding */
 	XVphy_Clkout1OBufTdsEnable(VphyPtr, XVPHY_DIR_RX, (FALSE));
 
-	xvphy_mutex_unlock(xhdmitx->phy[0]);
-	mutex_unlock(&xhdmitx->xhdmitx_mutex);
+	//xvphy_mutex_unlock(xhdmitx->phy[0]);
+	//mutex_unlock(&xhdmitx->xhdmitx_mutex);
 
 	dev_info(xhdmitx->dev, "tx-clk: setting rate to VphyPtr->HdmiTxRefClkHz = %u\n", VphyPtr->HdmiTxRefClkHz);
 
@@ -430,6 +431,7 @@ static void TxVsCallback(void *CallbackRef)
 #endif
 }
 
+/* entered with vphy mutex taken */
 static void VphyHdmiTxInitCallback(void *CallbackRef)
 {
 	struct xhdmitx_device *xhdmitx = (struct xhdmitx_device *)CallbackRef;
@@ -456,6 +458,7 @@ static void VphyHdmiTxInitCallback(void *CallbackRef)
 	mutex_unlock(&xhdmitx->xhdmitx_mutex);
 }
 
+/* entered with vphy mutex taken */
 static void VphyHdmiTxReadyCallback(void *CallbackRef)
 {
 	struct xhdmitx_device *xhdmitx = (struct xhdmitx_device *)CallbackRef;
