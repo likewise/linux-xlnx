@@ -96,11 +96,11 @@
 typedef struct
 {
   XGpio RemapperReset;
-#if 0  
+#if 0
   XTmrCtr HdcpTimer;
   XHdcp1x Hdcp14;
   XHdcp22_Tx  Hdcp22;
-#endif  
+#endif
   XV_axi4s_remap Remapper;
   XV_HdmiTx HdmiTx;
   XVtc Vtc;
@@ -110,8 +110,6 @@ typedef struct
 XV_HdmiTxSs_SubCores XV_HdmiTxSs_SubCoreRepo[XPAR_XV_HDMITXSS_NUM_INSTANCES];
                 /**< Define Driver instance of all sub-core
                                     included in the design */
-
-XV_HdmiTx_VSIF VSIF;
 
 /************************** Function Prototypes ******************************/
 static void XV_HdmiTxSs_GetIncludedSubcores(XV_HdmiTxSs *HdmiTxSsPtr,
@@ -127,7 +125,7 @@ static void XV_HdmiTxSs_ConnectCallback(void *CallbackRef);
 static void XV_HdmiTxSs_VsCallback(void *CallbackRef);
 static void XV_HdmiTxSs_StreamUpCallback(void *CallbackRef);
 static void XV_HdmiTxSs_StreamDownCallback(void *CallbackRef);
-#if 0  
+#if 0
 static u32 XV_HdmiTxSs_HdcpTimerConvUsToTicks(u32 TimeoutInUs,
     u32 ClockFrequency);
 
@@ -193,7 +191,7 @@ void XV_HdmiTxSs_ReportCoreInfo(XV_HdmiTxSs *InstancePtr)
   if (InstancePtr->VtcPtr) {
     xil_printf("    : VTC Core \r\n");
   }
-#if 0  
+#if 0
   if (InstancePtr->Hdcp14Ptr) {
     xil_printf("    : HDCP 1.4 TX \r\n");
   }
@@ -314,7 +312,7 @@ void XV_HdmiTxSS_HdmiTxIntrHandler(XV_HdmiTxSs *InstancePtr)
 {
     XV_HdmiTx_IntrHandler(InstancePtr->HdmiTxPtr);
 }
-#if 0  
+#if 0
 /*****************************************************************************/
 /**
  * This function calls the interrupt handler for HDCP
@@ -393,7 +391,7 @@ static int XV_HdmiTxSs_RegisterSubsysCallbacks(XV_HdmiTxSs *InstancePtr)
                           XV_HdmiTxSs_StreamDownCallback,
                           InstancePtr);
   }
-#if 0  
+#if 0
   /** Register HDCP TX Timer ISR */
   if (HdmiTxSsPtr->HdcpTimerPtr) {
   }
@@ -407,7 +405,7 @@ static int XV_HdmiTxSs_RegisterSubsysCallbacks(XV_HdmiTxSs *InstancePtr)
     // Authenticated callback
 
   }
-#endif  
+#endif
   return(XST_SUCCESS);
 }
 
@@ -429,7 +427,7 @@ static void XV_HdmiTxSs_GetIncludedSubcores(XV_HdmiTxSs *HdmiTxSsPtr, u16 DevId)
                         ? (&XV_HdmiTxSs_SubCoreRepo[DevId].HdmiTx) : NULL);
   HdmiTxSsPtr->VtcPtr        = ((HdmiTxSsPtr->Config.Vtc.IsPresent)  \
                         ? (&XV_HdmiTxSs_SubCoreRepo[DevId].Vtc) : NULL);
-#if 0  						
+#if 0
   // HDCP 1.4
   HdmiTxSsPtr->Hdcp14Ptr       = ((HdmiTxSsPtr->Config.Hdcp14.IsPresent) \
                         ? (&XV_HdmiTxSs_SubCoreRepo[DevId].Hdcp14) : NULL);
@@ -466,7 +464,7 @@ static XV_HdmiTxSs_SubCores *XV_HdmiTxSs_GetSubSysStruct(void *SubCorePtr)
         if (&XV_HdmiTxSs_SubCoreRepo[i].Vtc == SubCorePtr){
             return &XV_HdmiTxSs_SubCoreRepo[i];
         }
-#if 0  
+#if 0
         // HDCP 1.4
         if (&XV_HdmiTxSs_SubCoreRepo[i].Hdcp14 == SubCorePtr){
             return &XV_HdmiTxSs_SubCoreRepo[i];
@@ -528,7 +526,7 @@ int XV_HdmiTxSs_CfgInitialize(XV_HdmiTxSs *InstancePtr,
 
   /* Determine sub-cores included in the provided instance of subsystem */
   XV_HdmiTxSs_GetIncludedSubcores(HdmiTxSsPtr, CfgPtr->DeviceId);
-#if 0  
+#if 0
   /* Initialize all included sub_cores */
   if (HdmiTxSsPtr->HdcpTimerPtr) {
     if (XV_HdmiTxSs_SubcoreInitHdcpTimer(HdmiTxSsPtr) != XST_SUCCESS){
@@ -548,7 +546,7 @@ int XV_HdmiTxSs_CfgInitialize(XV_HdmiTxSs *InstancePtr,
       return(XST_FAILURE);
     }
   }
-#if 0  
+#if 0
   // HDCP 2.2
   if (HdmiTxSsPtr->Hdcp22Ptr) {
     if (XV_HdmiTxSs_SubcoreInitHdcp22(HdmiTxSsPtr) != XST_SUCCESS){
@@ -576,7 +574,7 @@ int XV_HdmiTxSs_CfgInitialize(XV_HdmiTxSs *InstancePtr,
 
   /* Register Callbacks */
   XV_HdmiTxSs_RegisterSubsysCallbacks(HdmiTxSsPtr);
-#if 0  
+#if 0
   /* Set default HDCP protocol */
   HdmiTxSsPtr->HdcpProtocol = XV_HDMITXSS_HDCP_NONE;
 
@@ -585,7 +583,7 @@ int XV_HdmiTxSs_CfgInitialize(XV_HdmiTxSs *InstancePtr,
   /* Default value */
   HdmiTxSsPtr->HdcpIsReady = (FALSE);
 #endif
-#if 0  
+#if 0
   /* HDCP is ready when both HDCP cores are instantiated and both keys are loaded */
   if (HdmiTxSsPtr->Hdcp14Ptr && HdmiTxSsPtr->Hdcp22Ptr &&
       HdmiTxSsPtr->Hdcp22Lc128Ptr && HdmiTxSsPtr->Hdcp14KeyPtr) {
@@ -895,18 +893,18 @@ void XV_HdmiTxSs_ConnectCallback(void *CallbackRef)
   if (XV_HdmiTx_IsStreamConnected(HdmiTxSsPtr->HdmiTxPtr)) {
     HdmiTxSsPtr->IsStreamConnected = (TRUE);
     xil_printf("TX cable is connected\n\r");
-#if 0  	
+#if 0
     XV_HdmiTxSs_HdcpPushEvent(HdmiTxSsPtr, XV_HDMITXSS_HDCP_CONNECT_EVT);
-#endif	
+#endif
   }
 
   // TX cable is disconnected
   else {
     HdmiTxSsPtr->IsStreamConnected = (FALSE);
     xil_printf("TX cable is disconnected\n\r");
-#if 0  	
+#if 0
     XV_HdmiTxSs_HdcpPushEvent(HdmiTxSsPtr, XV_HDMITXSS_HDCP_DISCONNECT_EVT);
-#endif	
+#endif
   }
 
   // Check if user callback has been registered
@@ -1172,6 +1170,7 @@ static void XV_HdmiTxSs_SendGeneralControlPacket(XV_HdmiTx *HdmiTx)
 ******************************************************************************/
 static void XV_HdmiTxSs_SendVSInfoframe(XV_HdmiTx *HdmiTx)
 {
+    XV_HdmiTx_VSIF VSIF;
     VSIF.Version = 0x1;
     VSIF.IEEE_ID = 0xC03;
 
@@ -1250,7 +1249,7 @@ void XV_HdmiTxSs_StreamUpCallback(void *CallbackRef)
       HdmiTxSsPtr->AudioMute = (FALSE);
       XV_HdmiTx_AudioUnmute(HdmiTxSsPtr->HdmiTxPtr);
   }
-#if 0  
+#if 0
   // HDCP 1.4
   if (HdmiTxSsPtr->Hdcp14Ptr) {
     /* Set the TX HDCP state to up */
@@ -1289,7 +1288,7 @@ void XV_HdmiTxSs_StreamDownCallback(void *CallbackRef)
 
   // Assert HDMI TX reset
   XV_HdmiTx_Reset(HdmiTxSsPtr->HdmiTxPtr, TRUE);
-#if 0  
+#if 0
   // HDCP 1.4
   if (HdmiTxSsPtr->Hdcp14Ptr) {
     /* Set the TX HDCP state to down */
@@ -1376,7 +1375,7 @@ int XV_HdmiTxSs_SetCallback(XV_HdmiTxSs *InstancePtr,
             InstancePtr->StreamUpRef = CallbackRef;
             Status = (XST_SUCCESS);
             break;
-#if 0  
+#if 0
         // HDCP authenticated
         case (XV_HDMITXSS_HANDLER_HDCP_AUTHENTICATE):
           InstancePtr->HdcpAuthenticateCallback = (XV_HdmiTxSs_Callback)CallbackFunc;
@@ -1960,7 +1959,7 @@ void XV_HdmiTxSs_ReportSubcoreVersion(XV_HdmiTxSs *InstancePtr)
      xil_printf("  VTC version     : %02d.%02d (%04x)\n\r",
         ((Data >> 24) & 0xFF), ((Data >> 16) & 0xFF), (Data & 0xFFFF));
   }
-#if 0  
+#if 0
   // HDCP 1.4
   if (InstancePtr->Hdcp14Ptr){
      Data = XHdcp1x_GetVersion(InstancePtr->Hdcp14Ptr);
@@ -1976,7 +1975,7 @@ void XV_HdmiTxSs_ReportSubcoreVersion(XV_HdmiTxSs *InstancePtr)
   }
 #endif
 }
-#if 0  
+#if 0
 /******************************************************************************/
 /**
 *
@@ -2287,7 +2286,7 @@ void XV_HdmiTxSs_SetDefaultPpc(XV_HdmiTxSs *InstancePtr, u8 Id) {
 void XV_HdmiTxSs_SetPpc(XV_HdmiTxSs *InstancePtr, u8 Id, u8 Ppc) {
     InstancePtr->Config.Ppc = Ppc;
 }
-#if 0  
+#if 0
 /*****************************************************************************/
 /**
 *
@@ -2975,7 +2974,7 @@ static u8 XV_HdmiTxSs_IsSinkHdcp22Capable(XV_HdmiTx *HdmiInstPtr)
   else
     return FALSE;
 }
-  
+
 /*****************************************************************************/
 /**
 *

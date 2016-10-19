@@ -106,8 +106,6 @@ XV_HdmiRxSs_SubCores XV_HdmiRxSs_SubCoreRepo[XPAR_XV_HDMIRXSS_NUM_INSTANCES];
                 /**< Define Driver instance of all sub-core
                                     included in the design */
 
-XV_HdmiRx_VSIF VSIF;          /* Vendor-Specific InfoFrame structure */
-
 /************************** Function Prototypes ******************************/
 static void XV_HdmiRxSs_GetIncludedSubcores(XV_HdmiRxSs *HdmiRxSsPtr,
     u16 DevId);
@@ -728,6 +726,7 @@ static void XV_HdmiRxSs_AuxCallback(void *CallbackRef)
 ******************************************************************************/
 static void XV_HdmiRxSs_RetrieveVSInfoframe(XV_HdmiRx *HdmiRx)
 {
+  XV_HdmiRx_VSIF VSIF;          /* Vendor-Specific InfoFrame structure */
   if (HdmiRx->Aux.Header.Byte[0] == 0x81) {
       XV_HdmiRx_VSIF_ParsePacket(&HdmiRx->Aux, &VSIF);
 
