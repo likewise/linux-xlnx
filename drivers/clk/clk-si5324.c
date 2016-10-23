@@ -160,7 +160,7 @@ static inline int si5324_reg_write(struct si5324_driver_data *drvdata,
 #if 1
 	readback_val = si5324_reg_read(drvdata, reg);
 	if (readback_val != val) {
-		dev_err(&drvdata->client->dev, "readback 0x%02x @%02d, expected 0x%02x\n", (int)readback_2val, (int)reg, (int)val);
+		dev_err(&drvdata->client->dev, "readback 0x%02x @%02d, expected 0x%02x\n", (int)readback_val, (int)reg, (int)val);
 	}
 #endif
 	return ret;
