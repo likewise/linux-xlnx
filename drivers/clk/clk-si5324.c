@@ -88,7 +88,6 @@ struct si5324_parameters {
 struct si5324_hw_data {
 	struct clk_hw			hw;
 	struct si5324_driver_data	*drvdata;
-	struct si5324_parameters	params;
 	unsigned char			num;
 };
 
@@ -97,6 +96,7 @@ struct si5324_driver_data {
 	struct regmap		*regmap;
 	struct clk_onecell_data onecell;
 
+	struct si5324_parameters	params;
 
 	struct clk		*pxtal;
 	const char		*pxtal_name;
@@ -154,9 +154,16 @@ static inline int si5324_bulk_read(struct si5324_driver_data *drvdata,
 static inline int si5324_reg_write(struct si5324_driver_data *drvdata,
 				   u8 reg, u8 val)
 {
+	u8 readback_val;
+	int ret = regmap_write(drvdata->regmap, reg, val);
 	dev_info(&drvdata->client->dev, "si5324_reg_write() 0x%02x @%02d\n", (int)val, (int)reg);
-
-	return regmap_write(drvdata->regmap, reg, val);
+#if 1
+	readback_val = si5324_reg_read(drvdata, reg);
+	if (readback_val != val) {
+		dev_err(&drvdata->client->dev, "readback 0x%02x @%02d, expected 0x%02x\n", (int)readback_2val, (int)reg, (int)val);
+	}
+#endif
+	return ret;
 }
 
 static inline int si5324_bulk_write(struct si5324_driver_data *drvdata,
@@ -241,8 +248,7 @@ static void si5324_initialize(struct si5324_driver_data *drvdata)
  * 23 48 N32[7:0]
  */
 
-static void si5324_read_parameters(struct si5324_driver_data *drvdata,
-				   u8 reg, struct si5324_parameters *params)
+static void si5324_read_parameters(struct si5324_driver_data *drvdata)
 {
 	u8 buf[SI5324_PARAMETERS_LENGTH];
 
@@ -251,69 +257,68 @@ static void si5324_read_parameters(struct si5324_driver_data *drvdata,
 	si5324_bulk_read(drvdata, 40, 9, &buf[15]);
 
 	/* high-speed output divider */
-	params->n1_hs = (buf[0] >> 5);
-	params->n1_hs += 4;
-	printk(KERN_INFO "N1_HS = %u\n", params->n1_hs);
+	drvdata->params.n1_hs = (buf[0] >> 5);
+	drvdata->params.n1_hs += 4;
+	printk(KERN_INFO "N1_HS = %u\n", drvdata->params.n1_hs);
 	/* low-speed output divider for clkout1 */
-	params->nc1_ls = ((buf[6] & 0x0f) << 16) | (buf[ 7] << 8) | buf[ 8];
-	params->nc1_ls += 1;
-	printk(KERN_INFO "NC1_LS = %u\n", params->nc1_ls);
+	drvdata->params.nc1_ls = ((buf[6] & 0x0f) << 16) | (buf[ 7] << 8) | buf[ 8];
+	drvdata->params.nc1_ls += 1;
+	printk(KERN_INFO "NC1_LS = %u\n", drvdata->params.nc1_ls);
 	/* low-speed output divider for clkout2 */
-	params->nc2_ls = ((buf[9] & 0x0f) << 16) | (buf[10] << 8) | buf[11];
-	params->nc2_ls += 1;
-	printk(KERN_INFO "NC2_LS = %u\n", params->nc2_ls);
+	drvdata->params.nc2_ls = ((buf[9] & 0x0f) << 16) | (buf[10] << 8) | buf[11];
+	drvdata->params.nc2_ls += 1;
+	printk(KERN_INFO "NC2_LS = %u\n", drvdata->params.nc2_ls);
 	/* low-speed feedback divider (PLL multiplier) */
-	params->n2_ls = ((buf[15] & 0x0f) << 16) | (buf[16] << 8) | buf[17];
-	params->n2_ls += 1;
-	printk(KERN_INFO "N2_LS = %u\n", params->n2_ls);
+	drvdata->params.n2_ls = ((buf[15] & 0x0f) << 16) | (buf[16] << 8) | buf[17];
+	drvdata->params.n2_ls += 1;
+	printk(KERN_INFO "N2_LS = %u\n", drvdata->params.n2_ls);
 	/* high-speed feedback divider (PLL multiplier) */
-	params->n2_hs = buf[15] >> 5;
-	params->n2_hs += 4;
-	printk(KERN_INFO "N2_HS = %u\n", params->n2_hs);
+	drvdata->params.n2_hs = buf[15] >> 5;
+	drvdata->params.n2_hs += 4;
+	printk(KERN_INFO "N2_HS = %u\n", drvdata->params.n2_hs);
 	/* input divider for clk1 */
-	params->n31 = ((buf[18] & 0x0f) << 16) | (buf[19] << 8) | buf[20];
-	params->n31 += 1;
-	printk(KERN_INFO "N31 = %u\n", params->n31);
+	drvdata->params.n31 = ((buf[18] & 0x0f) << 16) | (buf[19] << 8) | buf[20];
+	drvdata->params.n31 += 1;
+	printk(KERN_INFO "N31 = %u\n", drvdata->params.n31);
 	/* input divider for clk2 */
-	params->n32 = ((buf[21] & 0x0f) << 16) | (buf[22] << 8) | buf[23];
-	params->n32 += 1;
-	printk(KERN_INFO "N32 = %u\n", params->n32);
-	params->valid = 1;
+	drvdata->params.n32 = ((buf[21] & 0x0f) << 16) | (buf[22] << 8) | buf[23];
+	drvdata->params.n32 += 1;
+	printk(KERN_INFO "N32 = %u\n", drvdata->params.n32);
+	drvdata->params.valid = 1;
 }
 
-static void si5324_write_parameters(struct si5324_driver_data *drvdata,
-				    u8 reg, struct si5324_parameters *params)
+static void si5324_write_parameters(struct si5324_driver_data *drvdata)
 {
 	u8 buf[SI5324_PARAMETERS_LENGTH];
 	u32 reg_val;
 	/* high-speed output divider */
-	reg_val = params->n1_hs - 4;
+	reg_val = drvdata->params.n1_hs - 4;
 	buf[0] = reg_val << 5;
 	/* low-speed output divider for clkout1 */
-	reg_val = params->nc1_ls - 1;
+	reg_val = drvdata->params.nc1_ls - 1;
 	buf[6] = (reg_val >> 16) & 0x0f;
 	buf[7] = (reg_val >> 8) & 0xff;
 	buf[8] = reg_val & 0xff;
 	/* low-speed output divider for clkout2 */
-	reg_val = params->nc2_ls;
+	reg_val = drvdata->params.nc2_ls;
 	buf[ 9] = (reg_val >> 16) & 0x0f;
 	buf[10] = (reg_val >> 8) & 0xff;
 	buf[11] = reg_val & 0xff;
 	/* low-speed feedback divider (PLL multiplier) */
-	reg_val = params->n2_ls + 1;
+	reg_val = drvdata->params.n2_ls + 1;
 	buf[15] = (reg_val >> 16) & 0x0f;
 	buf[16] = (reg_val >> 8) & 0xff;
 	buf[17] = reg_val & 0xff;
 	/* high-speed feedback divider (PLL multiplier) */
-	reg_val = params->n2_hs - 4;
+	reg_val = drvdata->params.n2_hs - 4;
 	buf[15] |= reg_val << 5;
 	/* input divider for clk1 */
-	reg_val = params->n31;
+	reg_val = drvdata->params.n31;
 	buf[18] = (reg_val >> 16) & 0x0f;
 	buf[19] = (reg_val >> 8) & 0xff;
 	buf[20] = reg_val & 0xff;
 	/* input divider for clk2 */
-	reg_val = params->n31;
+	reg_val = drvdata->params.n31;
 	buf[21] = (reg_val >> 16) & 0x0f;
 	buf[22] = (reg_val >> 8) & 0xff;
 	buf[23] = reg_val & 0xff;
@@ -325,8 +330,10 @@ static void si5324_write_parameters(struct si5324_driver_data *drvdata,
 
 static bool si5324_regmap_is_volatile(struct device *dev, unsigned int reg)
 {
-
+	return true;
+#if 0/*@TODO */
 	return false;
+#endif
 }
 
 static bool si5324_regmap_is_readable(struct device *dev, unsigned int reg)
@@ -590,16 +597,16 @@ static unsigned long si5324_pll_recalc_rate(struct clk_hw *hw,
 	printk(KERN_INFO "si5324_pll_recalc_rate(parent_rate=%lu)\n",
 		parent_rate);
 
-	if (!hwdata->params.valid)
-		si5324_read_parameters(hwdata->drvdata, 24, &hwdata->params);
-	WARN_ON(!hwdata->params.valid);
+	if (!hwdata->drvdata->params.valid)
+		si5324_read_parameters(hwdata->drvdata);
+	WARN_ON(!hwdata->drvdata->params.valid);
 
-	rate = parent_rate * hwdata->params.n2_ls * hwdata->params.n2_hs;
+	rate = parent_rate * hwdata->drvdata->params.n2_ls * hwdata->drvdata->params.n2_hs;
 
 	dev_dbg(&hwdata->drvdata->client->dev,
 		"%s - %s: n2_ls = %u, n2_hs = %u, parent_rate = %lu, rate = %lu\n",
 		__func__, clk_hw_get_name(hw),
-		hwdata->params.n2_ls, hwdata->params.n2_hs,
+		hwdata->drvdata->params.n2_ls, hwdata->drvdata->params.n2_hs,
 		parent_rate, (unsigned long)rate);
 	return rate;
 }
@@ -643,11 +650,11 @@ static long si5324_pll_round_rate(struct clk_hw *hw, unsigned long rate,
 				    SI5324_PLL_B_MAX, SI5324_PLL_C_MAX, &b, &c);
 
 	/* calculate parameters */
-	hwdata->params.p3  = c;
-	hwdata->params.p2  = (128 * b) % c;
-	hwdata->params.p1  = 128 * a;
-	hwdata->params.p1 += (128 * b / c);
-	hwdata->params.p1 -= 512;
+	hwdata->drvdata->params.p3  = c;
+	hwdata->drvdata->params.p2  = (128 * b) % c;
+	hwdata->drvdata->params.p1  = 128 * a;
+	hwdata->drvdata->params.p1 += (128 * b / c);
+	hwdata->drvdata->params.p1 -= 512;
 
 	/* recalculate rate by fIN * (a + b/c) */
 	lltmp  = *parent_rate;
@@ -677,17 +684,17 @@ static int si5324_pll_set_rate(struct clk_hw *hw, unsigned long rate,
 		SI5324_PLLB_PARAMETERS;
 
 	/* write multisynth parameters */
-	si5324_write_parameters(hwdata->drvdata, reg, &hwdata->params);
+	si5324_write_parameters(hwdata->drvdata, reg, &hwdata->drvdata->params);
 
 	/* plla/pllb ctrl is in clk6/clk7 ctrl registers */
 	si5324_set_bits(hwdata->drvdata, SI5324_CLK6_CTRL + hwdata->num,
 		SI5324_CLK_INTEGER_MODE,
-		(hwdata->params.p2 == 0) ? SI5324_CLK_INTEGER_MODE : 0);
+		(hwdata->drvdata->params.p2 == 0) ? SI5324_CLK_INTEGER_MODE : 0);
 
 	dev_dbg(&hwdata->drvdata->client->dev,
 		"%s - %s: p1 = %lu, p2 = %lu, p3 = %lu, parent_rate = %lu, rate = %lu\n",
 		__func__, clk_hw_get_name(hw),
-		hwdata->params.p1, hwdata->params.p2, hwdata->params.p3,
+		hwdata->drvdata->params.p1, hwdata->drvdata->params.p2, hwdata->drvdata->params.p3,
 		parent_rate, rate);
 #endif
 	return 0;
@@ -800,23 +807,24 @@ static unsigned long si5324_clkout_recalc_rate(struct clk_hw *hw,
 	struct si5324_hw_data *hwdata =
 		container_of(hw, struct si5324_hw_data, hw);
 	unsigned long rate = 0;
-
-	printk(KERN_INFO "si5324_clkout_recalc_rate(parent_rate=%lu) clkout%d (invalid)\n",
+#if 0
+	printk(KERN_INFO "si5324_clkout_recalc_rate(parent_rate=%lu) clkout%d\n",
 		parent_rate, hwdata->num);
 
-	//if (!hwdata->params.valid)
-		si5324_read_parameters(hwdata->drvdata, 24, &hwdata->params);
-	WARN_ON(!hwdata->params.valid);
+	//if (!hwdata->drvdata->params.valid)
+		si5324_read_parameters(hwdata->drvdata, 24);
+	WARN_ON(!hwdata->drvdata->params.valid);
 
 	/* clkout1? */
 	if (hwdata->num == 0)
-		rate = (parent_rate / hwdata->params.n1_hs) / hwdata->params.nc1_ls;
+		rate = (parent_rate / hwdata->drvdata->params.n1_hs) / hwdata->drvdata->params.nc1_ls;
 	/* clkout2? */
 	else if (hwdata->num == 1)
-		rate = (parent_rate / hwdata->params.n1_hs) / hwdata->params.nc2_ls;
+		rate = (parent_rate / hwdata->drvdata->params.n1_hs) / hwdata->drvdata->params.nc2_ls;
 
 	printk(KERN_INFO "si5324_clkout_recalc_rate(parent_rate=%lu) => clkout%d=%lu (invalid)\n",
 		parent_rate, hwdata->num, rate);
+#endif
 	return rate;
 }
 
@@ -982,7 +990,7 @@ static int si5324_clkout_set_rate(struct clk_hw *hw, unsigned long rate,
 	i += 2;
 
 	return si5324_bulk_scatter_write(hwdata->drvdata, 14, buf);
-	hwdata->params.valid = 0;
+	hwdata->drvdata->params.valid = 0;
 }
 
 static const struct clk_ops si5324_clkout_ops = {
