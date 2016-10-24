@@ -187,8 +187,8 @@ static irqreturn_t hdmitx_irq_thread(int irq, void *dev_id)
 	Data = XV_HdmiTx_ReadReg(HdmiTxSsPtr->HdmiTxPtr->Config.BaseAddress,
 		(XV_HDMITX_PIO_IN_OFFSET));
 	count++;
-	if ((Data != OldData) || ((count % 100) == 0)) {
-		printk(KERN_INFO "PIO.DAT = 0x%08x, count = %d\n", (int)Data, count);
+	if (Data != OldData) {
+		printk(KERN_INFO "PIO.DAT = 0x%08x, HDMI TX SS interrupt count = %d\n", (int)Data, count);
 		OldData = Data;
 	}
 #if 0
