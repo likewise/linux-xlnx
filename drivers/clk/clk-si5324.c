@@ -205,9 +205,14 @@ static void si5324_initialize(struct si5324_driver_data *drvdata)
 	// other bits are default
 	si5324_reg_write(drvdata, 3, 0x15);
 
-	// Auto select clock (automatic revertive) (bit 7:6 AUTOSEL_REG)10
+#if 0
+	// Auto select clock (automatic revertive) (bit 7:6 AUTOSEL_REG=10)
 	// History delay default
 	si5324_reg_write(drvdata, 4, 0x92);
+#else
+	/* manual */
+	si5324_reg_write(drvdata, 4, 0x12);
+#endif
 	// Disable CKOUT2 (SFOUT2_REG=001)
 	// set CKOUT1 to LVDS (SFOUT1_REG=111)
 	// (default is LVPECL for both)
@@ -222,6 +227,8 @@ static void si5324_initialize(struct si5324_driver_data *drvdata)
 	// Set lock time to 53ms as recommended (bits 2:0 LOCKT=001)
 	// other bits are default
 	si5324_reg_write(drvdata, 19, 0x2f);  // 0x29
+	/* ignore pin control  CS_CA pin is ignored, CS_CA output pin tristated */
+	si5324_reg_write(drvdata, 21, 0xfc);
 	// Enable fast locking (bit 0 FASTLOCK=1)
 	si5324_reg_write(drvdata, 137, 0x01);   // FASTLOCK=1 (enable fast locking)
 }
@@ -379,8 +386,6 @@ static bool si5324_regmap_is_writeable(struct device *dev, unsigned int reg)
 		result =  false;
 	else if (reg >= 134 && reg <= 135)
 		result =  false;
-	else if (reg == 137)
-		result =  false;
 #if 0
 	printk(KERN_INFO "si5324_regmap_is_writeable(reg0x%02x) = %u\n", reg, result);
 #endif
@@ -406,11 +411,12 @@ static int si5324_xtal_prepare(struct clk_hw *hw)
 		container_of(hw, struct si5324_driver_data, xtal);
 	printk(KERN_INFO "si5324_xtal_prepare\n");
 	/* enable free-run */
-	si5324_set_bits(drvdata, SI5324_REG0,
-			SI5324_REG0_FREE_RUN, SI5324_REG0_FREE_RUN);
+	si5324_set_bits(drvdata, 0, 0x40, 0x40);
+	/* select CKIN_2 [7:6]=01 */
+	si5324_set_bits(drvdata, 3, 0xc0, 0x40);
 	/* clkin2 powered, clkin1 powered-down, xtal connects to clkin2 */
 	si5324_set_bits(drvdata, SI5324_POWERDOWN,
-			SI5324_PD_CK1 || SI5324_PD_CK2, SI5324_PD_CK1);
+			SI5324_PD_CK1 | SI5324_PD_CK2, SI5324_PD_CK1);
 	return 0;
 }
 
@@ -443,14 +449,14 @@ static int si5324_clkin_prepare(struct clk_hw *hw)
 		si5324_set_bits(drvdata, SI5324_REG0, SI5324_REG0_FREE_RUN, 0);
 		/* clkin1 powered, clkin2 powered-down*/
 		si5324_set_bits(drvdata, SI5324_POWERDOWN,
-			SI5324_PD_CK1 || SI5324_PD_CK2, SI5324_PD_CK2);
+			SI5324_PD_CK1 | SI5324_PD_CK2, SI5324_PD_CK2);
 	} else if (hwdata->num == 1/*@TODO: verify if this should be 2*/) {
 		drvdata = container_of(hw, struct si5324_driver_data, clkin2);
 		/* disable free-run */
 		si5324_set_bits(drvdata, SI5324_REG0, SI5324_REG0_FREE_RUN, 0);
 		/* clkin2 powered, clkin1 powered-down*/
 		si5324_set_bits(drvdata, SI5324_POWERDOWN,
-			SI5324_PD_CK1 || SI5324_PD_CK2, SI5324_PD_CK1);
+			SI5324_PD_CK1 | SI5324_PD_CK2, SI5324_PD_CK1);
 	} else {
 	}
 	return 0;
@@ -534,7 +540,7 @@ static int _si5324_pll_reparent(struct si5324_driver_data *drvdata,
 				SI5324_REG0_FREE_RUN, SI5324_REG0_FREE_RUN);
 		/* clkin2 powered, clkin1 powered-down, xtal connects to clkin2 */
 		si5324_set_bits(drvdata, SI5324_POWERDOWN,
-				SI5324_PD_CK1 || SI5324_PD_CK2, SI5324_PD_CK1);
+				SI5324_PD_CK1 | SI5324_PD_CK2, SI5324_PD_CK1);
 		/* select clkin2 */
 		si5324_set_bits(drvdata, SI5324_CKSEL,
 				3 << 6, 1 << 6);
@@ -544,7 +550,7 @@ static int _si5324_pll_reparent(struct si5324_driver_data *drvdata,
 				SI5324_REG0_FREE_RUN, 0);
 		/* clkin1 powered, clkin2 powered-down */
 		si5324_set_bits(drvdata, SI5324_POWERDOWN,
-				SI5324_PD_CK1 || SI5324_PD_CK2, SI5324_PD_CK2);
+				SI5324_PD_CK1 | SI5324_PD_CK2, SI5324_PD_CK2);
 		/* select clkin1 */
 		si5324_set_bits(drvdata, SI5324_CKSEL,
 				3 << 6, 0);
@@ -554,11 +560,15 @@ static int _si5324_pll_reparent(struct si5324_driver_data *drvdata,
 				SI5324_REG0_FREE_RUN, 0);
 		/* clkin2 powered, clkin1 powered-down */
 		si5324_set_bits(drvdata, SI5324_POWERDOWN,
-				SI5324_PD_CK1 || SI5324_PD_CK2, SI5324_PD_CK1);
+				SI5324_PD_CK1 | SI5324_PD_CK2, SI5324_PD_CK1);
 		/* select clkin2 */
 		si5324_set_bits(drvdata, SI5324_CKSEL,
 				3 << 6, 1 << 6);
 	}
+	dev_dbg(&drvdata->client->dev, "_si5324_pll_reparent()\n");
+	si5324_reg_read(drvdata, 0);
+	si5324_reg_read(drvdata, 4);
+	si5324_reg_read(drvdata, 3);
 	return 0;
 }
 
@@ -989,8 +999,13 @@ static int si5324_clkout_set_rate(struct clk_hw *hw, unsigned long rate,
 	buf[i+1] = 0x40;
 	i += 2;
 
-	return si5324_bulk_scatter_write(hwdata->drvdata, 14, buf);
 	hwdata->drvdata->params.valid = 0;
+	si5324_reg_read(hwdata->drvdata, 0);
+	si5324_reg_read(hwdata->drvdata, 3);
+	si5324_reg_read(hwdata->drvdata, 4);
+	si5324_reg_read(hwdata->drvdata, 11);
+	si5324_reg_read(hwdata->drvdata, 21);
+	return si5324_bulk_scatter_write(hwdata->drvdata, 14, buf);
 }
 
 static const struct clk_ops si5324_clkout_ops = {

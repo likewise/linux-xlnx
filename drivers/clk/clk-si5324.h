@@ -15,7 +15,7 @@
 #define SI5324_BUS_BASE_ADDR			0x68
 
 #define SI5324_REG0			0
-#define SI5324_REG0_FREE_RUN			(1<<7)
+#define SI5324_REG0_FREE_RUN			(1<<6)
 
 #define SI5324_CKSEL 3
 
