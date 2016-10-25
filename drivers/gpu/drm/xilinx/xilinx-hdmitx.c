@@ -304,12 +304,8 @@ static void TxConnectCallback(void *CallbackRef)
 		/* Check HDMI sink version */
 		XV_HdmiTxSs_DetectHdmi20(HdmiTxSsPtr);
 		XVphy_IBufDsEnable(VphyPtr, 0, XVPHY_DIR_TX, (TRUE));
-
 		dev_info(xhdmitx->dev, "TxConnectCallback(): EnableColorBar()\n");
-
-		EnableColorBar(xhdmitx, XVIDC_VM_1920x1080_60_P, XVIDC_CSF_RGB, XVIDC_BPC_8);
-
-
+		EnableColorBar(xhdmitx, XVIDC_VM_3840x2160_30_P, XVIDC_CSF_RGB, XVIDC_BPC_8);
 	}
 	else {
 		dev_info(xhdmitx->dev, "TxConnectCallback(): TX disconnected\n");
