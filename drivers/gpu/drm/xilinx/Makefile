@@ -12,9 +12,17 @@ obj-$(CONFIG_DRM_XILINX_DP) += xilinx_drm_dp.o
 obj-$(CONFIG_DRM_XILINX_DP_SUB) += xilinx_drm_dp_sub.o
 
 obj-$(CONFIG_DRM_XILINX_HDMI) += xilinx-hdmi-tx.o
-xilinx-hdmi-tx-objs := xilinx-hdmitx.o
+
+# this builds the stand-alone (DRM-independent) top-level
+# useful for testing purposes without DRM specifics
+#xilinx-hdmi-tx-objs := xilinx-hdmitx.o
+
+# (X)OR this builds the DRM-dependent top-level
+xilinx-hdmi-tx-objs := xilinx_drm_hdmi.o
+
 #CFLAGS_xilinx-hdmitx.o += -I$(src)/xilinx-hdmi-tx/ -I$(src)/../../../media/platform/xilinx -Wno-unused-label
 CFLAGS_xilinx-hdmitx.o += -I$(src)/xilinx-hdmi-tx/ -Wno-unused-label
+CFLAGS_xilinx_drm_hdmi.o += -I$(src)/xilinx-hdmi-tx/ -Wno-unused-label
 #xilinx-hdmi-tx-objs += xilinx-hdmi-tx/xgpio.o
 #xilinx-hdmi-tx-objs += xilinx-hdmi-tx/xgpio_extra.o
 #xilinx-hdmi-tx-objs += xilinx-hdmi-tx/xgpio_intr.o
@@ -30,5 +38,6 @@ xilinx-hdmi-tx-objs += xilinx-hdmi-tx/xvtc_intr.o
 #xilinx-hdmi-tx-objs += xilinx-hdmi-tx/xvidc_edid.o
 #xilinx-hdmi-tx-objs += xilinx-hdmi-tx/xvidc_timings_table.o
 
+# @TODO see if needed
 KBUILD_EXTRA_SYMBOLS += ../../../phy/Modules.symvers
 
