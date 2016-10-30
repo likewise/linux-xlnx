@@ -266,8 +266,6 @@ static void EnableColorBar(struct xilinx_drm_hdmi *hdmi,
 	VphyPtr = hdmi->xvphy;
 	BUG_ON(!VphyPtr);
 
-	//mutex_lock(&hdmi->hdmi_mutex);
-	//xvphy_mutex_lock(hdmi->phy[0]);
 	HdmiTxSsVidStreamPtr = XV_HdmiTxSs_GetVideoStream(HdmiTxSsPtr);
 
 	if (XVphy_IsBonded(VphyPtr, 0, XVPHY_CHANNEL_ID_CH1)) {
@@ -308,14 +306,11 @@ static void EnableColorBar(struct xilinx_drm_hdmi *hdmi,
 	/* Disable RX clock forwarding */
 	XVphy_Clkout1OBufTdsEnable(VphyPtr, XVPHY_DIR_RX, (FALSE));
 
-	//xvphy_mutex_unlock(hdmi->phy[0]);
-	//mutex_unlock(&hdmi->hdmi_mutex);
-
 	dev_info(hdmi->dev, "tx-clk: setting rate to VphyPtr->HdmiTxRefClkHz = %u\n", VphyPtr->HdmiTxRefClkHz);
 
 	tx_clk_rate = clk_set_rate(hdmi->tx_clk, VphyPtr->HdmiTxRefClkHz);
 
-	tx_clk_rate = clk_get_rate(hdmi->tx_clk);
+	//tx_clk_rate = clk_get_rate(hdmi->tx_clk);
 	dev_info(hdmi->dev, "tx-clk rate = %lu\n", tx_clk_rate);
 }
 
@@ -329,7 +324,7 @@ static void TxConnectCallback(void *CallbackRef)
 	BUG_ON(!HdmiTxSsPtr);
 	BUG_ON(!VphyPtr);
 	BUG_ON(!hdmi->phy[0]);
-	dev_info(hdmi->dev, "TxConnectCallback():\n");
+	dev_info(hdmi->dev, "TxConnectCallback()\n");
 
 	xvphy_mutex_lock(hdmi->phy[0]);
 	if (HdmiTxSsPtr->IsStreamConnected) {
@@ -350,8 +345,14 @@ static void TxConnectCallback(void *CallbackRef)
 		XVphy_IBufDsEnable(VphyPtr, 0, XVPHY_DIR_TX, (FALSE));
 	}
 	xvphy_mutex_unlock(hdmi->phy[0]);
-	if (hdmi->drm_dev)
+	if (hdmi->drm_dev) {
+		/* release the mutex so that our drm ops can re-acquire it */
+		mutex_unlock(&hdmi->hdmi_mutex);
+		dev_info(hdmi->dev, "TxConnectCallback() -> drm_kms_helper_hotplug_event()\n");
 		drm_kms_helper_hotplug_event(hdmi->drm_dev);
+		mutex_lock(&hdmi->hdmi_mutex);
+	}
+	dev_info(hdmi->dev, "TxConnectCallback() done\n");
 }
 
 static void TxStreamUpCallback(void *CallbackRef)
@@ -479,18 +480,23 @@ static void VphyHdmiTxInitCallback(void *CallbackRef)
 
 	VphyPtr = hdmi->xvphy;
 	BUG_ON(!VphyPtr);
-	dev_info(hdmi->dev, "VphyHdmiTxInitCallback\r\n");
+	dev_info(hdmi->dev, "VphyHdmiTxInitCallback\n");
 
 	/* a pair of mutexes must be locked in fixed order to prevent deadlock,
 	 * and the order is RX SS then XVPHY, so first unlock XVPHY then lock both */
 	xvphy_mutex_unlock(hdmi->phy[0]);
+	dev_info(hdmi->dev, "xvphy_mutex_unlock() done\n");
 	mutex_lock(&hdmi->hdmi_mutex);
+	dev_info(hdmi->dev, "mutex_lock() done\n");
 	xvphy_mutex_lock(hdmi->phy[0]);
+	dev_info(hdmi->dev, "xvphy_mutex_lock() done\n");
 
 	XV_HdmiTxSs_RefClockChangeInit(HdmiTxSsPtr);
 
 	/* unlock RX SS but keep XVPHY locked */
 	mutex_unlock(&hdmi->hdmi_mutex);
+	dev_info(hdmi->dev, "VphyHdmiTxInitCallback() done\n");
+
 }
 
 /* entered with vphy mutex taken */
@@ -675,6 +681,8 @@ xilinx_drm_hdmi_detect(struct drm_encoder *encoder,
 /* callback function for drm_do_get_edid(), used in xilinx_drm_hdmi_get_modes()
  * through drm_do_get_edid() from drm/drm_edid.c.
  *
+ * called with hdmi_mutex taken
+ *
  * Return 0 on success, !0 otherwise
  */
 static int xilinx_drm_hdmi_get_edid_block(void *data, u8 *buf, unsigned int block,
@@ -688,8 +696,6 @@ static int xilinx_drm_hdmi_get_edid_block(void *data, u8 *buf, unsigned int bloc
 	BUG_ON(!hdmi);
 	/* out of bounds? */
 	if (((block * 128) + len) > 256) return -EINVAL;
-
-	mutex_lock(&hdmi->hdmi_mutex);
 
 	HdmiTxSsPtr = (XV_HdmiTxSs *)&hdmi->xv_hdmitxss;
 	BUG_ON(!HdmiTxSsPtr);
@@ -705,7 +711,6 @@ static int xilinx_drm_hdmi_get_edid_block(void *data, u8 *buf, unsigned int bloc
 	/* then copy the correct block(s) */
 	memcpy(buf, buffer + block * 128, len);
 	hdmi->have_edid = 1;
-	mutex_unlock(&hdmi->hdmi_mutex);
 	return 0;
 }
 
@@ -736,6 +741,7 @@ static int xilinx_drm_hdmi_get_modes(struct drm_encoder *encoder,
 
 	kfree(edid);
 	mutex_unlock(&hdmi->hdmi_mutex);
+	dev_info(hdmi->dev, "xilinx_drm_hdmi_get_modes() done\n");
 
 	return ret;
 }
