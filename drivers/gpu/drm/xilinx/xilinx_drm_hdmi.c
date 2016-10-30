@@ -69,6 +69,7 @@
  * @train_set: set of training data
  */
 struct xilinx_drm_hdmi {
+	struct drm_device *drm_dev;
 	struct drm_encoder *encoder;
 	struct device *dev;
 	void __iomem *iomem;
@@ -92,7 +93,7 @@ struct xilinx_drm_hdmi {
 	/* input clock */
 	struct clk *tx_clk;
 	bool cable_connected;
-	bool hdmi_stream;
+	bool hdmi_stream_up;
 	bool have_edid;
 	int dpms;
 
@@ -150,7 +151,7 @@ static irqreturn_t hdmitx_irq_handler(int irq, void *dev_id)
 	unsigned long flags;
 
 	BUG_ON(!dev_id);
-	hdmi = to_hdmi(dev_id);
+	hdmi = (struct xilinx_drm_hdmi *)dev_id;
 	HdmiTxSsPtr = (XV_HdmiTxSs *)&hdmi->xv_hdmitxss;
 	BUG_ON(!HdmiTxSsPtr->HdmiTxPtr);
 
@@ -173,6 +174,8 @@ static irqreturn_t hdmitx_irq_handler(int irq, void *dev_id)
 	return IRQ_WAKE_THREAD;
 }
 
+/* (struct xilinx_drm_hdmi *)dev_id */
+
 static irqreturn_t hdmitx_irq_thread(int irq, void *dev_id)
 {
 	struct xilinx_drm_hdmi *hdmi;
@@ -183,13 +186,13 @@ static irqreturn_t hdmitx_irq_thread(int irq, void *dev_id)
 	int i;
 	char which[NUM_SUBCORE_IRQ + 1] = "012";
 	int which_mask = 0;
-	u32 Event, Data;
+	u32 Data;
 	static u32 OldData;
 	static int count = 0;
 	//printk(KERN_INFO "hdmitx_irq_thread()\n");
 
 	BUG_ON(!dev_id);
-	hdmi = to_hdmi(dev_id);
+	hdmi = (struct xilinx_drm_hdmi *)dev_id;
 	if (!hdmi) {
 		printk(KERN_INFO "irq_thread: !dev_id\n");
 		return IRQ_HANDLED;
@@ -318,7 +321,7 @@ static void EnableColorBar(struct xilinx_drm_hdmi *hdmi,
 
 static void TxConnectCallback(void *CallbackRef)
 {
-	struct xilinx_drm_hdmi *hdmi = to_hdmi(CallbackRef);
+	struct xilinx_drm_hdmi *hdmi = (struct xilinx_drm_hdmi *)CallbackRef;
 	XV_HdmiTxSs *HdmiTxSsPtr = &hdmi->xv_hdmitxss;
 	XVphy *VphyPtr = hdmi->xvphy;
 	BUG_ON(!hdmi);
@@ -330,6 +333,7 @@ static void TxConnectCallback(void *CallbackRef)
 	xvphy_mutex_lock(hdmi->phy[0]);
 	if (HdmiTxSsPtr->IsStreamConnected) {
 		dev_info(hdmi->dev, "TxConnectCallback(): TX connected\n");
+		hdmi->cable_connected = 1;
 		/* Check HDMI sink version */
 		XV_HdmiTxSs_DetectHdmi20(HdmiTxSsPtr);
 		XVphy_IBufDsEnable(VphyPtr, 0, XVPHY_DIR_TX, (TRUE));
@@ -338,17 +342,22 @@ static void TxConnectCallback(void *CallbackRef)
 	}
 	else {
 		dev_info(hdmi->dev, "TxConnectCallback(): TX disconnected\n");
+		hdmi->cable_connected = 0;
 		XVphy_IBufDsEnable(VphyPtr, 0, XVPHY_DIR_TX, (FALSE));
 	}
 	xvphy_mutex_unlock(hdmi->phy[0]);
+	if (hdmi->drm_dev)
+		drm_kms_helper_hotplug_event(hdmi->drm_dev);
 }
 
 static void TxStreamUpCallback(void *CallbackRef)
 {
-	struct xilinx_drm_hdmi *hdmi = to_hdmi(CallbackRef);
+	struct xilinx_drm_hdmi *hdmi = (struct xilinx_drm_hdmi *)CallbackRef;
 	XVphy *VphyPtr;
 	XV_HdmiTxSs *HdmiTxSsPtr;
 	XVidC_VideoStream *HdmiTxSsVidStreamPtr;
+	XVphy_PllType TxPllType;
+	u64 TxLineRate;
 
 	BUG_ON(!hdmi);
 
@@ -359,10 +368,7 @@ static void TxStreamUpCallback(void *CallbackRef)
 	BUG_ON(!VphyPtr);
 
 	dev_info(hdmi->dev, "TxStreamUpCallback(): TX stream is up\n");
-
-	XVphy_PllType TxPllType;
-	u64 TxLineRate;
-
+	hdmi->hdmi_stream_up = 1;
 
 #if 0
   XVidC_VideoStream *HdmiTxSsVidStreamPtr;
@@ -421,10 +427,9 @@ static void TxStreamUpCallback(void *CallbackRef)
 	XVidC_ReportStreamInfo(HdmiTxSsVidStreamPtr);
 }
 
-
 static void TxStreamDownCallback(void *CallbackRef)
 {
-	struct xilinx_drm_hdmi *hdmi = to_hdmi(CallbackRef);
+	struct xilinx_drm_hdmi *hdmi = (struct xilinx_drm_hdmi *)CallbackRef;
 	XVphy *VphyPtr;
 	XV_HdmiTxSs *HdmiTxSsPtr;
 	XVidC_VideoStream *HdmiTxSsVidStreamPtr;
@@ -438,11 +443,12 @@ static void TxStreamDownCallback(void *CallbackRef)
 	BUG_ON(!VphyPtr);
 
 	dev_info(hdmi->dev, "TX stream is down\n\r");
+	hdmi->hdmi_stream_up = 0;
 }
 
 static void TxVsCallback(void *CallbackRef)
 {
-	struct xilinx_drm_hdmi *hdmi = to_hdmi(CallbackRef);
+	struct xilinx_drm_hdmi *hdmi = (struct xilinx_drm_hdmi *)CallbackRef;
 	XV_HdmiTxSs *HdmiTxSsPtr = &hdmi->xv_hdmitxss;
 	XVphy *VphyPtr = hdmi->xvphy;
 	BUG_ON(!hdmi);
@@ -459,7 +465,7 @@ static void TxVsCallback(void *CallbackRef)
 /* entered with vphy mutex taken */
 static void VphyHdmiTxInitCallback(void *CallbackRef)
 {
-	struct xilinx_drm_hdmi *hdmi = to_hdmi(CallbackRef);
+	struct xilinx_drm_hdmi *hdmi = (struct xilinx_drm_hdmi *)CallbackRef;
 	XVphy *VphyPtr;
 	XV_HdmiTxSs *HdmiTxSsPtr;
 	BUG_ON(!hdmi);
@@ -486,7 +492,7 @@ static void VphyHdmiTxInitCallback(void *CallbackRef)
 /* entered with vphy mutex taken */
 static void VphyHdmiTxReadyCallback(void *CallbackRef)
 {
-	struct xilinx_drm_hdmi *hdmi = to_hdmi(CallbackRef);
+	struct xilinx_drm_hdmi *hdmi = (struct xilinx_drm_hdmi *)CallbackRef;
 	XVphy *VphyPtr;
 	XV_HdmiTxSs *HdmiTxSsPtr;
 	BUG_ON(!hdmi);
@@ -541,7 +547,8 @@ static bool xilinx_drm_hdmi_mode_fixup(struct drm_encoder *encoder,
 				     struct drm_display_mode *adjusted_mode)
 {
 	struct xilinx_drm_hdmi *hdmi = to_hdmi(encoder);
-	(void)hdmi;
+	dev_info(hdmi->dev, "xilinx_drm_hdmi_mode_fixup()\n");
+
 #if 0
 	int diff = mode->htotal - mode->hsync_end;
 	/*
@@ -578,7 +585,8 @@ static int xilinx_drm_hdmi_mode_valid(struct drm_encoder *encoder,
 				    struct drm_display_mode *mode)
 {
 	struct xilinx_drm_hdmi *hdmi = to_hdmi(encoder);
-	(void)hdmi;
+	dev_info(hdmi->dev, "xilinx_drm_hdmi_mode_valid()\n");
+
 #if 0
 	u8 max_lanes = hdmi->link_config.max_lanes;
 	u8 bpp = hdmi->config.bpp;
@@ -602,7 +610,27 @@ static void xilinx_drm_hdmi_mode_set(struct drm_encoder *encoder,
 				   struct drm_display_mode *adjusted_mode)
 {
 	struct xilinx_drm_hdmi *hdmi = to_hdmi(encoder);
-	(void)hdmi;
+	dev_info(hdmi->dev, "xilinx_drm_hdmi_mode_set()\n");
+
+	dev_info(hdmi->dev, "mode->htotal = %d\n", mode->htotal);
+	dev_info(hdmi->dev, "mode->vtotal = %d\n", mode->vtotal);
+
+	dev_info(hdmi->dev, "mode->pvsync = %d\n",
+		!!(mode->flags & DRM_MODE_FLAG_PVSYNC));
+	dev_info(hdmi->dev, "mode->phsync = %d\n",
+		!!(mode->flags & DRM_MODE_FLAG_PHSYNC));
+
+	dev_info(hdmi->dev, "mode->hsync_end = %d\n", mode->hsync_end);
+	dev_info(hdmi->dev, "mode->hsync_start = %d\n", mode->hsync_start);
+	dev_info(hdmi->dev, "mode->vsync_end = %d\n", mode->vsync_end);
+	dev_info(hdmi->dev, "mode->vsync_start = %d\n", mode->vsync_start);
+
+	dev_info(hdmi->dev, "mode->hdisplay = %d\n", mode->hdisplay);
+	dev_info(hdmi->dev, "mode->vdisplay = %d\n", mode->vdisplay);
+
+	dev_info(hdmi->dev, "mode->htotal = %d\n", mode->htotal);
+	dev_info(hdmi->dev, "mode->vtotal = %d\n", mode->vtotal);
+
 #if 0
 	xilinx_drm_hdmi_mode_configure(hdmi, adjusted_mode->clock);
 	xilinx_drm_hdmi_mode_set_stream(hdmi, adjusted_mode);
@@ -615,11 +643,12 @@ xilinx_drm_hdmi_detect(struct drm_encoder *encoder,
 		     struct drm_connector *connector)
 {
 	struct xilinx_drm_hdmi *hdmi = to_hdmi(encoder);
-	(void)hdmi;
-	if (1) {
+	/* cable connected and @TODO edid retrieved? */
+	if (hdmi->cable_connected /*&& have_edid*/) {
+		dev_info(hdmi->dev, "xilinx_drm_hdmi_detect() = connected\n");
 		return connector_status_connected;
 	}
-
+	dev_info(hdmi->dev, "xilinx_drm_hdmi_detect() = disconnected\n");
 	return connector_status_disconnected;
 }
 
@@ -627,7 +656,7 @@ xilinx_drm_hdmi_detect(struct drm_encoder *encoder,
 static int xilinx_drm_hdmi_get_edid_block(void *data, u8 *buf, unsigned int block,
 				  size_t len)
 {
-	//memcpy(buf, adv7511->edid_buf, len);
+	//memcpy(buf, baremetal->edid_buf, len);
 	return 0;
 }
 
@@ -641,6 +670,8 @@ static int xilinx_drm_hdmi_get_modes(struct drm_encoder *encoder,
 	struct xilinx_drm_hdmi *hdmi = to_hdmi(encoder);
 	struct edid *edid;
 	int ret;
+
+	dev_info(hdmi->dev, "xilinx_drm_hdmi_get_modes()\n");
 
 	/* When the I2C adapter connected to the DDC bus is hidden behind a device that
 	* exposes a different interface to read EDID blocks this function can be used
@@ -674,6 +705,9 @@ static int xilinx_drm_hdmi_encoder_init(struct platform_device *pdev,
 				      struct drm_encoder_slave *encoder)
 {
 	struct xilinx_drm_hdmi *hdmi = platform_get_drvdata(pdev);
+
+	dev_info(hdmi->dev, "xilinx_drm_hdmi_encoder_init()\n");
+
 #if 0
 	int clock_rate;
 	u32 reg, w;
@@ -682,6 +716,7 @@ static int xilinx_drm_hdmi_encoder_init(struct platform_device *pdev,
 	encoder->slave_funcs = &xilinx_drm_hdmi_encoder_funcs;
 
 	hdmi->encoder = &encoder->base;
+	hdmi->drm_dev = dev;
 
 #if 0
 	/* Get aclk rate */
