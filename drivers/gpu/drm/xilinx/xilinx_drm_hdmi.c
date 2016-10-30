@@ -324,6 +324,7 @@ static void TxConnectCallback(void *CallbackRef)
 	struct xilinx_drm_hdmi *hdmi = (struct xilinx_drm_hdmi *)CallbackRef;
 	XV_HdmiTxSs *HdmiTxSsPtr = &hdmi->xv_hdmitxss;
 	XVphy *VphyPtr = hdmi->xvphy;
+	int xst_hdmi20;
 	BUG_ON(!hdmi);
 	BUG_ON(!HdmiTxSsPtr);
 	BUG_ON(!VphyPtr);
@@ -335,7 +336,8 @@ static void TxConnectCallback(void *CallbackRef)
 		dev_info(hdmi->dev, "TxConnectCallback(): TX connected\n");
 		hdmi->cable_connected = 1;
 		/* Check HDMI sink version */
-		XV_HdmiTxSs_DetectHdmi20(HdmiTxSsPtr);
+		xst_hdmi20 = XV_HdmiTxSs_DetectHdmi20(HdmiTxSsPtr);
+		dev_info(hdmi->dev, "HDMI %s\n", xst_hdmi20? "2.0": "1.4");
 		XVphy_IBufDsEnable(VphyPtr, 0, XVPHY_DIR_TX, (TRUE));
 		dev_info(hdmi->dev, "TxConnectCallback(): EnableColorBar()\n");
 		EnableColorBar(hdmi, XVIDC_VM_3840x2160_30_P, XVIDC_CSF_RGB, XVIDC_BPC_8);
@@ -343,6 +345,8 @@ static void TxConnectCallback(void *CallbackRef)
 	else {
 		dev_info(hdmi->dev, "TxConnectCallback(): TX disconnected\n");
 		hdmi->cable_connected = 0;
+		hdmi->hdmi_stream_up = 0;
+		hdmi->have_edid = 0;
 		XVphy_IBufDsEnable(VphyPtr, 0, XVPHY_DIR_TX, (FALSE));
 	}
 	xvphy_mutex_unlock(hdmi->phy[0]);
@@ -612,6 +616,8 @@ static void xilinx_drm_hdmi_mode_set(struct drm_encoder *encoder,
 	struct xilinx_drm_hdmi *hdmi = to_hdmi(encoder);
 	dev_info(hdmi->dev, "xilinx_drm_hdmi_mode_set()\n");
 
+	drm_mode_debug_printmodeline(mode);
+
 	dev_info(hdmi->dev, "mode->htotal = %d\n", mode->htotal);
 	dev_info(hdmi->dev, "mode->vtotal = %d\n", mode->vtotal);
 
@@ -652,11 +658,31 @@ xilinx_drm_hdmi_detect(struct drm_encoder *encoder,
 	return connector_status_disconnected;
 }
 
-/* xilinx_drm_hdmi_get_edid_block */
+/* callback function for drm_do_get_edid(), used in xilinx_drm_hdmi_get_modes()
+ * through drm_do_get_edid() from drm/drm_edid.c.
+ *
+ * Return 0 on success, !0 otherwise
+ */
 static int xilinx_drm_hdmi_get_edid_block(void *data, u8 *buf, unsigned int block,
 				  size_t len)
 {
-	//memcpy(buf, baremetal->edid_buf, len);
+	char buffer[256];
+	struct xilinx_drm_hdmi *hdmi = (struct xilinx_drm_hdmi *)data;
+	XV_HdmiTxSs *HdmiTxSsPtr;
+	int ret;
+
+	BUG_ON(!hdmi);
+	if (((block * 128) + len) > 256) return -EINVAL;
+
+	HdmiTxSsPtr = (XV_HdmiTxSs *)&hdmi->xv_hdmitxss;
+
+	/* first obtain edid in local buffer */
+	ret = XV_HdmiTxSs_ReadEdid(HdmiTxSsPtr, buffer);
+	if (ret == XST_FAILURE)
+		return -EINVAL;
+	/* then copy the correct block(s) */
+	memcpy(buf, buffer + block * 128, len);
+	hdmi->have_edid = 1;
 	return 0;
 }
 
