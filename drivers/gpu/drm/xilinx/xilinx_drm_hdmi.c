@@ -345,6 +345,7 @@ static void TxConnectCallback(void *CallbackRef)
 		XVphy_IBufDsEnable(VphyPtr, 0, XVPHY_DIR_TX, (FALSE));
 	}
 	xvphy_mutex_unlock(hdmi->phy[0]);
+#if 0
 	if (hdmi->drm_dev) {
 		/* release the mutex so that our drm ops can re-acquire it */
 		mutex_unlock(&hdmi->hdmi_mutex);
@@ -352,6 +353,7 @@ static void TxConnectCallback(void *CallbackRef)
 		drm_kms_helper_hotplug_event(hdmi->drm_dev);
 		mutex_lock(&hdmi->hdmi_mutex);
 	}
+#endif
 	dev_info(hdmi->dev, "TxConnectCallback() done\n");
 }
 
@@ -692,6 +694,7 @@ static int xilinx_drm_hdmi_get_edid_block(void *data, u8 *buf, unsigned int bloc
 	struct xilinx_drm_hdmi *hdmi = (struct xilinx_drm_hdmi *)data;
 	XV_HdmiTxSs *HdmiTxSsPtr;
 	int ret;
+	int i, j;
 
 	BUG_ON(!hdmi);
 	/* out of bounds? */
@@ -700,14 +703,29 @@ static int xilinx_drm_hdmi_get_edid_block(void *data, u8 *buf, unsigned int bloc
 	HdmiTxSsPtr = (XV_HdmiTxSs *)&hdmi->xv_hdmitxss;
 	BUG_ON(!HdmiTxSsPtr);
 
-	dev_info(hdmi->dev, "xilinx_drm_hdmi_get_modes() reading EDID\n");
-
 	/* first obtain edid in local buffer */
 	ret = XV_HdmiTxSs_ReadEdid(HdmiTxSsPtr, buffer);
 	if (ret == XST_FAILURE) {
 		mutex_unlock(&hdmi->hdmi_mutex);
+		dev_info(hdmi->dev, "xilinx_drm_hdmi_get_edid_block() failed reading EDID\n");
 		return -EINVAL;
 	}
+
+	for (i = 0; i < 256; i += 16) {
+		u8 b[128];
+		u8 *bp = b;
+		if (i == 128)
+			dev_info(hdmi->dev, "\n");
+			for (j = i; j < i + 16; j++) {
+				sprintf(bp, "0x%02x, ", buf[j]);
+				bp += 6;
+			}
+		bp[0] = '\0';
+		dev_info(hdmi->dev, "%s\n", b);
+	}
+
+	dev_info(hdmi->dev, "xilinx_drm_hdmi_get_edid_block() block #%d, len %d\n",
+		block, len);
 	/* then copy the correct block(s) */
 	memcpy(buf, buffer + block * 128, len);
 	hdmi->have_edid = 1;
@@ -735,12 +753,15 @@ static int xilinx_drm_hdmi_get_modes(struct drm_encoder *encoder,
 
 	/* private data hdmi is passed to xilinx_drm_hdmi_get_edid_block(data, ...) */
 	edid = drm_do_get_edid(connector, xilinx_drm_hdmi_get_edid_block, hdmi);
+	mutex_unlock(&hdmi->hdmi_mutex);
+	if (!edid) {
+		dev_err(hdmi->dev, "xilinx_drm_hdmi_get_modes() could not obtain edid\n");
+		return 0;
+	}
 
 	drm_mode_connector_update_edid_property(connector, edid);
 	ret = drm_add_edid_modes(connector, edid);
-
 	kfree(edid);
-	mutex_unlock(&hdmi->hdmi_mutex);
 	dev_info(hdmi->dev, "xilinx_drm_hdmi_get_modes() done\n");
 
 	return ret;
