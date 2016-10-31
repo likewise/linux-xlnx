@@ -142,6 +142,13 @@ static void xilinx_drm_output_poll_changed(struct drm_device *drm)
 {
 	struct xilinx_drm_private *private = drm->dev_private;
 
+	/* @NOTE Added by Leon to debug HDMI DRM driver @TODO remove */
+	DRM_DEBUG_DRIVER("xilinx_drm_output_poll_changed() private = %p\n",
+		private);
+	if (private)
+		DRM_DEBUG_DRIVER("xilinx_drm_output_poll_changed() private->fb = %p\n",
+			private->fb);
+
 	xilinx_drm_fb_hotplug_event(private->fb);
 }
 
@@ -278,6 +285,10 @@ static int xilinx_drm_load(struct drm_device *drm, unsigned long flags)
 
 	while ((encoder_node = of_parse_phandle(drm->dev->of_node,
 						"xlnx,encoder-slave", i))) {
+
+		/* @NOTE Added by Leon to debug HDMI DRM driver @TODO remove */
+		dev_info(&pdev->dev, "Found xlnx,encoder-slave %d\n", i);
+
 		encoder = xilinx_drm_encoder_create(drm, encoder_node);
 		of_node_put(encoder_node);
 		if (IS_ERR(encoder)) {
