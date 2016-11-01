@@ -632,6 +632,7 @@ static void xilinx_drm_hdmi_mode_set(struct drm_encoder *encoder,
 				   struct drm_display_mode *mode,
 				   struct drm_display_mode *adjusted_mode)
 {
+	XVidC_VideoTiming vt;
 	struct xilinx_drm_hdmi *hdmi = to_hdmi(encoder);
 	dev_info(hdmi->dev, "xilinx_drm_hdmi_mode_set()\n");
 
@@ -661,6 +662,27 @@ static void xilinx_drm_hdmi_mode_set(struct drm_encoder *encoder,
 	xilinx_drm_hdmi_mode_set_stream(hdmi, adjusted_mode);
 	xilinx_drm_hdmi_mode_set_transfer_unit(hdmi, adjusted_mode);
 #endif
+#if 0
+	/* see slide 20 of http://events.linuxfoundation.org/sites/events/files/slides/brezillon-drm-kms.pdf */
+	vt.HActive = mode->hdisplay;
+	vt.HFrontPorch = mode->hstart - mode->hdisplay;
+	vt.HSyncWidth = mode->hend - mode->hstart;
+	vt.HBackPorch = mode->htotal - mode->hsyncend;
+	vt.HTotal = mode->htotal;
+	vt.HSyncPolarity = !!(mode->flags & DRM_MODE_FLAG_PHSYNC);
+
+	vt.VActive = mode->vdisplay;
+	vt.F0PVFrontPorch = mode->vsync_start - mode->vdisplay;
+	vt.F0PVSyncWidth = mode->vsync_end - mode->vsync_start;
+	vt.F0PVBackPorch = mode->vtotal - mode->vsync_end;
+	vt.F0PVTotal = mode->vtotal;
+	vt.F1VFrontPorch = mode->vsync_start - mode->vdisplay;
+	vt.F1VSyncWidth = mode->vsync_end - mode->vsync_start;
+	vt.F1VBackPorch = mode->vtotal - mode->vsync_end;
+	vt.F1VTotal = mode->vtotal;
+	vt.VSyncPolarity = !!(mode->flags & DRM_MODE_FLAG_PVSYNC);
+#endif
+
 }
 
 static enum drm_connector_status
@@ -706,6 +728,7 @@ static int xilinx_drm_hdmi_get_edid_block(void *data, u8 *buf, unsigned int bloc
 	if (!HdmiTxSsPtr->IsStreamConnected) {
 		dev_info(hdmi->dev, "xilinx_drm_hdmi_get_edid_block() stream is not connected\n");
 	}
+	XV_HdmiTxSs_ShowEdid(HdmiTxSsPtr);
 	/* first obtain edid in local buffer */
 	ret = XV_HdmiTxSs_ReadEdid(HdmiTxSsPtr, buffer);
 	if (ret == XST_FAILURE) {
