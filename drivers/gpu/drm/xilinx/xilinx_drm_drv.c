@@ -269,6 +269,9 @@ static int xilinx_drm_load(struct drm_device *drm, unsigned long flags)
 	unsigned int bpp, align, i = 0;
 	int ret;
 
+	/* @NOTE Added by Leon to debug HDMI DRM driver @TODO remove */
+	dev_info(&pdev->dev, "xilinx_drm_load()\n", i);
+
 	private = devm_kzalloc(drm->dev, sizeof(*private), GFP_KERNEL);
 	if (!private)
 		return -ENOMEM;
