@@ -703,6 +703,9 @@ static int xilinx_drm_hdmi_get_edid_block(void *data, u8 *buf, unsigned int bloc
 	HdmiTxSsPtr = (XV_HdmiTxSs *)&hdmi->xv_hdmitxss;
 	BUG_ON(!HdmiTxSsPtr);
 
+	if (!HdmiTxSsPtr->IsStreamConnected) {
+		dev_info(hdmi->dev, "xilinx_drm_hdmi_get_edid_block() stream is not connected\n");
+	}
 	/* first obtain edid in local buffer */
 	ret = XV_HdmiTxSs_ReadEdid(HdmiTxSsPtr, buffer);
 	if (ret == XST_FAILURE) {
