@@ -306,12 +306,15 @@ static void EnableColorBar(struct xilinx_drm_hdmi *hdmi,
 	/* Disable RX clock forwarding */
 	XVphy_Clkout1OBufTdsEnable(VphyPtr, XVPHY_DIR_RX, (FALSE));
 
-	dev_info(hdmi->dev, "tx-clk: setting rate to VphyPtr->HdmiTxRefClkHz = %u\n", VphyPtr->HdmiTxRefClkHz);
+	if (hdmi->tx_clk) {
 
-	tx_clk_rate = clk_set_rate(hdmi->tx_clk, VphyPtr->HdmiTxRefClkHz);
+		dev_info(hdmi->dev, "tx-clk: setting rate to VphyPtr->HdmiTxRefClkHz = %u\n", VphyPtr->HdmiTxRefClkHz);
 
-	//tx_clk_rate = clk_get_rate(hdmi->tx_clk);
-	dev_info(hdmi->dev, "tx-clk rate = %lu\n", tx_clk_rate);
+		tx_clk_rate = clk_set_rate(hdmi->tx_clk, VphyPtr->HdmiTxRefClkHz);
+
+		//tx_clk_rate = clk_get_rate(hdmi->tx_clk);
+		dev_info(hdmi->dev, "tx-clk rate = %lu\n", tx_clk_rate);
+	}
 }
 
 static void TxConnectCallback(void *CallbackRef)
@@ -610,18 +613,7 @@ static int xilinx_drm_hdmi_mode_valid(struct drm_encoder *encoder,
 	mutex_lock(&hdmi->hdmi_mutex);
 
 #if 0
-	u8 max_lanes = hdmi->link_config.max_lanes;
-	u8 bpp = hdmi->config.bpp;
-	u32 max_pclock = hdmi->config.max_pclock;
-	int max_rate = hdmi->link_config.max_rate;
-	int rate;
-	/* a maximum pixel clock is set and is exceeded by the mode? */
-	if (max_pclock && mode->clock > max_pclock)
-		return MODE_CLOCK_HIGH;
-
-	/* rate exceeds what is possible with the current setup? */
-	rate = xilinx_drm_hdmi_max_rate(max_rate, max_lanes, bpp);
-	if (mode->clock > rate)
+	if (mode->clock > hdmi_max_rate)
 		return MODE_CLOCK_HIGH;
 #endif
 	mutex_unlock(&hdmi->hdmi_mutex);
@@ -712,7 +704,7 @@ xilinx_drm_hdmi_detect(struct drm_encoder *encoder,
 static int xilinx_drm_hdmi_get_edid_block(void *data, u8 *buf, unsigned int block,
 				  size_t len)
 {
-	char buffer[256];
+	u8 *buffer;
 	struct xilinx_drm_hdmi *hdmi = (struct xilinx_drm_hdmi *)data;
 	XV_HdmiTxSs *HdmiTxSsPtr;
 	int ret;
@@ -721,6 +713,9 @@ static int xilinx_drm_hdmi_get_edid_block(void *data, u8 *buf, unsigned int bloc
 	BUG_ON(!hdmi);
 	/* out of bounds? */
 	if (((block * 128) + len) > 256) return -EINVAL;
+
+	buffer = kzalloc(256, GFP_KERNEL);
+	if (!buffer) return -ENOMEM;
 
 	HdmiTxSsPtr = (XV_HdmiTxSs *)&hdmi->xv_hdmitxss;
 	BUG_ON(!HdmiTxSsPtr);
@@ -737,23 +732,24 @@ static int xilinx_drm_hdmi_get_edid_block(void *data, u8 *buf, unsigned int bloc
 		return -EINVAL;
 	}
 
+	dev_info(hdmi->dev, "xilinx_drm_hdmi_get_edid_block() block #%d, len %d\n",
+		block, len);
 	for (i = 0; i < 256; i += 16) {
 		u8 b[128];
 		u8 *bp = b;
 		if (i == 128)
 			dev_info(hdmi->dev, "\n");
-			for (j = i; j < i + 16; j++) {
-				sprintf(bp, "0x%02x, ", buf[j]);
-				bp += 6;
-			}
+		for (j = i; j < i + 16; j++) {
+			sprintf(bp, "0x%02x, ", buffer[j]);
+			bp += 6;
+		}
 		bp[0] = '\0';
 		dev_info(hdmi->dev, "%s\n", b);
 	}
 
-	dev_info(hdmi->dev, "xilinx_drm_hdmi_get_edid_block() block #%d, len %d\n",
-		block, len);
 	/* then copy the correct block(s) */
 	memcpy(buf, buffer + block * 128, len);
+	kfree(buffer);
 	hdmi->have_edid = 1;
 	return 0;
 }
@@ -1091,6 +1087,7 @@ static int xilinx_drm_hdmi_probe(struct platform_device *pdev)
 		return hdmi->irq;
 	}
 
+#if 0
 	if (!hdmi->tx_clk) {
 		hdmi->tx_clk = devm_clk_get(&pdev->dev, "tx-clk");
 		if (IS_ERR(hdmi->tx_clk)) {
@@ -1121,6 +1118,7 @@ static int xilinx_drm_hdmi_probe(struct platform_device *pdev)
 	tx_clk_rate = clk_set_rate(hdmi->tx_clk, 50*1000*1000);
 	tx_clk_rate = clk_get_rate(hdmi->tx_clk);
 	//dev_info(&pdev->dev, "tx-clk rate = %lu\n", tx_clk_rate);
+#endif
 
 	/* @TODO spread phy[index] over RX/TX as */
 	index = 2;
