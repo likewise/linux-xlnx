@@ -822,8 +822,8 @@ static unsigned long si5324_clkout_recalc_rate(struct clk_hw *hw,
 		container_of(hw, struct si5324_hw_data, hw);
 	unsigned long rate = 0;
 
-	printk(KERN_INFO "si5324_clkout_recalc_rate(parent_rate=%lu)\n",
-		parent_rate);
+	dev_info(&hwdata->drvdata->client->dev,
+		"si5324_clkout_recalc_rate(parent_rate=%lu)\n", parent_rate);
 #if 0
 	printk(KERN_INFO "si5324_clkout_recalc_rate(parent_rate=%lu) clkout%d\n",
 		parent_rate, hwdata->num);
@@ -845,29 +845,9 @@ static unsigned long si5324_clkout_recalc_rate(struct clk_hw *hw,
 
 	rate = hwdata->drvdata->rate_clkout0;
 
-	printk(KERN_INFO "si5324_clkout_recalc_rate() = %lu\n", rate);
+	dev_info(&hwdata->drvdata->client->dev,
+		"si5324_clkout_recalc_rate() = %lu\n", rate);
 	return rate;
-}
-
-static long si5324_clkout_round_rate_bsp(struct clk_hw *hw, unsigned long rate,
-				     unsigned long *parent_rate)
-{
-	u32 NCn_ls, N2_ls, N3n;
-	u8  N1_hs, N2_hs, BwSel;
-	u32 actual_rate;
-	int result;
-	u8  buf[14*2]; // Need to set 14 registers
-	int i;
-
-	printk(KERN_INFO "si5324_clkout_round_rate_bsp(rate=%lu, parent_rate=%lu)\n",
-		rate, *parent_rate);
-
-	// Calculate the frequency settings for the Si5324
-	result = Si5324_CalcFreqSettings(114285000, rate, &actual_rate,
-	                                 &N1_hs, &NCn_ls, &N2_hs, &N2_ls, &N3n,
-	                                 &BwSel);
-	printk(KERN_INFO "si5324_clkout_round_rate_bsp() = %d, actual_rate = %u\n", result, actual_rate);
-	return result;
 }
 
 /* round_rate selects the rate closest to the requested one.
@@ -882,12 +862,18 @@ static long si5324_clkout_round_rate(struct clk_hw *hw, unsigned long rate,
 	unsigned char rdiv;
 	u32 NCn_ls, N2_ls, N3n;
 	u8  N1_hs, N2_hs, BwSel;
+	u32 actual_rate;
 	printk(KERN_INFO "si5324_clkout_round_rate(rate=%lu, parent_rate=%lu)\n",
 		rate, *parent_rate);
 
 	dev_info(&hwdata->drvdata->client->dev,
 		"%s - %s: parent_rate = %lu, rate = %lu\n",
 		__func__, clk_hw_get_name(hw), *parent_rate, rate);
+
+	// Calculate the frequency settings for the Si5324
+	result = Si5324_CalcFreqSettings(114285000, rate, &actual_rate,
+		&N1_hs, &NCn_ls, &N2_hs, &N2_ls, &N3n, &BwSel);
+
 #if 0
 	if (rate > SI5324_CLKOUT_MAX_FREQ)
 		rate = SI5324_CLKOUT_MAX_FREQ;
@@ -928,8 +914,9 @@ static long si5324_clkout_round_rate(struct clk_hw *hw, unsigned long rate,
 		*parent_rate, rate);
 #endif
 
-	printk(KERN_INFO "si5324_clkout_round_rate() = %lu\n", rate);
-	return rate;
+	dev_info(&hwdata->drvdata->client->dev,
+		"si5324_clkout_round_rate() = %lu\n", actual_rate);
+	return actual_rate;
 }
 
 static int si5324_clkout_set_rate(struct clk_hw *hw, unsigned long rate,
@@ -945,7 +932,8 @@ static int si5324_clkout_set_rate(struct clk_hw *hw, unsigned long rate,
 	u8  buf[14*2]; // Need to set 14 registers
 	int i;
 
-	printk(KERN_INFO "si5324_clkout_set_rate(parent_rate=%lu, rate = %lu)\n",
+	dev_info(&hwdata->drvdata->client->dev,
+		"si5324_clkout_set_rate(parent_rate=%lu, rate = %lu)\n",
 		parent_rate, rate);
 
 	// Calculate the frequency settings for the Si5324
