@@ -344,13 +344,13 @@ int Si5324_CalcFreqSettings(u32 ClkInFreq, u32 ClkOutFreq,
             break;
         }
     }
-    if (settings.best_delta_fout /= settings.fout) {
+    if (settings.best_delta_fout != settings.fout) {
         if (SI5324_DEBUG) {
             printk(KERN_INFO "Si5324: ERROR: No valid settings found.");
         }
         return SI5324_ERR_FREQ;
     }
-    if (SI5324_DEBUG) {
+    if (1 || SI5324_DEBUG) {
         printk(KERN_INFO "Si5324: Found solution: fout = %dHz.\n",
                    (u32)(settings.best_fout >> 28));
     }
