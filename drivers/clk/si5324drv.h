@@ -151,7 +151,7 @@ typedef struct {
     u32 best_n3;
 } si5324_settings_t;
 
-int Si5324_CalcFreqSettings(u32 ClkInFreq, u32 ClkOutFreq,
+int Si5324_CalcFreqSettings(u32 ClkInFreq, u32 ClkOutFreq, u32 *ClkActual,
                         u8  *N1_hs, u32 *NCn_ls,
                         u8  *N2_hs, u32 *N2_ls,
                         u32 *N3n,   u8  *BwSel);

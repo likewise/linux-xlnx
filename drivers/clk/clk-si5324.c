@@ -845,7 +845,7 @@ static unsigned long si5324_clkout_recalc_rate(struct clk_hw *hw,
 
 	rate = hwdata->drvdata->rate_clkout0;
 
-	printk(KERN_INFO "si5324_clkout_recalc_rate() = %d\n", rate);
+	printk(KERN_INFO "si5324_clkout_recalc_rate() = %lu\n", rate);
 	return rate;
 }
 
@@ -854,6 +854,7 @@ static long si5324_clkout_round_rate_bsp(struct clk_hw *hw, unsigned long rate,
 {
 	u32 NCn_ls, N2_ls, N3n;
 	u8  N1_hs, N2_hs, BwSel;
+	u32 actual_rate;
 	int result;
 	u8  buf[14*2]; // Need to set 14 registers
 	int i;
@@ -862,10 +863,10 @@ static long si5324_clkout_round_rate_bsp(struct clk_hw *hw, unsigned long rate,
 		rate, *parent_rate);
 
 	// Calculate the frequency settings for the Si5324
-	result = Si5324_CalcFreqSettings(114285000, rate,
+	result = Si5324_CalcFreqSettings(114285000, rate, &actual_rate,
 	                                 &N1_hs, &NCn_ls, &N2_hs, &N2_ls, &N3n,
 	                                 &BwSel);
-	printk(KERN_INFO "si5324_clkout_round_rate_bsp() = %d\n", result);
+	printk(KERN_INFO "si5324_clkout_round_rate_bsp() = %d, actual_rate = %u\n", result, actual_rate);
 	return result;
 }
 
@@ -927,7 +928,7 @@ static long si5324_clkout_round_rate(struct clk_hw *hw, unsigned long rate,
 		*parent_rate, rate);
 #endif
 
-	printk(KERN_INFO "si5324_clkout_round_rate() = %d\n", rate);
+	printk(KERN_INFO "si5324_clkout_round_rate() = %lu\n", rate);
 	return rate;
 }
 
@@ -939,6 +940,7 @@ static int si5324_clkout_set_rate(struct clk_hw *hw, unsigned long rate,
 
 	u32 NCn_ls, N2_ls, N3n;
 	u8  N1_hs, N2_hs, BwSel;
+	u32 actual_rate;
 	int result;
 	u8  buf[14*2]; // Need to set 14 registers
 	int i;
@@ -947,7 +949,7 @@ static int si5324_clkout_set_rate(struct clk_hw *hw, unsigned long rate,
 		parent_rate, rate);
 
 	// Calculate the frequency settings for the Si5324
-	result = Si5324_CalcFreqSettings(114285000, rate,
+	result = Si5324_CalcFreqSettings(114285000, rate, &actual_rate,
 	                                 &N1_hs, &NCn_ls, &N2_hs, &N2_ls, &N3n,
 	                                 &BwSel);
 	printk(KERN_INFO "N1_HS = %u\n", (unsigned int)N1_hs + 4);
@@ -955,6 +957,7 @@ static int si5324_clkout_set_rate(struct clk_hw *hw, unsigned long rate,
 	printk(KERN_INFO "N2_HS = %u\n", (unsigned int)N2_hs + 4);
 	printk(KERN_INFO "N2_LS = %u\n", (unsigned int)N2_ls + 1);
 	printk(KERN_INFO "N3 = %u\n", (unsigned int)N3n + 1);
+	printk(KERN_INFO "actual rate = %u\n", actual_rate);
 
 	/* remember actual clkout0 output rate */
 	hwdata->drvdata->rate_clkout0 = rate;

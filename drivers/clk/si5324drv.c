@@ -295,7 +295,7 @@ int Si5324_FindNcls(si5324_settings_t *settings) {
  *           frequency cannot be generated.
  * @note     Private function.
  *****************************************************************************/
-int Si5324_CalcFreqSettings(u32 ClkInFreq, u32 ClkOutFreq,
+int Si5324_CalcFreqSettings(u32 ClkInFreq, u32 ClkOutFreq, u32 *ClkActual,
                         u8  *N1_hs, u32 *NCn_ls,
                         u8  *N2_hs, u32 *N2_ls,
                         u32 *N3n,   u8  *BwSel) {
@@ -344,7 +344,7 @@ int Si5324_CalcFreqSettings(u32 ClkInFreq, u32 ClkOutFreq,
             break;
         }
     }
-    if (settings.best_delta_fout != settings.fout) {
+    if (settings.best_delta_fout == settings.fout) {
         if (SI5324_DEBUG) {
             printk(KERN_INFO "Si5324: ERROR: No valid settings found.");
         }
@@ -367,6 +367,8 @@ int Si5324_CalcFreqSettings(u32 ClkInFreq, u32 ClkOutFreq,
     free running  2, 0x42,  //              BWSEL_REG=0100 (?)
     */
     *BwSel  = 6; //4
+
+    if (ClkActual) *ClkActual = (settings.best_fout >> 28);
     return SI5324_SUCCESS;
 
 }
