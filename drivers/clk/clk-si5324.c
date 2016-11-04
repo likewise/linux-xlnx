@@ -863,6 +863,7 @@ static long si5324_clkout_round_rate(struct clk_hw *hw, unsigned long rate,
 	u32 NCn_ls, N2_ls, N3n;
 	u8  N1_hs, N2_hs, BwSel;
 	u32 actual_rate;
+	int result;
 	printk(KERN_INFO "si5324_clkout_round_rate(rate=%lu, parent_rate=%lu)\n",
 		rate, *parent_rate);
 
