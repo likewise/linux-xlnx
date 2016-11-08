@@ -205,6 +205,7 @@ static void si5324_initialize(struct si5324_driver_data *drvdata)
 		SI5324_RST_REG, 0);
 	msleep(10);
 
+#if 0
 	// Disable output clocks during calibration (bit 4 SQ_ICAL=1),
 	// other bits are default
 	si5324_reg_write(drvdata, 3, 0x15);
@@ -235,6 +236,19 @@ static void si5324_initialize(struct si5324_driver_data *drvdata)
 	si5324_reg_write(drvdata, 21, 0xfc);
 	// Enable fast locking (bit 0 FASTLOCK=1)
 	si5324_reg_write(drvdata, 137, 0x01);   // FASTLOCK=1 (enable fast locking)
+
+#else /* BYPASS MODE */
+	dev_info(&drvdata->client->dev, "Configuring for bypass mode of CLKIN1 to CLKOUT1\n");
+	si5324_reg_write(drvdata,  0, 0x16 /* bypass */);
+#if 0
+	si5324_reg_write(drvdata,  3, 0x15 /* sq_ical */);
+	si5324_reg_write(drvdata,  4, 0x12 /* manual selection mode */);
+	si5324_reg_write(drvdata, 11, 0x40 /* enable both */);
+	si5324_reg_write(drvdata, 21, 0xfc /* cksel_pin off */);
+	si5324_reg_write(drvdata, 136, 0x40 /* initiate self-calibration */);
+#endif
+#endif
+
 }
 
 #define SI5324_PARAMETERS_REG		25
@@ -1380,6 +1394,7 @@ static int si5324_i2c_probe(struct i2c_client *client,
 		/* set initial clkout rate */
 		if (pdata->clkout[n].rate != 0) {
 			int ret;
+			dev_info(&client->dev, "Initializing clkout%d for DT specified frequency %d Hz.\n", n, pdata->clkout[n].rate);
 			ret = clk_set_rate(clk, pdata->clkout[n].rate);
 			if (ret != 0) {
 				dev_err(&client->dev, "Cannot set rate : %d\n",

@@ -270,6 +270,7 @@ static void EnableColorBar(struct xilinx_drm_hdmi *hdmi,
 
 	if (XVphy_IsBonded(VphyPtr, 0, XVPHY_CHANNEL_ID_CH1)) {
 		dev_info(hdmi->dev, "Both the GT RX and GT TX are clocked by the RX reference clock.\n");
+		return;
 	}
 
 	if (VideoMode < XVIDC_VM_NUM_SUPPORTED) {
@@ -338,7 +339,8 @@ static void TxConnectCallback(void *CallbackRef)
 		dev_info(hdmi->dev, "HDMI %s\n", xst_hdmi20? "2.0": "1.4");
 		XVphy_IBufDsEnable(VphyPtr, 0, XVPHY_DIR_TX, (TRUE));
 		dev_info(hdmi->dev, "TxConnectCallback(): EnableColorBar()\n");
-		EnableColorBar(hdmi, XVIDC_VM_3840x2160_30_P, XVIDC_CSF_RGB, XVIDC_BPC_8);
+		//EnableColorBar(hdmi, XVIDC_VM_3840x2160_30_P, XVIDC_CSF_RGB, XVIDC_BPC_8);
+		EnableColorBar(hdmi, XVIDC_VM_1920x1080_60_P, XVIDC_CSF_RGB, XVIDC_BPC_8);
 	}
 	else {
 		dev_info(hdmi->dev, "TxConnectCallback(): TX disconnected\n");
@@ -694,6 +696,25 @@ xilinx_drm_hdmi_detect(struct drm_encoder *encoder,
 	return connector_status_disconnected;
 }
 
+static const u8 lg_edid[] = {
+0x00, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0x00, 0x1e, 0x6d, 0x09, 0x5b, 0x8a, 0x48, 0x09, 0x00,
+0x0a, 0x19, 0x01, 0x04, 0xb5, 0x3c, 0x22, 0x78, 0x9e, 0x30, 0x35, 0xa7, 0x55, 0x4e, 0xa3, 0x26,
+0x0f, 0x50, 0x54, 0x21, 0x08, 0x00, 0x71, 0x40, 0x81, 0x80, 0x81, 0xc0, 0xa9, 0xc0, 0xd1, 0xc0,
+0x81, 0x00, 0x01, 0x01, 0x01, 0x01, 0x4d, 0x6c, 0x80, 0xa0, 0x70, 0x70, 0x3e, 0x80, 0x30, 0x20,
+0x3a, 0x00, 0x58, 0x54, 0x21, 0x00, 0x00, 0x1c, 0x02, 0x3a, 0x80, 0x18, 0x71, 0x38, 0x2d, 0x40,
+0x58, 0x2c, 0x45, 0x00, 0x58, 0x6f, 0x21, 0x00, 0x00, 0x1e, 0x00, 0x00, 0x00, 0xfd, 0x00, 0x38,
+0x3d, 0x1e, 0x87, 0x1e, 0x00, 0x0a, 0x20, 0x20, 0x20, 0x20, 0x20, 0x20, 0x00, 0x00, 0x00, 0xfc,
+0x00, 0x4c, 0x47, 0x20, 0x55, 0x6c, 0x74, 0x72, 0x61, 0x20, 0x48, 0x44, 0x0a, 0x20, 0x01, 0xf5,
+0x02, 0x03, 0x11, 0x71, 0x44, 0x90, 0x04, 0x03, 0x01, 0x23, 0x09, 0x07, 0x07, 0x83, 0x01, 0x00,
+0x00, 0x02, 0x3a, 0x80, 0x18, 0x71, 0x38, 0x2d, 0x40, 0x58, 0x2c, 0x45, 0x00, 0x58, 0x54, 0x21,
+0x00, 0x00, 0x1e, 0x01, 0x1d, 0x00, 0x72, 0x51, 0xd0, 0x1e, 0x20, 0x6e, 0x28, 0x55, 0x00, 0x58,
+0x54, 0x21, 0x00, 0x00, 0x1e, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
+0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
+0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
+0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
+0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x7c
+};
+
 /* callback function for drm_do_get_edid(), used in xilinx_drm_hdmi_get_modes()
  * through drm_do_get_edid() from drm/drm_edid.c.
  *
@@ -714,8 +735,10 @@ static int xilinx_drm_hdmi_get_edid_block(void *data, u8 *buf, unsigned int bloc
 	/* out of bounds? */
 	if (((block * 128) + len) > 256) return -EINVAL;
 
+#if 0
 	buffer = kzalloc(256, GFP_KERNEL);
 	if (!buffer) return -ENOMEM;
+
 
 	HdmiTxSsPtr = (XV_HdmiTxSs *)&hdmi->xv_hdmitxss;
 	BUG_ON(!HdmiTxSsPtr);
@@ -723,11 +746,12 @@ static int xilinx_drm_hdmi_get_edid_block(void *data, u8 *buf, unsigned int bloc
 	if (!HdmiTxSsPtr->IsStreamConnected) {
 		dev_info(hdmi->dev, "xilinx_drm_hdmi_get_edid_block() stream is not connected\n");
 	}
+#if 0
 	XV_HdmiTxSs_ShowEdid(HdmiTxSsPtr);
+#endif
 	/* first obtain edid in local buffer */
 	ret = XV_HdmiTxSs_ReadEdid(HdmiTxSsPtr, buffer);
 	if (ret == XST_FAILURE) {
-		mutex_unlock(&hdmi->hdmi_mutex);
 		dev_info(hdmi->dev, "xilinx_drm_hdmi_get_edid_block() failed reading EDID\n");
 		return -EINVAL;
 	}
@@ -747,10 +771,50 @@ static int xilinx_drm_hdmi_get_edid_block(void *data, u8 *buf, unsigned int bloc
 		dev_info(hdmi->dev, "%s\n", b);
 	}
 
-	/* then copy the correct block(s) */
+	/* then copy the requested 128-byte block(s) */
 	memcpy(buf, buffer + block * 128, len);
+	/* free our local buffer */
 	kfree(buffer);
-	hdmi->have_edid = 1;
+#else
+	memcpy(buf, &lg_edid[0] + block * 128, len);
+#endif
+	return 0;
+}
+
+static const struct drm_display_mode xilinx_drm_hdmi_hardcode_modes[] = {
+
+	/* 16 - 1920x1080@60Hz copied from drm_edid.c/edid_cea_modes */
+	{ DRM_MODE("1920x1080", DRM_MODE_TYPE_DRIVER, 148500, 1920, 2008,
+		   2052, 2200, 0, 1080, 1084, 1089, 1125, 0,
+		   DRM_MODE_FLAG_PHSYNC | DRM_MODE_FLAG_PVSYNC),
+	  .vrefresh = 60, .picture_aspect_ratio = HDMI_PICTURE_ASPECT_16_9, },
+
+	/* 1 - 3840x2160@30Hz copied from from edid_4k_modes */
+	{ DRM_MODE("3840x2160", DRM_MODE_TYPE_DRIVER, 297000,
+		   3840, 4016, 4104, 4400, 0,
+		   2160, 2168, 2178, 2250, 0,
+		   DRM_MODE_FLAG_PHSYNC | DRM_MODE_FLAG_PVSYNC),
+	  .vrefresh = 30, },
+
+};
+
+static int xilinx_drm_hdmi_hardcode(struct drm_connector *connector)
+{
+	struct drm_device *dev = connector->dev;
+	struct drm_display_mode *newmode;
+	//struct xilinx_drm_hdmi *hdmi = to_hdmi(encoder);
+
+	int i;
+
+	for (i = 0; i < ARRAY_SIZE(xilinx_drm_hdmi_hardcode_modes); i++) {
+		newmode = drm_mode_duplicate(dev, &xilinx_drm_hdmi_hardcode_modes[0]);
+		if (!newmode)
+			return 0;
+		printk(KERN_INFO "Adding hardcoded video mode %d\n", i);
+
+		//dev_info(hdmi->dev, "Adding hardcoded video mode %d\n", i);
+		drm_mode_probed_add(connector, newmode);
+	}
 	return 0;
 }
 
@@ -762,7 +826,7 @@ static int xilinx_drm_hdmi_get_modes(struct drm_encoder *encoder,
 				   struct drm_connector *connector)
 {
 	struct xilinx_drm_hdmi *hdmi = to_hdmi(encoder);
-	struct edid *edid;
+	struct edid *edid = NULL;
 	int ret;
 
 	dev_info(hdmi->dev, "xilinx_drm_hdmi_get_modes()\n");
@@ -777,9 +841,15 @@ static int xilinx_drm_hdmi_get_modes(struct drm_encoder *encoder,
 	edid = drm_do_get_edid(connector, xilinx_drm_hdmi_get_edid_block, hdmi);
 	mutex_unlock(&hdmi->hdmi_mutex);
 	if (!edid) {
-		dev_err(hdmi->dev, "xilinx_drm_hdmi_get_modes() could not obtain edid\n");
+		hdmi->have_edid = 0;
+		dev_err(hdmi->dev, "xilinx_drm_hdmi_get_modes() could not obtain edid, assume <= 1024x768 works.\n");
+
+		drm_add_modes_noedid(connector, 1024, 768);
+		xilinx_drm_hdmi_hardcode(connector);
+
 		return 0;
 	}
+	hdmi->have_edid = 1;
 
 	drm_mode_connector_update_edid_property(connector, edid);
 	ret = drm_add_edid_modes(connector, edid);
