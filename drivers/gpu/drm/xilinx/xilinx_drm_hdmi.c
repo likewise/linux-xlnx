@@ -838,7 +838,7 @@ static int xilinx_drm_hdmi_get_modes(struct drm_encoder *encoder,
 	*/
 
 	/* private data hdmi is passed to xilinx_drm_hdmi_get_edid_block(data, ...) */
-	//edid = drm_do_get_edid(connector, xilinx_drm_hdmi_get_edid_block, hdmi);
+	edid = drm_do_get_edid(connector, xilinx_drm_hdmi_get_edid_block, hdmi);
 	mutex_unlock(&hdmi->hdmi_mutex);
 	if (!edid) {
 		hdmi->have_edid = 0;

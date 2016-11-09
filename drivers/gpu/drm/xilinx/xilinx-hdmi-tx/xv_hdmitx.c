@@ -248,7 +248,7 @@ int XV_HdmiTx_CfgInitialize(XV_HdmiTx *InstancePtr, XV_HdmiTx_Config *CfgPtr,
     //XV_HdmiTx_AudioEnable(InstancePtr);
 
     /* Initialize DDC */
-InstancePtr->CpuClkFreq = XPAR_PSU_CORTEXA53_0_CPU_CLK_FREQ_HZ;
+InstancePtr->CpuClkFreq = 50000000;
     XV_HdmiTx_DdcInit(InstancePtr, InstancePtr->CpuClkFreq);
 
     /* Reset the hardware and set the flag to indicate the driver is ready */

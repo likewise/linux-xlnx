@@ -1423,7 +1423,7 @@ int XV_HdmiTxSs_ReadEdid(XV_HdmiTxSs *InstancePtr, u8 *Buffer)
 
     // Default
     Status = (XST_FAILURE);
-    xil_printf("XV_HdmiTxSs_ReadEdid()\n");
+
     // Check if a sink is connected
     if (InstancePtr->IsStreamConnected == (TRUE)) {
 
@@ -1436,12 +1436,6 @@ int XV_HdmiTxSs_ReadEdid(XV_HdmiTxSs *InstancePtr, u8 *Buffer)
         // Read edid
         Status = XV_HdmiTx_DdcRead(InstancePtr->HdmiTxPtr, 0x50, 256, Buffer,
             (TRUE));
-        if (Status == XST_FAILURE) {
-           xil_printf("XV_HdmiTx_DdcRead() failed\n");
-
-        }
-      } else {
-           xil_printf("XV_HdmiTx_DdcWrite() failed\n");
       }
     }
 

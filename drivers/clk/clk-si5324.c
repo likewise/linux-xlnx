@@ -197,6 +197,7 @@ static inline int si5324_bulk_scatter_write(struct si5324_driver_data *drvdata,
 
 static void si5324_initialize(struct si5324_driver_data *drvdata)
 {
+#if 1
 	/* keep RST_REG asserted for 10 ms */
 	si5324_set_bits(drvdata, SI5324_RESET,
 		SI5324_RST_REG, SI5324_RST_REG);
@@ -204,7 +205,7 @@ static void si5324_initialize(struct si5324_driver_data *drvdata)
 	si5324_set_bits(drvdata, SI5324_RESET,
 		SI5324_RST_REG, 0);
 	msleep(10);
-
+#endif
 #if 0
 	// Disable output clocks during calibration (bit 4 SQ_ICAL=1),
 	// other bits are default
@@ -427,6 +428,7 @@ static int si5324_xtal_prepare(struct clk_hw *hw)
 {
 	struct si5324_driver_data *drvdata =
 		container_of(hw, struct si5324_driver_data, xtal);
+#if 0
 	printk(KERN_INFO "si5324_xtal_prepare\n");
 	/* enable free-run */
 	si5324_set_bits(drvdata, 0, 0x40, 0x40);
@@ -435,6 +437,7 @@ static int si5324_xtal_prepare(struct clk_hw *hw)
 	/* clkin2 powered, clkin1 powered-down, xtal connects to clkin2 */
 	si5324_set_bits(drvdata, SI5324_POWERDOWN,
 			SI5324_PD_CK1 | SI5324_PD_CK2, SI5324_PD_CK1);
+#endif
 	return 0;
 }
 
