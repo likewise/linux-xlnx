@@ -788,14 +788,14 @@ static const struct drm_display_mode xilinx_drm_hdmi_hardcode_modes[] = {
 		   2052, 2200, 0, 1080, 1084, 1089, 1125, 0,
 		   DRM_MODE_FLAG_PHSYNC | DRM_MODE_FLAG_PVSYNC),
 	  .vrefresh = 60, .picture_aspect_ratio = HDMI_PICTURE_ASPECT_16_9, },
-
+#if 0
 	/* 1 - 3840x2160@30Hz copied from from edid_4k_modes */
 	{ DRM_MODE("3840x2160", DRM_MODE_TYPE_DRIVER, 297000,
 		   3840, 4016, 4104, 4400, 0,
 		   2160, 2168, 2178, 2250, 0,
 		   DRM_MODE_FLAG_PHSYNC | DRM_MODE_FLAG_PVSYNC),
 	  .vrefresh = 30, },
-
+#endif
 };
 
 static int xilinx_drm_hdmi_hardcode(struct drm_connector *connector)
@@ -838,7 +838,7 @@ static int xilinx_drm_hdmi_get_modes(struct drm_encoder *encoder,
 	*/
 
 	/* private data hdmi is passed to xilinx_drm_hdmi_get_edid_block(data, ...) */
-	edid = drm_do_get_edid(connector, xilinx_drm_hdmi_get_edid_block, hdmi);
+	//edid = drm_do_get_edid(connector, xilinx_drm_hdmi_get_edid_block, hdmi);
 	mutex_unlock(&hdmi->hdmi_mutex);
 	if (!edid) {
 		hdmi->have_edid = 0;
