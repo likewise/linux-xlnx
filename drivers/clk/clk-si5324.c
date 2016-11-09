@@ -428,7 +428,7 @@ static int si5324_xtal_prepare(struct clk_hw *hw)
 {
 	struct si5324_driver_data *drvdata =
 		container_of(hw, struct si5324_driver_data, xtal);
-#if 0
+#if 0 /* @TODO bypass */
 	printk(KERN_INFO "si5324_xtal_prepare\n");
 	/* enable free-run */
 	si5324_set_bits(drvdata, 0, 0x40, 0x40);
@@ -555,6 +555,8 @@ static const struct clk_ops si5324_clkin_ops = {
 static int _si5324_pll_reparent(struct si5324_driver_data *drvdata,
 				int num, enum si5324_pll_src parent)
 {
+	printk(KERN_INFO "_si5324_pll_reparent() for parent = %d\n", (int)parent);
+
 	if (parent == SI5324_PLL_SRC_XTAL) {
 		/* enable free-run */
 		si5324_set_bits(drvdata, SI5324_REG0,
@@ -1238,6 +1240,7 @@ static int si5324_i2c_probe(struct i2c_client *client,
 
 	si5324_initialize(drvdata);
 
+#if 0 /* @TODO bypass */
 	/* setup clock configuration */
 	ret = _si5324_pll_reparent(drvdata, 0, pdata->pll_src);
 	if (ret) {
@@ -1246,6 +1249,7 @@ static int si5324_i2c_probe(struct i2c_client *client,
 			pdata->pll_src);
 		return ret;
 	}
+#endif
 
 	for (n = 0; n < 2; n++) {
 
