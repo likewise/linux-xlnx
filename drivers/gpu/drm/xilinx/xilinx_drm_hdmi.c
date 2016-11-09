@@ -735,7 +735,7 @@ static int xilinx_drm_hdmi_get_edid_block(void *data, u8 *buf, unsigned int bloc
 	/* out of bounds? */
 	if (((block * 128) + len) > 256) return -EINVAL;
 
-#if 0
+#if 1
 	buffer = kzalloc(256, GFP_KERNEL);
 	if (!buffer) return -ENOMEM;
 
@@ -845,10 +845,13 @@ static int xilinx_drm_hdmi_get_modes(struct drm_encoder *encoder,
 		dev_err(hdmi->dev, "xilinx_drm_hdmi_get_modes() could not obtain edid, assume <= 1024x768 works.\n");
 
 		drm_add_modes_noedid(connector, 1024, 768);
-		xilinx_drm_hdmi_hardcode(connector);
+		//xilinx_drm_hdmi_hardcode(connector);
 
 		return 0;
 	}
+	/* always add 1080p */
+	xilinx_drm_hdmi_hardcode(connector);
+
 	hdmi->have_edid = 1;
 
 	drm_mode_connector_update_edid_property(connector, edid);
