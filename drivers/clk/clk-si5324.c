@@ -33,6 +33,10 @@
 #include "clk-si5324.h"
 #include "si5324drv.h"
 
+/* bypass is a hardware debug function, but can be usefull in applications,
+ * @TODO consider support through device-tree option later */
+#define FORCE_BYPASS 0
+
 struct si5324_driver_data;
 
 struct si5324_parameters {
@@ -197,16 +201,26 @@ static inline int si5324_bulk_scatter_write(struct si5324_driver_data *drvdata,
 
 static void si5324_initialize(struct si5324_driver_data *drvdata)
 {
-#if 1
 	/* keep RST_REG asserted for 10 ms */
 	si5324_set_bits(drvdata, SI5324_RESET,
 		SI5324_RST_REG, SI5324_RST_REG);
 	msleep(10);
 	si5324_set_bits(drvdata, SI5324_RESET,
 		SI5324_RST_REG, 0);
+	/* wait 10 ms after de-assert */
 	msleep(10);
-#endif
-#if 0
+
+#if (defined(FORCE_BYPASS) && FORCE_BYPASS)
+	dev_info(&drvdata->client->dev, "Configuring for bypass mode of CLKIN1 to CLKOUT1\n");
+	si5324_reg_write(drvdata,  0, 0x16 /* bypass */);
+#  if 0 /*@TODO pin-select by default, but considering support clock input selection */
+	si5324_reg_write(drvdata,  3, 0x15 /* sq_ical */);
+	si5324_reg_write(drvdata,  4, 0x12 /* manual selection mode */);
+	si5324_reg_write(drvdata, 11, 0x40 /* enable both */);
+	si5324_reg_write(drvdata, 21, 0xfc /* cksel_pin off */);
+#  endif
+
+#else /* normal, non-bypass mode */
 	// Disable output clocks during calibration (bit 4 SQ_ICAL=1),
 	// other bits are default
 	si5324_reg_write(drvdata, 3, 0x15);
@@ -237,19 +251,7 @@ static void si5324_initialize(struct si5324_driver_data *drvdata)
 	si5324_reg_write(drvdata, 21, 0xfc);
 	// Enable fast locking (bit 0 FASTLOCK=1)
 	si5324_reg_write(drvdata, 137, 0x01);   // FASTLOCK=1 (enable fast locking)
-
-#else /* BYPASS MODE */
-	dev_info(&drvdata->client->dev, "Configuring for bypass mode of CLKIN1 to CLKOUT1\n");
-	si5324_reg_write(drvdata,  0, 0x16 /* bypass */);
-#if 0
-	si5324_reg_write(drvdata,  3, 0x15 /* sq_ical */);
-	si5324_reg_write(drvdata,  4, 0x12 /* manual selection mode */);
-	si5324_reg_write(drvdata, 11, 0x40 /* enable both */);
-	si5324_reg_write(drvdata, 21, 0xfc /* cksel_pin off */);
-	si5324_reg_write(drvdata, 136, 0x40 /* initiate self-calibration */);
 #endif
-#endif
-
 }
 
 #define SI5324_PARAMETERS_REG		25
@@ -428,8 +430,8 @@ static int si5324_xtal_prepare(struct clk_hw *hw)
 {
 	struct si5324_driver_data *drvdata =
 		container_of(hw, struct si5324_driver_data, xtal);
-#if 0 /* @TODO bypass */
-	printk(KERN_INFO "si5324_xtal_prepare\n");
+#if (!defined(FORCE_BYPASS) || !FORCE_BYPASS)
+	printk(KERN_INFO "si5324_xtal_prepare; enable free-running mode from crystal.\n");
 	/* enable free-run */
 	si5324_set_bits(drvdata, 0, 0x40, 0x40);
 	/* select CKIN_2 [7:6]=01 */
@@ -1240,8 +1242,8 @@ static int si5324_i2c_probe(struct i2c_client *client,
 
 	si5324_initialize(drvdata);
 
-#if 0 /* @TODO bypass */
-	/* setup clock configuration */
+#if (!defined(FORCE_BYPASS) || !FORCE_BYPASS)
+	/* setup input clock configuration */
 	ret = _si5324_pll_reparent(drvdata, 0, pdata->pll_src);
 	if (ret) {
 		dev_err(&client->dev,
