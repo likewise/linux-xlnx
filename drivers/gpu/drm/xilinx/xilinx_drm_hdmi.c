@@ -340,9 +340,11 @@ static void TxConnectCallback(void *CallbackRef)
 		xst_hdmi20 = XV_HdmiTxSs_DetectHdmi20(HdmiTxSsPtr);
 		dev_info(hdmi->dev, "HDMI %s\n", xst_hdmi20? "2.0": "1.4");
 		XVphy_IBufDsEnable(VphyPtr, 0, XVPHY_DIR_TX, (TRUE));
+#if 0
 		dev_info(hdmi->dev, "TxConnectCallback(): EnableColorBar()\n");
 		//EnableColorBar(hdmi, XVIDC_VM_3840x2160_30_P, XVIDC_CSF_RGB, XVIDC_BPC_8);
 		EnableColorBar(hdmi, XVIDC_VM_1920x1080_60_P, XVIDC_CSF_RGB, XVIDC_BPC_8);
+#endif
 	}
 	else {
 		dev_info(hdmi->dev, "TxConnectCallback(): TX disconnected\n");
@@ -629,18 +631,30 @@ static void xilinx_drm_hdmi_mode_set(struct drm_encoder *encoder,
 				   struct drm_display_mode *adjusted_mode)
 {
 	XVidC_VideoTiming vt;
+	XVphy *VphyPtr;
+	XV_HdmiTxSs *HdmiTxSsPtr;
+	XVidC_VideoStream *HdmiTxSsVidStreamPtr;
+	u32 TmdsClock = 0;
+	u32 Result;
+	u32 PixelClock;
+	unsigned long tx_clk_rate;
+
 	struct xilinx_drm_hdmi *hdmi = to_hdmi(encoder);
 	dev_info(hdmi->dev, "xilinx_drm_hdmi_mode_set()\n");
+	BUG_ON(!hdmi);
+
+	HdmiTxSsPtr = &hdmi->xv_hdmitxss;
+	BUG_ON(!HdmiTxSsPtr);
+
+	VphyPtr = hdmi->xvphy;
+	BUG_ON(!VphyPtr);
 
 	xvphy_mutex_lock(hdmi->phy[0]);
 
-
 	drm_mode_debug_printmodeline(mode);
-
 
 	dev_info(hdmi->dev, "mode->clock = %d\n", mode->clock * 1000);
 	dev_info(hdmi->dev, "mode->crtc_clock = %d\n", mode->crtc_clock * 1000);
-
 
 
 	dev_info(hdmi->dev, "mode->htotal = %d\n", mode->htotal);
@@ -687,8 +701,56 @@ static void xilinx_drm_hdmi_mode_set(struct drm_encoder *encoder,
 	vt.F1VTotal = mode->vtotal;
 	vt.VSyncPolarity = !!(mode->flags & DRM_MODE_FLAG_PVSYNC);
 #endif
-	xvphy_mutex_unlock(hdmi->phy[0]);
 
+	HdmiTxSsVidStreamPtr = XV_HdmiTxSs_GetVideoStream(HdmiTxSsPtr);
+
+	if (XVphy_IsBonded(VphyPtr, 0, XVPHY_CHANNEL_ID_CH1)) {
+		dev_info(hdmi->dev, "Both the GT RX and GT TX are clocked by the RX reference clock.\n");
+		return;
+	}
+
+	// Disable TX TDMS clock
+	XVphy_Clkout1OBufTdsEnable(VphyPtr, XVPHY_DIR_TX, (FALSE));
+
+#if 0
+	// Get pixel clock
+	PixelClock = XVidC_GetPixelClockHzByVmId(VideoMode);
+
+	// In YUV420 the pixel clock is actually the half of the
+	// reported pixel clock
+	if (ColorFormat == XVIDC_CSF_YCRCB_420) {
+		PixelClock = PixelClock / 2;
+	}
+#endif
+	/* @TODO incorrect */
+	if (mode->vdisplay == 720) {
+		TmdsClock = XV_HdmiTxSs_SetStream(HdmiTxSsPtr, XVIDC_VM_1280x720_60_P, XVIDC_CSF_RGB, XVIDC_BPC_8, NULL);
+		dev_info(hdmi->dev, "1280x720\n");
+	} else if (mode->vdisplay == 1080) {
+		TmdsClock = XV_HdmiTxSs_SetStream(HdmiTxSsPtr, XVIDC_VM_1920x1080_60_P, XVIDC_CSF_RGB, XVIDC_BPC_8, NULL);
+		dev_info(hdmi->dev, "1920x1080\n");
+	} else if (mode->vdisplay == 2160) {
+		TmdsClock = XV_HdmiTxSs_SetStream(HdmiTxSsPtr, XVIDC_VM_3840x2160_60_P, XVIDC_CSF_RGB, XVIDC_BPC_8, NULL);
+		dev_info(hdmi->dev, "3840x2160\n");
+	}
+	// Set TX reference clock
+	VphyPtr->HdmiTxRefClkHz = mode->crtc_clock * 1000;
+	dev_info(hdmi->dev, "mode->crtc_clock = %d, TmdsClock = %u\n", mode->crtc_clock, TmdsClock);
+
+	// Set GT TX parameters
+	Result = XVphy_SetHdmiTxParam(VphyPtr, 0, XVPHY_CHANNEL_ID_CHA,
+					HdmiTxSsVidStreamPtr->PixPerClk,
+					HdmiTxSsVidStreamPtr->ColorDepth,
+					HdmiTxSsVidStreamPtr->ColorFormatId);
+
+	if (Result == (XST_FAILURE)) {
+		dev_info(hdmi->dev, "Unable to set requested TX video resolution.\n\r");
+	}
+
+	/* Disable RX clock forwarding */
+	XVphy_Clkout1OBufTdsEnable(VphyPtr, XVPHY_DIR_RX, (FALSE));
+
+	xvphy_mutex_unlock(hdmi->phy[0]);
 }
 
 static enum drm_connector_status
