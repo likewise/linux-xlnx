@@ -732,7 +732,11 @@ static void xilinx_drm_hdmi_mode_set(struct drm_encoder *encoder,
 	} else if (mode->vdisplay == 2160) {
 		TmdsClock = XV_HdmiTxSs_SetStream(HdmiTxSsPtr, XVIDC_VM_3840x2160_60_P, XVIDC_CSF_RGB, XVIDC_BPC_8, NULL);
 		dev_info(hdmi->dev, "3840x2160\n");
+		/* fallback, at least color space and color depth are set */
+	} else {
+		TmdsClock = XV_HdmiTxSs_SetStream(HdmiTxSsPtr, XVIDC_VM_1280x720_60_P, XVIDC_CSF_RGB, XVIDC_BPC_8, NULL);
 	}
+
 	// Set TX reference clock
 	VphyPtr->HdmiTxRefClkHz = mode->crtc_clock * 1000;
 	dev_info(hdmi->dev, "mode->crtc_clock = %d, TmdsClock = %u\n", mode->crtc_clock, TmdsClock);
