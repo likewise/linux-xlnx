@@ -637,6 +637,12 @@ static void xilinx_drm_hdmi_mode_set(struct drm_encoder *encoder,
 
 	drm_mode_debug_printmodeline(mode);
 
+
+	dev_info(hdmi->dev, "mode->clock = %d\n", mode->clock * 1000);
+	dev_info(hdmi->dev, "mode->crtc_clock = %d\n", mode->crtc_clock * 1000);
+
+
+
 	dev_info(hdmi->dev, "mode->htotal = %d\n", mode->htotal);
 	dev_info(hdmi->dev, "mode->vtotal = %d\n", mode->vtotal);
 
@@ -822,8 +828,8 @@ static int xilinx_drm_hdmi_get_modes(struct drm_encoder *encoder,
 	* to get EDID data using a custom block read function. - from drm_edid.c
 	*/
 
-#if 1
-		dev_info(hdmi->dev, "HDMI EDID probe disabled for now.\n");
+#if 0
+	dev_info(hdmi->dev, "HDMI EDID probe disabled for now.\n");
 #else
 	/* private data hdmi is passed to xilinx_drm_hdmi_get_edid_block(data, ...) */
 	edid = drm_do_get_edid(connector, xilinx_drm_hdmi_get_edid_block, hdmi);
