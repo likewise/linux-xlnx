@@ -837,8 +837,12 @@ static int xilinx_drm_hdmi_get_modes(struct drm_encoder *encoder,
 	* to get EDID data using a custom block read function. - from drm_edid.c
 	*/
 
+#if 1
+		dev_info(hdmi->dev, "HDMI EDID probe disabled for now.\n");
+#else
 	/* private data hdmi is passed to xilinx_drm_hdmi_get_edid_block(data, ...) */
 	edid = drm_do_get_edid(connector, xilinx_drm_hdmi_get_edid_block, hdmi);
+#endif
 	mutex_unlock(&hdmi->hdmi_mutex);
 	if (!edid) {
 		hdmi->have_edid = 0;
@@ -849,9 +853,10 @@ static int xilinx_drm_hdmi_get_modes(struct drm_encoder *encoder,
 
 		return 0;
 	}
+#if 0
 	/* always add 1080p */
 	xilinx_drm_hdmi_hardcode(connector);
-
+#endif
 	hdmi->have_edid = 1;
 
 	drm_mode_connector_update_edid_property(connector, edid);
