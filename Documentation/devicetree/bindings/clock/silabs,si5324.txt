@@ -1,0 +1,76 @@
+Binding for Silicon Labs Si5324 programmable I2C clock generator.
+
+Reference
+[1] Si5324 Data Sheet
+    http://www.silabs.com/Support%20Documents/TechnicalDocs/Si5324.pdf
+
+The Si5324 is a programmable I2C clock generator with 2 input clocks. The
+2nd input clock can be switched between a clock input or an external fixed-
+frequency crystal, thus 3 input options are present. It can drive two
+output clocks.
+
+The internal structure of the clock generator can be found in [1].
+
+==Incomplete driver==
+
+The current driver is incomplete. It can currently be used to generate a
+free-running clock, based on xtal input, and driving output clock 0. It
+implements the rate_set method. The device tree configuration must conform
+to these limitations, see the example below.
+
+==I2C device node==
+
+Required properties:
+- compatible: shall be "silabs,si5324".
+- reg: i2c device address, shall be 0x68.
+- #clock-cells: from common clock binding; shall be set to 1.
+- clocks: from common clock binding; list of parent clock
+  handles, shall be xtal reference clock or clkin1 or clkin2.
+- #address-cells: shall be set to 1.
+- #size-cells: shall be set to 0.
+
+==Child nodes==
+
+Each of the two clock outputs can be overwritten individually by
+using a child node to the I2C device node. If a child node for a clock
+output is not set, the eeprom configuration is not overwritten.
+
+Required child node properties:
+- reg: number of clock output.
+
+==Example==
+
+/* 114.285MHz reference crystal */
+refclk: refclk {
+	compatible = "fixed-clock";
+	#clock-cells = <0>;
+	clock-frequency = <114285000>;
+};
+
+i2c-master-node {
+	/* Si5324 i2c clock generator */
+	si5324: clock-generator@68 {
+		status = "okay";
+		compatible = "silabs,si5324";
+		reg = <0x68>;
+		#address-cells = <1>;
+		#size-cells = <0>;
+		#clock-cells = <1>;
+
+		/* input clock(s) */
+		clocks = <&refclk>;
+		clock-names = "xtal";
+
+		/* output clocks */
+		clk0 {
+			reg = <0>;
+			/* initial output frequency */
+			clock-frequency = <114285000>;
+		};
+		/* this Si5324 output is not connected on the ZCU102 board
+		clk1 {
+			reg = <1>;
+		};
+		*/
+	};
+};
