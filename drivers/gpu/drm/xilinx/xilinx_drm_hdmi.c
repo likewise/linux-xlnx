@@ -507,7 +507,6 @@ static void VphyHdmiTxInitCallback(void *CallbackRef)
 	/* unlock RX SS but keep XVPHY locked */
 	mutex_unlock(&hdmi->hdmi_mutex);
 	dev_info(hdmi->dev, "VphyHdmiTxInitCallback() done\n");
-
 }
 
 /* entered with vphy mutex taken */
@@ -739,7 +738,8 @@ static void xilinx_drm_hdmi_mode_set(struct drm_encoder *encoder,
 
 	// Set TX reference clock
 	VphyPtr->HdmiTxRefClkHz = mode->crtc_clock * 1000;
-	dev_info(hdmi->dev, "mode->crtc_clock = %d, TmdsClock = %u\n", mode->crtc_clock, TmdsClock);
+	dev_info(hdmi->dev, "Setting VphyPtr->HdmiTxRefClkHz (from mode->crtc_clock) = %d\n", VphyPtr->HdmiTxRefClkHz);
+	dev_info(hdmi->dev, "(TmdsClock = %u)\n", TmdsClock);
 
 	// Set GT TX parameters
 	Result = XVphy_SetHdmiTxParam(VphyPtr, 0, XVPHY_CHANNEL_ID_CHA,
