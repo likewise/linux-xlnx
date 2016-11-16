@@ -340,7 +340,9 @@ static int xvtc_probe(struct platform_device *pdev)
 
 	platform_set_drvdata(pdev, xvtc);
 
+#if 0 /* prevent AXI bus failure when video clock is not up yet */
 	xvip_print_version(&xvtc->xvip);
+#endif
 
 	xvtc_register_device(xvtc);
 
