@@ -254,6 +254,7 @@ static irqreturn_t xvphy_irq_thread(int irq, void *dev_id)
 		XVPHY_INTR_HANDLER_TYPE_RX_TMR_TIMEOUT);
 
 	XVphy_LogDisplay(&vphydev->xvphy);
+	//XVphy_HdmiDebugInfo(&vphydev->xvphy, 0, XVPHY_CHANNEL_ID_CH1);
 	return IRQ_HANDLED;
 }
 

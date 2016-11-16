@@ -666,6 +666,7 @@ void XVphy_ClkDetTimerLoad(XVphy *InstancePtr, u8 QuadId,
 u32 XVphy_ClkDetGetRefClkFreqHz(XVphy *InstancePtr, XVphy_DirectionType Dir)
 {
 	uintptr_t RegOffset;
+	u32 value;
 
 	if (Dir == XVPHY_DIR_TX) {
 		RegOffset = XVPHY_CLKDET_FREQ_TX_REG;
@@ -673,8 +674,9 @@ u32 XVphy_ClkDetGetRefClkFreqHz(XVphy *InstancePtr, XVphy_DirectionType Dir)
 	else {
 		RegOffset = XVPHY_CLKDET_FREQ_RX_REG;
 	}
-
-	return XVphy_ReadReg(InstancePtr->Config.BaseAddr, RegOffset);
+	value = XVphy_ReadReg(InstancePtr->Config.BaseAddr, RegOffset);
+	xil_printf("XVphy_ClkDetGetRefClkFreqHz (%cX) = %u\n", Dir == XVPHY_DIR_TX?'T':'R', value);
+	return value;
 }
 
 /*****************************************************************************/
@@ -1561,6 +1563,7 @@ u32 XVphy_HdmiCpllParam(XVphy *InstancePtr, u8 QuadId, XVphy_ChannelId ChId,
 	/* TX is using CPLL. */
 	if ((Dir == XVPHY_DIR_TX) && (!XVphy_IsBonded(InstancePtr, QuadId,
 					XVPHY_CHANNEL_ID_CH1))) {
+		xil_printf("TX is using CPLL\n");
 
 		/* Set default TX sample rate. */
 		InstancePtr->HdmiTxSampleRate = 1;
@@ -1579,7 +1582,9 @@ u32 XVphy_HdmiCpllParam(XVphy *InstancePtr, u8 QuadId, XVphy_ChannelId ChId,
 	/* RX is using CPLL. */
 	else {
 		RefClkPtr = &InstancePtr->HdmiRxRefClkHz;
-
+		xil_printf("RX is using CPLL\n");
+		xil_printf("*RefClkPtr = %u Hz\n", *RefClkPtr);
+		xil_printf("GetGtHdmiPtr(InstancePtr))->CpllRefClkMin = %u Hz\n", (GetGtHdmiPtr(InstancePtr))->CpllRefClkMin);
 		/* Check if the reference clock is not below the minimum CPLL
 		 * input frequency. */
 		if ((*RefClkPtr) >=
@@ -1622,8 +1627,10 @@ u32 XVphy_HdmiCpllParam(XVphy *InstancePtr, u8 QuadId, XVphy_ChannelId ChId,
 		/* The reference clock is below the minimum frequency thus
 		 * select the DRU. */
 		else {
+			xil_printf("reference clock is below the minimum frequency, select DRU\n");
 			if (InstancePtr->Config.DruIsPresent) {
 				RefClk = XVphy_DruGetRefClkFreqHz(InstancePtr);
+				xil_printf("XVphy_DruGetRefClkFreqHz = %llu\n", RefClk);
 
 				/* Round input frequency to 100 kHz. */
 				RefClk = RefClk / 10000;

@@ -53,17 +53,12 @@
 #define HDMI_MAX_LANES	4
 
 /**
- * struct xilinx_drm_hdmi - Xilinx DisplayPort core
+ * struct xilinx_drm_hdmi - Xilinx HDMI core
  * @encoder: pointer to the drm encoder structure
  * @dev: device structure
  * @iomem: device I/O memory for register access
- * @config: IP core configuration from DTS
- * @aux: aux channel
  * @dp_sub: DisplayPort subsystem
- * @aclk: clock source device for internal axi4-lite clock
- * @aud_clk: clock source device for audio clock
  * @dpms: current dpms state
- * @dpcd: DP configuration data from currently connected sink device
  * @link_config: common link configuration between IP core and sink device
  * @mode: current mode between IP core and sink device
  * @train_set: set of training data
@@ -90,7 +85,7 @@ struct xilinx_drm_hdmi {
 	/* schedule (future) work */
 	struct workqueue_struct *work_queue;
 	struct delayed_work delayed_work_enable_hotplug;
-	/* input clock */
+	/* input reference clock */
 	struct clk *tx_clk;
 	bool cable_connected;
 	bool hdmi_stream_up;
@@ -175,7 +170,6 @@ static irqreturn_t hdmitx_irq_handler(int irq, void *dev_id)
 }
 
 /* (struct xilinx_drm_hdmi *)dev_id */
-
 static irqreturn_t hdmitx_irq_thread(int irq, void *dev_id)
 {
 	struct xilinx_drm_hdmi *hdmi;
@@ -439,8 +433,10 @@ static void TxStreamUpCallback(void *CallbackRef)
 	/* HDMI TX unmute audio */
 	XV_HdmiTxSs_AudioMute(HdmiTxSsPtr, FALSE);
 #endif
+#if 0
 	HdmiTxSsVidStreamPtr = XV_HdmiTxSs_GetVideoStream(HdmiTxSsPtr);
 	XVidC_ReportStreamInfo(HdmiTxSsVidStreamPtr);
+#endif
 }
 
 static void TxStreamDownCallback(void *CallbackRef)
@@ -496,11 +492,11 @@ static void VphyHdmiTxInitCallback(void *CallbackRef)
 	/* a pair of mutexes must be locked in fixed order to prevent deadlock,
 	 * and the order is RX SS then XVPHY, so first unlock XVPHY then lock both */
 	xvphy_mutex_unlock(hdmi->phy[0]);
-	dev_info(hdmi->dev, "xvphy_mutex_unlock() done\n");
+	//dev_info(hdmi->dev, "xvphy_mutex_unlock() done\n");
 	mutex_lock(&hdmi->hdmi_mutex);
-	dev_info(hdmi->dev, "mutex_lock() done\n");
+	//dev_info(hdmi->dev, "mutex_lock() done\n");
 	xvphy_mutex_lock(hdmi->phy[0]);
-	dev_info(hdmi->dev, "xvphy_mutex_lock() done\n");
+	//dev_info(hdmi->dev, "xvphy_mutex_lock() done\n");
 
 	XV_HdmiTxSs_RefClockChangeInit(HdmiTxSsPtr);
 
@@ -813,10 +809,10 @@ static int xilinx_drm_hdmi_get_edid_block(void *data, u8 *buf, unsigned int bloc
 		dev_info(hdmi->dev, "xilinx_drm_hdmi_get_edid_block() failed reading EDID\n");
 		return -EINVAL;
 	}
+#if 0
 
 	dev_info(hdmi->dev, "xilinx_drm_hdmi_get_edid_block() block #%d, len %d\n",
 		block, len);
-#if 0
 	for (i = 0; i < 256; i += 16) {
 		u8 b[128];
 		u8 *bp = b;
@@ -845,7 +841,7 @@ static const struct drm_display_mode xilinx_drm_hdmi_hardcode_modes[] = {
 		   2052, 2200, 0, 1080, 1084, 1089, 1125, 0,
 		   DRM_MODE_FLAG_PHSYNC | DRM_MODE_FLAG_PVSYNC),
 	  .vrefresh = 60, .picture_aspect_ratio = HDMI_PICTURE_ASPECT_16_9, },
-#if 0
+#if 1
 	/* 1 - 3840x2160@30Hz copied from from edid_4k_modes */
 	{ DRM_MODE("3840x2160", DRM_MODE_TYPE_DRIVER, 297000,
 		   3840, 4016, 4104, 4400, 0,
@@ -910,7 +906,7 @@ static int xilinx_drm_hdmi_get_modes(struct drm_encoder *encoder,
 
 		return 0;
 	}
-#if 0
+#if 1
 	/* always add 1080p */
 	xilinx_drm_hdmi_hardcode(connector);
 #endif
