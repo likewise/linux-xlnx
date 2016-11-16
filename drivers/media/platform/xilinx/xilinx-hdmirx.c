@@ -613,14 +613,14 @@ static void RxConnectCallback(void *CallbackRef)
 	dev_info(xhdmirx->dev, "cable is %sconnected.\n", xhdmirx->cable_connected? "": "dis");
 
 	xvphy_mutex_lock(xhdmirx->phy[0]);
-	// RX cable is connected
+	/* RX cable is connected? */
 	if (HdmiRxSsPtr->IsStreamConnected)
 	{
 		XVphy_IBufDsEnable(VphyPtr, 0, XVPHY_DIR_RX, (TRUE));
 	}
 	else
 	{
-		/* c lear GT RX TMDS clock ratio */
+		/* clear GT RX TMDS clock ratio */
 		VphyPtr->HdmiRxTmdsClockRatio = 0;
 		XVphy_IBufDsEnable(VphyPtr, 0, XVPHY_DIR_RX, (FALSE));
 	}
@@ -1087,28 +1087,27 @@ static int xhdmirx_probe(struct platform_device *pdev)
 		if (IS_ERR(xhdmirx->clkp)) {
 			ret = PTR_ERR(xhdmirx->clkp);
 			xhdmirx->clkp = NULL;
-			dev_err(&pdev->dev, "failed to get the dru-clk.\n");
 			if (ret == -EPROBE_DEFER) {
-				dev_err(&pdev->dev, "defering initialization as dru-clk failed.\n");
+				dev_err(&pdev->dev, "defering initialization, dru-clk not yet found.\n");
+			} else {
+				dev_err(&pdev->dev, "failed to get the dru-clk.\n");
 			}
 			return ret;
 		}
 	}
-	dev_info(&pdev->dev, "got dru-clk\n");
 
 	ret = clk_prepare_enable(xhdmirx->clkp);
 	if (ret) {
 		dev_err(&pdev->dev, "failed to enable dru-clk\n");
 		return ret;
 	}
-	dev_info(&pdev->dev, "enabled dru-clk\n");
-
-	dev_info(xhdmirx->dev, "Initializing Si570 (U56) NI-DRU clock to 125 MHz\n");
-
+#if 0 /* assume device-tree has configured the fixed clock correctly already */
+	//dev_info(xhdmirx->dev, "Initializing Si570 (U56) NI-DRU clock to 125 MHz\n");
 	dru_clk_rate = clk_get_rate(xhdmirx->clkp);
 	dev_info(&pdev->dev, "dru-clk rate = %lu\n", dru_clk_rate);
 	/* http://events.linuxfoundation.org/sites/events/files/slides/gregory-clement-common-clock-framework-how-to-use-it.pdf */
 	dru_clk_rate = clk_set_rate(xhdmirx->clkp, 125*1000*1000);
+#endif
 	dru_clk_rate = clk_get_rate(xhdmirx->clkp);
 	dev_info(&pdev->dev, "dru-clk rate = %lu\n", dru_clk_rate);
 
@@ -1157,7 +1156,7 @@ static int xhdmirx_probe(struct platform_device *pdev)
 		dev_err(xhdmirx->dev, "initialization failed with error %d\r\n", Status);
 		return -EINVAL;
 	}
-
+	/* retrieve EDID */
 	if (request_firmware(&fw_edid, fw_edid_name, xhdmirx->dev) == 0) {
 		int blocks = fw_edid->size / 128;
 		if ((blocks == 0) || (blocks > EDID_BLOCKS_MAX) || (fw_edid->size % 128)) {
@@ -1210,9 +1209,9 @@ static int xhdmirx_probe(struct platform_device *pdev)
 
 	BUG_ON(!xhdmirx->xvphy);
 
-	dev_info(xhdmirx->dev, "trying to lock xpvhy mutex\n");
+	//dev_info(xhdmirx->dev, "trying to lock xpvhy mutex\n");
 	xvphy_mutex_lock(xhdmirx->phy[0]);
-	dev_info(xhdmirx->dev, "got xpvhy mutex\n");
+	//dev_info(xhdmirx->dev, "got xpvhy mutex\n");
 	/* the callback is not specific to a single lane, but we need to
 	 * provide one of the phy's as reference */
 	XVphy_SetHdmiCallback(xhdmirx->xvphy, XVPHY_HDMI_HANDLER_RXINIT,
@@ -1221,7 +1220,7 @@ static int xhdmirx_probe(struct platform_device *pdev)
 	XVphy_SetHdmiCallback(xhdmirx->xvphy, XVPHY_HDMI_HANDLER_RXREADY,
 		VphyHdmiRxReadyCallback, (void *)xhdmirx);
 	xvphy_mutex_unlock(xhdmirx->phy[0]);
-	dev_info(xhdmirx->dev, "unlock xpvhy mutex\n");
+	//dev_info(xhdmirx->dev, "unlock xpvhy mutex\n");
 
 	platform_set_drvdata(pdev, xhdmirx);
 
