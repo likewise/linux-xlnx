@@ -237,8 +237,8 @@ static void si5324_initialize(struct si5324_driver_data *drvdata)
 	// set CKOUT1 to LVDS (SFOUT1_REG=111)
 	// (default is LVPECL for both)
 	si5324_reg_write(drvdata, 6, 0x0F);
-	// Enable CKOUT1 output (bit 2 DSBL1_REG = 1)
-	// disable CKOUT2 output (bit 3 DSBL2_REG=0)
+	// enable CKOUT1 output (bit 2 DSBL1_REG=0)
+	// disable CKOUT2 output (bit 3 DSBL2_REG=1)
 	si5324_reg_write(drvdata, 10, 0x08);
 	// Disable CKIN2 input buffer (bit 1 PD_CK2=1)
 	// enable CKIN1 buffer (bit 0 PD_CK1=0)
@@ -953,6 +953,7 @@ static int si5324_clkout_set_rate(struct clk_hw *hw, unsigned long rate,
 	int result;
 	u8  buf[14*2]; // Need to set 14 registers
 	int i;
+	int rc;
 
 	dev_info(&hwdata->drvdata->client->dev,
 		"si5324_clkout_set_rate(parent_rate=%lu, rate = %lu)\n",
@@ -1031,12 +1032,19 @@ static int si5324_clkout_set_rate(struct clk_hw *hw, unsigned long rate,
 	i += 2;
 
 	hwdata->drvdata->params.valid = 0;
+	// disable CKOUT1 output (bit 2 DSBL1_REG=1)
+	// disable CKOUT2 output (bit 3 DSBL2_REG=1)
+	//si5324_reg_write(hwdata->drvdata, 10, 0x0c);
 	si5324_reg_read(hwdata->drvdata, 0);
 	si5324_reg_read(hwdata->drvdata, 3);
 	si5324_reg_read(hwdata->drvdata, 4);
 	si5324_reg_read(hwdata->drvdata, 11);
 	si5324_reg_read(hwdata->drvdata, 21);
-	return si5324_bulk_scatter_write(hwdata->drvdata, 14, buf);
+	rc = si5324_bulk_scatter_write(hwdata->drvdata, 14, buf);
+	//  enable CKOUT1 output (bit 2 DSBL1_REG=1)
+	// disable CKOUT2 output (bit 3 DSBL2_REG=1)
+	//si5324_reg_write(hwdata->drvdata, 10, 0x08);
+	return rc;
 }
 
 static const struct clk_ops si5324_clkout_ops = {
