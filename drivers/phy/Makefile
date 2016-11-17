@@ -53,3 +53,23 @@ obj-$(CONFIG_PHY_BRCMSTB_SATA)		+= phy-brcmstb-sata.o
 obj-$(CONFIG_PHY_PISTACHIO_USB)		+= phy-pistachio-usb.o
 obj-$(CONFIG_PHY_CYGNUS_PCIE)		+= phy-bcm-cygnus-pcie.o
 obj-$(CONFIG_PHY_XILINX_ZYNQMP)		+= phy-zynqmp.o
+
+obj-$(CONFIG_PHY_XILINX_VPHY)		+= phy-xilinx-vphy.o
+
+phy-xilinx-vphy-objs := phy-vphy.o
+CFLAGS_phy-vphy.o += -I$(src)/phy-xilinx-vphy/
+
+phy-xilinx-vphy-objs += phy-xilinx-vphy/xvphy.o
+phy-xilinx-vphy-objs += phy-xilinx-vphy/xvphy_gthe4.o
+phy-xilinx-vphy-objs += phy-xilinx-vphy/xvphy_hdmi.o
+phy-xilinx-vphy-objs += phy-xilinx-vphy/xvphy_hdmi_intr.o
+phy-xilinx-vphy-objs += phy-xilinx-vphy/xvphy_intr.o
+phy-xilinx-vphy-objs += phy-xilinx-vphy/xvphy_log.o
+
+phy-xilinx-vphy-objs += phy-xilinx-vphy/xgpio.o
+phy-xilinx-vphy-objs += phy-xilinx-vphy/xgpio_extra.o
+phy-xilinx-vphy-objs += phy-xilinx-vphy/xgpio_intr.o
+phy-xilinx-vphy-objs += phy-xilinx-vphy/xv_axi4s_remap.o
+phy-xilinx-vphy-objs += phy-xilinx-vphy/xvidc.o
+phy-xilinx-vphy-objs += phy-xilinx-vphy/xvidc_edid.o
+phy-xilinx-vphy-objs += phy-xilinx-vphy/xvidc_timings_table.o
