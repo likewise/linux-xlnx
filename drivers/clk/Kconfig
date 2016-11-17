@@ -67,6 +67,15 @@ config COMMON_CLK_SCPI
 	  This driver uses SCPI Message Protocol to interact with the
 	  firmware providing all the clock controls.
 
+config COMMON_CLK_SI5324
+	tristate "Clock driver for SiLabs 5324"
+	depends on I2C
+	select REGMAP_I2C
+	select RATIONAL
+	---help---
+	  This driver supports the Silicon Labs 5324 jitter attenuating clock
+	  multiplier.
+
 config COMMON_CLK_SI5351
 	tristate "Clock driver for SiLabs 5351A/B/C"
 	depends on I2C
