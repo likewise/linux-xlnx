@@ -1145,9 +1145,11 @@ static int xhdmirx_probe(struct platform_device *pdev)
 	/* initialize the source configuration structure */
 	hdmirx_config_init(&config, xhdmirx->iomem);
 
+#if 0 /* @TODO re-enable for EDID support */
 	/* sets pointer to the EDID used by XV_HdmiRxSs_LoadDefaultEdid() */
 	XV_HdmiRxSs_SetEdidParam(HdmiRxSsPtr, (u8 *)&xilinx_edid[0], sizeof(xilinx_edid));
-
+#endif
+#if 1
 	// Initialize top level and all included sub-cores
 	Status = XV_HdmiRxSs_CfgInitialize(HdmiRxSsPtr, &config,
 		(uintptr_t)xhdmirx->iomem);
@@ -1156,6 +1158,8 @@ static int xhdmirx_probe(struct platform_device *pdev)
 		dev_err(xhdmirx->dev, "initialization failed with error %d\r\n", Status);
 		return -EINVAL;
 	}
+#endif
+#if 0 /* @TODO re-enable for EDID support */
 	/* retrieve EDID */
 	if (request_firmware(&fw_edid, fw_edid_name, xhdmirx->dev) == 0) {
 		int blocks = fw_edid->size / 128;
@@ -1173,6 +1177,7 @@ static int xhdmirx_probe(struct platform_device *pdev)
 	}
 #endif
 	release_firmware(fw_edid);
+
 	if (xhdmirx->edid_user_blocks) {
 		dev_info(xhdmirx->dev, "Using %d EDID block%s (%d bytes) from '%s'.\n",
 			xhdmirx->edid_user_blocks, xhdmirx->edid_user_blocks > 1? "s":"", 128 * xhdmirx->edid_user_blocks, fw_edid_name);
@@ -1181,6 +1186,7 @@ static int xhdmirx_probe(struct platform_device *pdev)
 		dev_info(xhdmirx->dev, "Using Xilinx built-in EDID.\n");
 		XV_HdmiRxSs_LoadDefaultEdid(HdmiRxSsPtr);
 	}
+#endif
 
 	spin_lock_irqsave(&xhdmirx->irq_lock, flags);
 	XV_HdmiRxSs_IntrDisable(HdmiRxSsPtr);
