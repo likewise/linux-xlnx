@@ -21,3 +21,10 @@ config DRM_XILINX_DP_SUB
 	select DRM_XILINX_DP
 	help
 	  DRM driver for Xilinx Display Port Subsystem.
+
+config DRM_XILINX_HDMI
+	tristate "Xilinx DRM HDMI Driver"
+	depends on DRM_XILINX
+	select PHY_XILINX_VPHY
+	help
+	  DRM driver for Xilinx HDMI TX Subsystem IP.
