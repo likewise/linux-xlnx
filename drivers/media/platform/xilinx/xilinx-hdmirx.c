@@ -1245,7 +1245,7 @@ static int xhdmirx_probe(struct platform_device *pdev)
 	/* Initialize V4L2 media entity */
 	xhdmirx->pad.flags = MEDIA_PAD_FL_SOURCE;
 	subdev->entity.ops = &xhdmirx_media_ops;
-	ret = media_entity_init(&subdev->entity, 1/*npads*/, &xhdmirx->pad, 0);
+	ret = media_entity_pads_init(&subdev->entity, 1/*npads*/, &xhdmirx->pad);
 	if (ret < 0) {
 		dev_err(&pdev->dev, "failed to init media entity\n");
 		mutex_unlock(&xhdmirx->xhdmirx_mutex);
