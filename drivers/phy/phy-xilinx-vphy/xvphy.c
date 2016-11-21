@@ -2505,12 +2505,13 @@ static u32 XVphy_PllCalculator(XVphy *InstancePtr, u8 QuadId,
 	else {
 		GtPllDivs = &InstancePtr->GtAdaptor->QpllDivs;
 	}
-
+	xil_printf("PllClkInFreqHzIn = %llu Hz\n", PllClkInFreqHzIn);
 	const u8 *M, *N1, *N2, *D;
 	for (N2 = GtPllDivs->N2; *N2 != 0; N2++) {
 	for (N1 = GtPllDivs->N1; *N1 != 0; N1++) {
 	for (M = GtPllDivs->M;   *M != 0;  M++) {
 		PllClkOutFreqHz = (PllClkInFreqHzIn * *N1 * *N2) / *M;
+		xil_printf("PllClkOutFreqHz = %llu Hz\n", PllClkOutFreqHz);
 
 		/* Test if the calculated PLL clock is in the VCO range. */
 		Status = XVphy_CheckPllOpRange(InstancePtr, QuadId, ChId,
@@ -2518,6 +2519,7 @@ static u32 XVphy_PllCalculator(XVphy *InstancePtr, u8 QuadId,
 		if (Status != XST_SUCCESS) {
 			continue;
 		}
+		xil_printf("PllClkOutFreqHz = %llu Hz is in VCO range\n", PllClkOutFreqHz);
 
 		if ((InstancePtr->Config.XcvrType == XVPHY_GT_TYPE_GTPE2) ||
 				(XVPHY_ISCH(ChId))) {
@@ -2526,6 +2528,8 @@ static u32 XVphy_PllCalculator(XVphy *InstancePtr, u8 QuadId,
 		/* Apply TX/RX divisor. */
 		for (D = GtPllDivs->D; *D != 0; D++) {
 			CalcLineRateFreqHz = PllClkOutFreqHz / *D;
+			xil_printf("CalcLineRateFreqHz = %llu Hz, PllPtr->LineRateHz = %llu\n",
+				CalcLineRateFreqHz, PllPtr->LineRateHz);
 			if (CalcLineRateFreqHz == PllPtr->LineRateHz) {
 				goto calc_done;
 			}
