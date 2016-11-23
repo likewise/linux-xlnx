@@ -77,8 +77,8 @@
 #include "xil_printf.h" // -- @NOTE Leon Woestenberg <leon@sidebranch.com>
 #if defined(__MICROBLAZE__)
 #include "microblaze_sleep.h"
-#elif defined(__arm__)
-#include "sleep.h"
+#elif defined(__KERNEL__)
+#include <linux/delay.h>
 #endif
 #include "xv_hdmirxss.h"
 #include "xv_hdmirxss_coreinit.h"
@@ -246,9 +246,9 @@ static void XV_HdmiRxSs_WaitUs(XV_HdmiRxSs *InstancePtr, u32 MicroSeconds)
         u32 MilliSeconds = (MicroSeconds + 999) / 1000;
         MB_Sleep(MilliSeconds);
     }
-#elif defined(__arm__)
+#elif defined(__KERNEL__)
     /* Wait the requested amount of time. */
-    usleep(MicroSeconds);
+    usleep_range(MicroSeconds, 2 * MicroSeconds);
 #endif
 }
 

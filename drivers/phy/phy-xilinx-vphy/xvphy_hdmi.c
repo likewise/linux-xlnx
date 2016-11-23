@@ -692,6 +692,7 @@ u32 XVphy_ClkDetGetRefClkFreqHz(XVphy *InstancePtr, XVphy_DirectionType Dir)
 *		value.
 *
 ******************************************************************************/
+#if 0
 u32 XVphy_DruGetRefClkFreqHz(XVphy *InstancePtr)
 {
 	/* Verify argument. */
@@ -701,7 +702,57 @@ u32 XVphy_DruGetRefClkFreqHz(XVphy *InstancePtr)
 	return XVphy_ReadReg(InstancePtr->Config.BaseAddr,
 			XVPHY_CLKDET_FREQ_DRU_REG);
 }
+#else /* 2016.3 back-port */
 
+#define XVPHY_HDMI_GTHE4_DRU_LRATE             2500000000U
+#define XVPHY_HDMI_GTHE4_DRU_REFCLK            156250000LL
+#define XVPHY_HDMI_GTHE4_DRU_REFCLK_MIN        156240000LL
+#define XVPHY_HDMI_GTHE4_DRU_REFCLK_MAX        156260000LL
+
+u32 XVphy_DruGetRefClkFreqHz(XVphy *InstancePtr)
+{
+	u32 DruFreqHz = XVphy_ReadReg(InstancePtr->Config.BaseAddr,
+					XVPHY_CLKDET_FREQ_DRU_REG);
+	xil_printf("DruFreqHz = %u\n", DruFreqHz);
+	/* Verify argument. */
+	Xil_AssertNonvoid(InstancePtr != NULL);
+#if 0
+	if (InstancePtr->Config.XcvrType == XVPHY_GT_TYPE_GTXE2) {
+		if (DruFreqHz > XVPHY_HDMI_GTXE2_DRU_REFCLK_MIN &&
+				DruFreqHz < XVPHY_HDMI_GTXE2_DRU_REFCLK_MAX){
+			return XVPHY_HDMI_GTXE2_DRU_REFCLK;
+		}
+	}
+	else if (InstancePtr->Config.XcvrType == XVPHY_GT_TYPE_GTHE2) {
+		if (DruFreqHz > XVPHY_HDMI_GTHE2_DRU_REFCLK_MIN &&
+				DruFreqHz < XVPHY_HDMI_GTHE2_DRU_REFCLK_MAX){
+			return XVPHY_HDMI_GTHE2_DRU_REFCLK;
+		}
+	}
+	else if (InstancePtr->Config.XcvrType == XVPHY_GT_TYPE_GTPE2) {
+		if (DruFreqHz > XVPHY_HDMI_GTPE2_DRU_REFCLK_MIN &&
+				DruFreqHz < XVPHY_HDMI_GTPE2_DRU_REFCLK_MAX){
+			return XVPHY_HDMI_GTPE2_DRU_REFCLK;
+		}
+	}
+	else if (InstancePtr->Config.XcvrType == XVPHY_GT_TYPE_GTHE3) {
+		if (DruFreqHz > XVPHY_HDMI_GTHE3_DRU_REFCLK_MIN &&
+				DruFreqHz < XVPHY_HDMI_GTHE3_DRU_REFCLK_MAX){
+			return XVPHY_HDMI_GTHE3_DRU_REFCLK;
+		}
+	}
+	else
+#endif
+	{
+		if (DruFreqHz > XVPHY_HDMI_GTHE4_DRU_REFCLK_MIN &&
+				DruFreqHz < XVPHY_HDMI_GTHE4_DRU_REFCLK_MAX){
+			return XVPHY_HDMI_GTHE4_DRU_REFCLK;
+		}
+	}
+	/* Return Failure */
+	return XST_FAILURE;
+}
+#endif
 /*****************************************************************************/
 /**
 * This function resets the DRU in the VPHY.
