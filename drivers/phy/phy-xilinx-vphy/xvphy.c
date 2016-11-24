@@ -2538,6 +2538,8 @@ static u32 XVphy_PllCalculator(XVphy *InstancePtr, u8 QuadId,
 	}
 	}
 	/* Calculation failed, don't change divisor settings. */
+	xil_printf("XVphy_PllCalculator() failed.\n");
+
 	return XST_FAILURE;
 
 calc_done:
@@ -2560,6 +2562,7 @@ calc_done:
 			XVphy_CfgSetCdr(InstancePtr, QuadId, Id);
 		}
 	}
+	xil_printf("XVphy_PllCalculator() succesful.\n");
 
 	return XST_SUCCESS;
 }

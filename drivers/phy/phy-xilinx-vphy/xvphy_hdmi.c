@@ -706,14 +706,14 @@ u32 XVphy_DruGetRefClkFreqHz(XVphy *InstancePtr)
 
 #define XVPHY_HDMI_GTHE4_DRU_LRATE             2500000000U
 #define XVPHY_HDMI_GTHE4_DRU_REFCLK            156250000LL
-#define XVPHY_HDMI_GTHE4_DRU_REFCLK_MIN        156240000LL
-#define XVPHY_HDMI_GTHE4_DRU_REFCLK_MAX        156260000LL
+#define XVPHY_HDMI_GTHE4_DRU_REFCLK_MIN        156220000LL
+#define XVPHY_HDMI_GTHE4_DRU_REFCLK_MAX        156280000LL
 
 u32 XVphy_DruGetRefClkFreqHz(XVphy *InstancePtr)
 {
 	u32 DruFreqHz = XVphy_ReadReg(InstancePtr->Config.BaseAddr,
 					XVPHY_CLKDET_FREQ_DRU_REG);
-	xil_printf("DruFreqHz = %u\n", DruFreqHz);
+	xil_printf("XVphy_DruGetRefClkFreqHz() from IP: DruFreqHz = %u Hz\n", DruFreqHz);
 	/* Verify argument. */
 	Xil_AssertNonvoid(InstancePtr != NULL);
 #if 0
@@ -746,6 +746,7 @@ u32 XVphy_DruGetRefClkFreqHz(XVphy *InstancePtr)
 	{
 		if (DruFreqHz > XVPHY_HDMI_GTHE4_DRU_REFCLK_MIN &&
 				DruFreqHz < XVPHY_HDMI_GTHE4_DRU_REFCLK_MAX){
+			xil_printf("XVphy_DruGetRefClkFreqHz() DruFreqHz = %u Hz (sanitized)\n", XVPHY_HDMI_GTHE4_DRU_REFCLK);
 			return XVPHY_HDMI_GTHE4_DRU_REFCLK;
 		}
 	}
