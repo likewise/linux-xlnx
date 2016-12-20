@@ -666,6 +666,7 @@ void XVphy_ClkDetTimerLoad(XVphy *InstancePtr, u8 QuadId,
 u32 XVphy_ClkDetGetRefClkFreqHz(XVphy *InstancePtr, XVphy_DirectionType Dir)
 {
 	uintptr_t RegOffset;
+	u32 value;
 
 	if (Dir == XVPHY_DIR_TX) {
 		RegOffset = XVPHY_CLKDET_FREQ_TX_REG;
@@ -673,8 +674,9 @@ u32 XVphy_ClkDetGetRefClkFreqHz(XVphy *InstancePtr, XVphy_DirectionType Dir)
 	else {
 		RegOffset = XVPHY_CLKDET_FREQ_RX_REG;
 	}
-
-	return XVphy_ReadReg(InstancePtr->Config.BaseAddr, RegOffset);
+	value = XVphy_ReadReg(InstancePtr->Config.BaseAddr, RegOffset);
+	xil_printf("XVphy_ClkDetGetRefClkFreqHz (%cX) = %u\n", Dir == XVPHY_DIR_TX?'T':'R', value);
+	return value;
 }
 
 /*****************************************************************************/
@@ -690,6 +692,7 @@ u32 XVphy_ClkDetGetRefClkFreqHz(XVphy *InstancePtr, XVphy_DirectionType Dir)
 *		value.
 *
 ******************************************************************************/
+#if 0
 u32 XVphy_DruGetRefClkFreqHz(XVphy *InstancePtr)
 {
 	/* Verify argument. */
@@ -699,7 +702,57 @@ u32 XVphy_DruGetRefClkFreqHz(XVphy *InstancePtr)
 	return XVphy_ReadReg(InstancePtr->Config.BaseAddr,
 			XVPHY_CLKDET_FREQ_DRU_REG);
 }
+#else /* 2016.3 back-port */
 
+#define XVPHY_HDMI_GTHE4_DRU_LRATE             2500000000U
+#define XVPHY_HDMI_GTHE4_DRU_REFCLK            156250000LL
+#define XVPHY_HDMI_GTHE4_DRU_REFCLK_MIN        156240000LL
+#define XVPHY_HDMI_GTHE4_DRU_REFCLK_MAX        156260000LL
+
+u32 XVphy_DruGetRefClkFreqHz(XVphy *InstancePtr)
+{
+	u32 DruFreqHz = XVphy_ReadReg(InstancePtr->Config.BaseAddr,
+					XVPHY_CLKDET_FREQ_DRU_REG);
+	xil_printf("DruFreqHz = %u\n", DruFreqHz);
+	/* Verify argument. */
+	Xil_AssertNonvoid(InstancePtr != NULL);
+#if 0
+	if (InstancePtr->Config.XcvrType == XVPHY_GT_TYPE_GTXE2) {
+		if (DruFreqHz > XVPHY_HDMI_GTXE2_DRU_REFCLK_MIN &&
+				DruFreqHz < XVPHY_HDMI_GTXE2_DRU_REFCLK_MAX){
+			return XVPHY_HDMI_GTXE2_DRU_REFCLK;
+		}
+	}
+	else if (InstancePtr->Config.XcvrType == XVPHY_GT_TYPE_GTHE2) {
+		if (DruFreqHz > XVPHY_HDMI_GTHE2_DRU_REFCLK_MIN &&
+				DruFreqHz < XVPHY_HDMI_GTHE2_DRU_REFCLK_MAX){
+			return XVPHY_HDMI_GTHE2_DRU_REFCLK;
+		}
+	}
+	else if (InstancePtr->Config.XcvrType == XVPHY_GT_TYPE_GTPE2) {
+		if (DruFreqHz > XVPHY_HDMI_GTPE2_DRU_REFCLK_MIN &&
+				DruFreqHz < XVPHY_HDMI_GTPE2_DRU_REFCLK_MAX){
+			return XVPHY_HDMI_GTPE2_DRU_REFCLK;
+		}
+	}
+	else if (InstancePtr->Config.XcvrType == XVPHY_GT_TYPE_GTHE3) {
+		if (DruFreqHz > XVPHY_HDMI_GTHE3_DRU_REFCLK_MIN &&
+				DruFreqHz < XVPHY_HDMI_GTHE3_DRU_REFCLK_MAX){
+			return XVPHY_HDMI_GTHE3_DRU_REFCLK;
+		}
+	}
+	else
+#endif
+	{
+		if (DruFreqHz > XVPHY_HDMI_GTHE4_DRU_REFCLK_MIN &&
+				DruFreqHz < XVPHY_HDMI_GTHE4_DRU_REFCLK_MAX){
+			return XVPHY_HDMI_GTHE4_DRU_REFCLK;
+		}
+	}
+	/* Return Failure */
+	return XST_FAILURE;
+}
+#endif
 /*****************************************************************************/
 /**
 * This function resets the DRU in the VPHY.
@@ -1561,6 +1614,7 @@ u32 XVphy_HdmiCpllParam(XVphy *InstancePtr, u8 QuadId, XVphy_ChannelId ChId,
 	/* TX is using CPLL. */
 	if ((Dir == XVPHY_DIR_TX) && (!XVphy_IsBonded(InstancePtr, QuadId,
 					XVPHY_CHANNEL_ID_CH1))) {
+		xil_printf("TX is using CPLL\n");
 
 		/* Set default TX sample rate. */
 		InstancePtr->HdmiTxSampleRate = 1;
@@ -1579,7 +1633,9 @@ u32 XVphy_HdmiCpllParam(XVphy *InstancePtr, u8 QuadId, XVphy_ChannelId ChId,
 	/* RX is using CPLL. */
 	else {
 		RefClkPtr = &InstancePtr->HdmiRxRefClkHz;
-
+		xil_printf("RX is using CPLL\n");
+		xil_printf("*RefClkPtr = %u Hz\n", *RefClkPtr);
+		xil_printf("GetGtHdmiPtr(InstancePtr))->CpllRefClkMin = %u Hz\n", (GetGtHdmiPtr(InstancePtr))->CpllRefClkMin);
 		/* Check if the reference clock is not below the minimum CPLL
 		 * input frequency. */
 		if ((*RefClkPtr) >=
@@ -1622,8 +1678,10 @@ u32 XVphy_HdmiCpllParam(XVphy *InstancePtr, u8 QuadId, XVphy_ChannelId ChId,
 		/* The reference clock is below the minimum frequency thus
 		 * select the DRU. */
 		else {
+			xil_printf("reference clock is below the minimum frequency, select DRU\n");
 			if (InstancePtr->Config.DruIsPresent) {
 				RefClk = XVphy_DruGetRefClkFreqHz(InstancePtr);
+				xil_printf("XVphy_DruGetRefClkFreqHz = %llu\n", RefClk);
 
 				/* Round input frequency to 100 kHz. */
 				RefClk = RefClk / 10000;
