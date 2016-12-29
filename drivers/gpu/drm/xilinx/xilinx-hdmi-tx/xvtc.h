@@ -33,7 +33,7 @@
 /**
 *
 * @file xvtc.h
-* @addtogroup vtc_v7_0
+* @addtogroup vtc_v7_2
 * @{
 * @details
 *
@@ -294,6 +294,9 @@
 *                       XVtc_SelfTest.
 * 7.1   vns    10/14/15 Added InterlacedMode feild to XVtc_SourceSelect
 *                       structure
+* 7.2   sk     08/16/16 Used UINTPTR instead of u32 for Baseaddress as part of
+*                       adding 64 bit support. CR# 867425.
+*                       Changed the prototype of XVtc_CfgInitialize API.
 * </pre>
 *
 ******************************************************************************/
@@ -366,7 +369,7 @@ extern "C" {
 typedef struct {
 	u16 DeviceId;		/**< DeviceId is the unique ID of the VTC
 				  *  core */
-	uintptr_t BaseAddress;	/**< BaseAddress is the physical base address
+	UINTPTR BaseAddress;	/**< BaseAddress is the physical base address
 				  *  of the core's registers */
 } XVtc_Config;
 
@@ -867,7 +870,7 @@ typedef struct {
 
 /* Initialization */
 int XVtc_CfgInitialize(XVtc *InstancePtr, XVtc_Config *CfgPtr,
-			uintptr_t EffectiveAddr);
+			UINTPTR EffectiveAddr);
 
 /* Enabling and Disabling the VTC core */
 void XVtc_EnableGenerator(XVtc *InstancePtr);

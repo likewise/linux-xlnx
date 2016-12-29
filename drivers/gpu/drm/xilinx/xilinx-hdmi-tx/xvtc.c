@@ -33,7 +33,7 @@
 /**
 *
 * @file xvtc.c
-* @addtogroup vtc_v7_0
+* @addtogroup vtc_v7_2
 * @{
 *
 * This is main code of Xilinx MVI Video Timing Controller (VTC) device driver.
@@ -168,6 +168,9 @@
 *                       Corrected XVtc_ConvSignal2Timing API to get interlaced
 *                       mode from SignalCfgPtr structure.
 * 7.2   mh     04/20/16 Removed call to XVtc_Reset from XVtc_CfgInitialize.
+*       sk     08/16/16 Used UINTPTR instead of u32 for Baseaddress as part of
+*                       adding 64 bit support. CR# 867425.
+*                       Changed the prototype of XVtc_CfgInitialize API.
 * </pre>
 *
 ******************************************************************************/
@@ -177,8 +180,6 @@
 #include "xvtc.h"
 #include <linux/string.h> // -- @NOTE Rohit Consul
 //#include "xenv.h" // -- @NOTE Rohit Consul
-#include "xparameters.h" // -- @NOTE Leon Woestenberg <leon@sidebranch.com>
-#include "xparameters.h" // -- @NOTE Leon Woestenberg <leon@sidebranch.com>
 #include "xil_printf.h" // -- @NOTE Leon Woestenberg <leon@sidebranch.com>
 
 /************************** Constant Definitions *****************************/
@@ -229,7 +230,7 @@ static void StubErrCallBack(void *CallBackRef, u32 ErrorMask);
 *
 ******************************************************************************/
 int XVtc_CfgInitialize(XVtc *InstancePtr, XVtc_Config *CfgPtr,
-				uintptr_t EffectiveAddr)
+				UINTPTR EffectiveAddr)
 {
 	/* Verify arguments */
 	Xil_AssertNonvoid(InstancePtr != NULL);
@@ -1060,7 +1061,7 @@ void XVtc_SetFSync(XVtc *InstancePtr, u16 FrameSyncIndex, u16 VertStart,
 			u16 HoriStart)
 {
 	u32 RegValue;
-	uintptr_t RegAddress;
+	u32 RegAddress;
 
 	/* Verify arguments. */
 	Xil_AssertVoid(InstancePtr != NULL);
@@ -1104,7 +1105,7 @@ void XVtc_GetFSync(XVtc *InstancePtr, u16 FrameSyncIndex,
 			u16 *VertStartPtr, u16 *HoriStartPtr)
 {
 	u32 RegValue;
-	uintptr_t RegAddress;
+	u32 RegAddress;
 
 	/* Assert bad arguments and conditions */
 	Xil_AssertVoid(InstancePtr != NULL);

@@ -47,6 +47,11 @@
  * 1.0   gm   10/19/15 Initial release.
  * 1.1   gm   02/01/16 Added GTPE2 and GTHE4 support
  *                     Added XVphy_HdmiGtpPllLockHandler for GTPE2
+ * 1.2   gm            Replaced xil_printf with log events for debugging
+ * 1.3   gm   01/11/16 Fixed rounding of RX refclk frequency
+ *                     Fixed race condition in
+ *                       XVphy_HdmiRxClkDetFreqChangeHandler when  storing
+ *                       RxRefClkHz value
  * </pre>
  *
 *******************************************************************************/
@@ -638,8 +643,11 @@ void XVphy_HdmiTxClkDetFreqChangeHandler(XVphy *InstancePtr)
 		XVPHY_DIR_TX, FALSE);
 	}
 
+	/* Mask the MMCM Lock */
+	XVphy_MmcmLockedMaskEnable(InstancePtr, 0, XVPHY_DIR_TX, TRUE);
+
 	/* Disable TX MMCM. */
-	XVphy_MmcmPowerDown(InstancePtr, 0, XVPHY_DIR_TX, TRUE);
+	//XVphy_MmcmPowerDown(InstancePtr, 0, XVPHY_DIR_TX, TRUE);
 
 	/* Clear TX timer. */
 	XVphy_ClkDetTimerClear(InstancePtr, 0, XVPHY_DIR_TX);
@@ -697,6 +705,9 @@ void XVphy_HdmiRxClkDetFreqChangeHandler(XVphy *InstancePtr)
 			XVPHY_GT_STATE_IDLE;
 	}
 
+	/* Mask the MMCM Lock */
+	XVphy_MmcmLockedMaskEnable(InstancePtr, 0, XVPHY_DIR_RX, TRUE);
+
 	/* Determine PLL type and RX reference clock selection. */
 	PllType = XVphy_GetPllType(InstancePtr, 0, XVPHY_DIR_RX,
 			XVPHY_CHANNEL_ID_CH1);
@@ -705,7 +716,7 @@ void XVphy_HdmiRxClkDetFreqChangeHandler(XVphy *InstancePtr)
 	RxRefClkHz = XVphy_ClkDetGetRefClkFreqHz(InstancePtr, XVPHY_DIR_RX);
 
 	/* Round input frequency to 10 kHz. */
-	RxRefClkHz = RxRefClkHz / 10000;
+	RxRefClkHz = (RxRefClkHz+5000) / 10000;
 	RxRefClkHz = RxRefClkHz * 10000;
 
 	/* Store RX reference clock. */
@@ -731,11 +742,11 @@ void XVphy_HdmiRxClkDetFreqChangeHandler(XVphy *InstancePtr)
 	}
 
 	/* Disable RX MMCM */
-	XVphy_MmcmPowerDown(InstancePtr, 0, XVPHY_DIR_RX, TRUE);
+	//XVphy_MmcmPowerDown(InstancePtr, 0, XVPHY_DIR_RX, TRUE);
 	/* When the GT TX and RX are coupled, then disable the TX MMCM. */
-	if (XVphy_IsBonded(InstancePtr, 0, XVPHY_CHANNEL_ID_CH1)) {
-		XVphy_MmcmPowerDown(InstancePtr, 0, XVPHY_DIR_TX, TRUE);
-	}
+	//if (XVphy_IsBonded(InstancePtr, 0, XVPHY_CHANNEL_ID_CH1)) {
+	//	XVphy_MmcmPowerDown(InstancePtr, 0, XVPHY_DIR_TX, TRUE);
+	//}
 
 	/* Assert GT RX reset */
 	if ((InstancePtr->Config.XcvrType == XVPHY_GT_TYPE_GTXE2) ||
@@ -753,14 +764,16 @@ void XVphy_HdmiRxClkDetFreqChangeHandler(XVphy *InstancePtr)
 	/* Clear RX timer. */
 	XVphy_ClkDetTimerClear(InstancePtr, 0, XVPHY_DIR_RX);
 
-	/* If there is reference clock, load RX timer in usec. */
-	if (XVphy_ClkDetGetRefClkFreqHz(InstancePtr, XVPHY_DIR_RX)) {
+	/* If there is reference clock, load RX timer in usec.
+	 * The reference clock should be larger than 25Mhz. We are using a 20Mhz
+	 * instead to keep some margin for errors. */
+	if (RxRefClkHz > 20000000) {
 		XVphy_ClkDetTimerLoad(InstancePtr, 0, XVPHY_DIR_RX, 100000);
-	}
 
-	/* Callback to re-initialize. */
-	if (InstancePtr->HdmiRxInitCallback) {
-		InstancePtr->HdmiRxInitCallback(InstancePtr->HdmiRxInitRef);
+		/* Callback to re-initialize. */
+		if (InstancePtr->HdmiRxInitCallback) {
+			InstancePtr->HdmiRxInitCallback(InstancePtr->HdmiRxInitRef);
+		}
 	}
 }
 
@@ -876,9 +889,7 @@ void XVphy_HdmiRxTimerTimeoutHandler(XVphy *InstancePtr)
 	Status = XVphy_SetHdmiRxParam(InstancePtr, 0, ChId);
 	if (Status != XST_SUCCESS) {
 		if (InstancePtr->Config.XcvrType == XVPHY_GT_TYPE_GTXE2) {
-			xil_printf("\n\rCouldn't find the correct GT "
-				"parameters for this video resolution.\n\r");
-			xil_printf("Try another GT PLL layout.\n\r");
+			XVphy_LogWrite(InstancePtr, XVPHY_LOG_EVT_GT_PLL_LAYOUT, 1);
 		}
 
 		for (Id = Id0; Id <= Id1; Id++) {
@@ -933,6 +944,7 @@ void XVphy_HdmiRxTimerTimeoutHandler(XVphy *InstancePtr)
 	if (InstancePtr->Config.XcvrType == XVPHY_GT_TYPE_GTPE2) {
 		XVphy_ResetGtTxRx(InstancePtr, 0, XVPHY_CHANNEL_ID_CHA,
 				XVPHY_DIR_RX, TRUE);
+        /* GTP Wizard locks the DRP access to its internal FSM during reset */
 		/* Wait for reset sequence to release DRP port. */
 		XVphy_WaitUs(InstancePtr, 5000);
 	}
@@ -969,11 +981,7 @@ void XVphy_HdmiRxTimerTimeoutHandler(XVphy *InstancePtr)
 	/* When the TX and RX are coupled, clear GT alignment. */
 	if (XVphy_IsBonded(InstancePtr, 0, XVPHY_CHANNEL_ID_CH1)) {
 		if (InstancePtr->HdmiRxDruIsEnabled) {
-			xil_printf("WARNING: "
-					"Transmitter cannot be used on\r\n");
-			xil_printf("         "
-					"bonded mode when DRU is enabled\r\n");
-			xil_printf("Switch to unbonded PLL layout\r\n");
+			XVphy_LogWrite(InstancePtr, XVPHY_LOG_EVT_GT_UNBONDED, 1);
 		}
 		XVphy_ResetGtPll(InstancePtr, 0, XVPHY_CHANNEL_ID_CHA,
 				XVPHY_DIR_TX, 0);

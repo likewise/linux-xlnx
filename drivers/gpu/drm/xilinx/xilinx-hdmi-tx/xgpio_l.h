@@ -33,7 +33,7 @@
 /**
 *
 * @file xgpio_l.h
-* @addtogroup gpio_v4_1
+* @addtogroup gpio_v4_2
 * @{
 *
 * This header file contains identifiers and driver functions (or
@@ -155,7 +155,7 @@ extern "C" {
 * @return	None.
 *
 * @note		C-style signature:
-*		void XGpio_WriteReg(uintptr_t BaseAddress, uintptr_t RegOffset, u32 Data)
+*		void XGpio_WriteReg(u32 BaseAddress, u32 RegOffset, u32 Data)
 *
 ****************************************************************************/
 #define XGpio_WriteReg(BaseAddress, RegOffset, Data) \
@@ -175,7 +175,7 @@ extern "C" {
 * @return	Data read from the register.
 *
 * @note		C-style signature:
-*		u32 XGpio_ReadReg(uintptr_t BaseAddress, uintptr_t RegOffset)
+*		u32 XGpio_ReadReg(u32 BaseAddress, u32 RegOffset)
 *
 ****************************************************************************/
 #define XGpio_ReadReg(BaseAddress, RegOffset) \

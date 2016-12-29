@@ -53,6 +53,13 @@
  *                     Added XVphy_SetDefaultPpc and XVphy_SetPpc functions.
  *       als           Added XVphy_GetLineRateHz function.
  *       gm   20/04/16 Added XVphy_GetRcfgChId function
+ * 1.2   gm            Added HdmiFastSwitch in XVphy_Config
+ *                     Fixed bug in XVphy_IsPllLocked function
+ *                     Changed EffectiveAddr datatype in XVphy_CfgInitialize
+ *                       to UINTPTR
+ *                     Used usleep API instead of MB_Sleep API
+ *                     Fixed Null pointer dereference in XVphy_IBufDsEnable
+ *                     Suppressed warning messages due to unused arguments
  * </pre>
  *
 *******************************************************************************/
@@ -64,11 +71,7 @@
 #include "xstatus.h"
 #include "xvphy.h"
 #include "xvphy_hdmi.h"
-#if defined(__MICROBLAZE__)
-#include "microblaze_sleep.h"
-#elif defined(__arm__)
-#include "sleep.h"
-#endif
+#include <linux/delay.h>
 #include "xvphy_gt.h"
 
 /**************************** Function Prototypes *****************************/
@@ -107,7 +110,7 @@ static u32 XVphy_PllCalculator(XVphy *InstancePtr, u8 QuadId,
  *
 *******************************************************************************/
 void XVphy_CfgInitialize(XVphy *InstancePtr, XVphy_Config *ConfigPtr,
-		uintptr_t EffectiveAddr)
+		UINTPTR EffectiveAddr)
 {
 	u8 Sel;
 
@@ -208,6 +211,9 @@ u32 XVphy_PllInitialize(XVphy *InstancePtr, u8 QuadId, XVphy_ChannelId ChId,
 		XVphy_PllRefClkSelType CpllRefClkSel,
 		XVphy_PllType TxPllSelect, XVphy_PllType RxPllSelect)
 {
+	/* Suppress Warning Messages */
+	ChId = ChId;
+
 	XVphy_SelQuad(InstancePtr, QuadId);
 
 	/* Set configuration in software. */
@@ -296,21 +302,15 @@ void XVphy_WaitUs(XVphy *InstancePtr, u32 MicroSeconds)
 		return;
 	}
 
-#if defined(__MICROBLAZE__)
 	if (InstancePtr->UserTimerWaitUs != NULL) {
 		/* Use the timer handler specified by the user for better
 		 * accuracy. */
 		InstancePtr->UserTimerWaitUs(InstancePtr, MicroSeconds);
 	}
 	else {
-		/* MicroBlaze sleep only has millisecond accuracy. Round up. */
-		u32 MilliSeconds = (MicroSeconds + 999) / 1000;
-		MB_Sleep(MilliSeconds);
+	    /* Wait the requested amount of time. */
+	    usleep_range(MicroSeconds, MicroSeconds + MicroSeconds / 10);
 	}
-#elif defined(__arm__)
-	/* Wait the requested amount of time. */
-	usleep(MicroSeconds);
-#endif
 }
 
 /*****************************************************************************/
@@ -391,6 +391,10 @@ void XVphy_SetRxLpm(XVphy *InstancePtr, u8 QuadId, XVphy_ChannelId ChId,
 	u32 RegVal;
 	u32 MaskVal;
 
+	/* Suppress Warning Messages */
+	QuadId = QuadId;
+	Dir = Dir;
+
 	RegVal = XVphy_ReadReg(InstancePtr->Config.BaseAddr,
 							XVPHY_RX_EQ_CDR_REG);
 
@@ -432,6 +436,9 @@ void XVphy_SetTxVoltageSwing(XVphy *InstancePtr, u8 QuadId,
 	u32 MaskVal;
 	uintptr_t RegOffset;
 
+	/* Suppress Warning Messages */
+	QuadId = QuadId;
+
 	if ((ChId == XVPHY_CHANNEL_ID_CH1) || (ChId == XVPHY_CHANNEL_ID_CH2)) {
 		RegOffset = XVPHY_TX_DRIVER_CH12_REG;
 	}
@@ -466,6 +473,9 @@ void XVphy_SetTxPreEmphasis(XVphy *InstancePtr, u8 QuadId, XVphy_ChannelId ChId,
 	u32 RegVal;
 	u32 MaskVal;
 	uintptr_t RegOffset;
+
+	/* Suppress Warning Messages */
+	QuadId = QuadId;
 
 	if ((ChId == XVPHY_CHANNEL_ID_CH1) || (ChId == XVPHY_CHANNEL_ID_CH2)) {
 		RegOffset = XVPHY_TX_DRIVER_CH12_REG;
@@ -784,6 +794,11 @@ XVphy_ChannelId XVphy_GetRcfgChId(XVphy *InstancePtr, u8 QuadId,
 {
 	XVphy_ChannelId ChId;
 
+	/* Suppress Warning Messages */
+	InstancePtr = InstancePtr;
+	QuadId = QuadId;
+	Dir = Dir;
+
 	/* Determine which channel(s) to operate on. */
 	switch (PllType) {
 	case XVPHY_PLL_TYPE_QPLL:
@@ -850,6 +865,9 @@ XVphy_PllRefClkSelType XVphy_GetPllRefClkSel(XVphy *InstancePtr, u8 QuadId,
 	u32 Sel;
 	u32 RegVal;
 
+	/* Suppress Warning Messages */
+	QuadId = QuadId;
+
 	Xil_AssertNonvoid((XVPHY_CHANNEL_ID_CH1 <= ChId) &&
 			(ChId <= XVPHY_CHANNEL_ID_CMN1));
 
@@ -892,6 +910,10 @@ XVphy_SysClkDataSelType XVphy_GetSysClkDataSel(XVphy *InstancePtr, u8 QuadId,
 	u32 Sel;
 	u32 RegVal;
 
+	/* Suppress Warning Messages */
+	QuadId = QuadId;
+	ChId = ChId;
+
 	RegVal = XVphy_ReadReg(InstancePtr->Config.BaseAddr,
 							XVPHY_REF_CLK_SEL_REG);
 
@@ -932,6 +954,10 @@ XVphy_SysClkOutSelType XVphy_GetSysClkOutSel(XVphy *InstancePtr, u8 QuadId,
 {
 	u32 Sel;
 	u32 RegVal;
+
+	/* Suppress Warning Messages */
+	QuadId = QuadId;
+	ChId = ChId;
 
 	RegVal = XVphy_ReadReg(InstancePtr->Config.BaseAddr,
 			XVPHY_REF_CLK_SEL_REG);
@@ -1002,6 +1028,9 @@ u32 XVphy_WaitForPmaResetDone(XVphy *InstancePtr, u8 QuadId,
 	uintptr_t RegOffset;
 	u8 Retry = 0;
 
+	/* Suppress Warning Messages */
+	QuadId = QuadId;
+
 	if (Dir == XVPHY_DIR_TX) {
 		RegOffset = XVPHY_TX_INIT_STATUS_REG;
 	}
@@ -1054,6 +1083,9 @@ u32 XVphy_WaitForResetDone(XVphy *InstancePtr, u8 QuadId, XVphy_ChannelId ChId,
 	u32 MaskVal;
 	uintptr_t RegOffset;
 	u8 Retry = 0;
+
+	/* Suppress Warning Messages */
+	QuadId = QuadId;
 
 	if (Dir == XVPHY_DIR_TX) {
 		RegOffset = XVPHY_TX_INIT_STATUS_REG;
@@ -1132,6 +1164,11 @@ u32 XVphy_IsPllLocked(XVphy *InstancePtr, u8 QuadId, XVphy_ChannelId ChId)
 {
 	u32 RegVal;
 	u32 MaskVal;
+	XVphy_PllType TxPllType;
+	XVphy_PllType RxPllType;
+
+	/* Suppress Warning Messages */
+	QuadId = QuadId;
 
 	if (ChId == XVPHY_CHANNEL_ID_CMN0) {
 		MaskVal = XVPHY_PLL_LOCK_STATUS_QPLL0_MASK;
@@ -1144,7 +1181,21 @@ u32 XVphy_IsPllLocked(XVphy *InstancePtr, u8 QuadId, XVphy_ChannelId ChId)
 			  XVPHY_PLL_LOCK_STATUS_QPLL1_MASK;
 	}
 	else if (ChId == XVPHY_CHANNEL_ID_CHA) {
-		MaskVal = XVPHY_PLL_LOCK_STATUS_CPLL_ALL_MASK;
+		TxPllType = XVphy_GetPllType(InstancePtr, 0, XVPHY_DIR_TX,
+				XVPHY_CHANNEL_ID_CH1);
+		RxPllType = XVphy_GetPllType(InstancePtr, 0, XVPHY_DIR_RX,
+				XVPHY_CHANNEL_ID_CH1);
+		if (RxPllType == XVPHY_PLL_TYPE_CPLL &&
+				InstancePtr->Config.RxProtocol == XVPHY_PROTOCOL_HDMI) {
+			MaskVal = XVPHY_PLL_LOCK_STATUS_CPLL_HDMI_MASK;
+		}
+		else if (TxPllType == XVPHY_PLL_TYPE_CPLL &&
+				InstancePtr->Config.TxProtocol == XVPHY_PROTOCOL_HDMI) {
+			MaskVal = XVPHY_PLL_LOCK_STATUS_CPLL_HDMI_MASK;
+		}
+		else {
+			MaskVal = XVPHY_PLL_LOCK_STATUS_CPLL_ALL_MASK;
+		}
 	}
 	else {
 		MaskVal = XVPHY_PLL_LOCK_STATUS_CPLL_MASK(ChId);
@@ -1152,7 +1203,7 @@ u32 XVphy_IsPllLocked(XVphy *InstancePtr, u8 QuadId, XVphy_ChannelId ChId)
 	RegVal = XVphy_ReadReg(InstancePtr->Config.BaseAddr,
 			XVPHY_PLL_LOCK_STATUS_REG);
 
-	if (RegVal & MaskVal) {
+	if ((RegVal & MaskVal) == MaskVal) {
 		return XST_SUCCESS;
 	}
 
@@ -1182,6 +1233,9 @@ u32 XVphy_ResetGtPll(XVphy *InstancePtr, u8 QuadId, XVphy_ChannelId ChId,
 	u32 RegVal;
 	u32 MaskVal;
 	uintptr_t RegOffset;
+
+	/* Suppress Warning Messages */
+	QuadId = QuadId;
 
 	if (Dir == XVPHY_DIR_TX) {
 		RegOffset = XVPHY_TX_INIT_REG;
@@ -1234,6 +1288,9 @@ u32 XVphy_ResetGtTxRx(XVphy *InstancePtr, u8 QuadId, XVphy_ChannelId ChId,
 	u32 MaskVal;
 	uintptr_t RegOffset;
 
+	/* Suppress Warning Messages */
+	QuadId = QuadId;
+
 	if (Dir == XVPHY_DIR_TX) {
 		RegOffset = XVPHY_TX_INIT_REG;
 	}
@@ -1284,6 +1341,9 @@ u32 XVphy_GtUserRdyEnable(XVphy *InstancePtr, u8 QuadId, XVphy_ChannelId ChId,
 	u32 RegVal;
 	u32 MaskVal;
 	uintptr_t RegOffset;
+
+	/* Suppress Warning Messages */
+	QuadId = QuadId;
 
 	if (Dir == XVPHY_DIR_TX) {
 		RegOffset = XVPHY_TX_INIT_REG;
@@ -1539,10 +1599,12 @@ void XVphy_MmcmStart(XVphy *InstancePtr, u8 QuadId, XVphy_DirectionType Dir)
 	u32 Status;
 	u8 Retry;
 
-	if ((InstancePtr->Config.TxProtocol == XVPHY_PROTOCOL_HDMI) ||
-	    (InstancePtr->Config.RxProtocol == XVPHY_PROTOCOL_HDMI)) {
-		/* Enable MMCM Locked Masking */
-		XVphy_MmcmLockedMaskEnable(InstancePtr, QuadId, Dir, TRUE);
+	if ((Dir == XVPHY_DIR_TX &&
+			InstancePtr->Config.TxProtocol == XVPHY_PROTOCOL_HDMI) ||
+		(Dir == XVPHY_DIR_RX &&
+			InstancePtr->Config.RxProtocol == XVPHY_PROTOCOL_HDMI)) {
+		XVphy_HdmiMmcmStart(InstancePtr, QuadId, Dir);
+		return;
 	}
 
 	/* Enable MMCM. */
@@ -1567,12 +1629,6 @@ void XVphy_MmcmStart(XVphy *InstancePtr, u8 QuadId, XVphy_DirectionType Dir)
 
 	/* Toggle MMCM reset. */
 	XVphy_MmcmReset(InstancePtr, QuadId, Dir, FALSE);
-
-	if ((InstancePtr->Config.TxProtocol == XVPHY_PROTOCOL_HDMI) ||
-	    (InstancePtr->Config.RxProtocol == XVPHY_PROTOCOL_HDMI)) {
-		/* Disable MMC Locked Masking */
-		XVphy_MmcmLockedMaskEnable(InstancePtr, QuadId, Dir, FALSE);
-	}
 
 	XVphy_LogWrite(InstancePtr, (Dir == XVPHY_DIR_TX) ?
 		XVPHY_LOG_EVT_TXPLL_RECONFIG : XVPHY_LOG_EVT_RXPLL_RECONFIG, 1);
@@ -1718,13 +1774,15 @@ void XVphy_SetBufgGtDiv(XVphy *InstancePtr, XVphy_DirectionType Dir, u8 Div)
 void XVphy_IBufDsEnable(XVphy *InstancePtr, u8 QuadId, XVphy_DirectionType Dir,
 		u8 Enable)
 {
-	XVphy_PllRefClkSelType *TypePtr, *DruTypePtr;
+	XVphy_PllRefClkSelType *TypePtr, *DruTypePtr, DruTypeDummy;
+	uintptr_t RegAddr = XVPHY_IBUFDS_GTXX_CTRL_REG;
 	u32 RegVal;
 	u32 MaskVal = 0;
-	DruTypePtr = NULL;
+	DruTypeDummy = XVPHY_PLL_REFCLKSEL_TYPE_GTGREFCLK;
+	DruTypePtr = &DruTypeDummy;
 
-	RegVal = XVphy_ReadReg(InstancePtr->Config.BaseAddr,
-						XVPHY_IBUFDS_GTXX_CTRL_REG);
+	/* Suppress Warning Messages */
+	QuadId = QuadId;
 
 	if (Dir == XVPHY_DIR_TX) {
 		TypePtr = &InstancePtr->Config.TxRefClkSel;
@@ -1737,13 +1795,26 @@ void XVphy_IBufDsEnable(XVphy *InstancePtr, u8 QuadId, XVphy_DirectionType Dir,
 	}
 
 	if ((*TypePtr == XVPHY_PLL_REFCLKSEL_TYPE_GTREFCLK0) ||
-			((DruTypePtr != NULL) && (*DruTypePtr == XVPHY_PLL_REFCLKSEL_TYPE_GTREFCLK0))) {
+			((InstancePtr->Config.DruIsPresent) &&
+			(*DruTypePtr == XVPHY_PLL_REFCLKSEL_TYPE_GTREFCLK0))) {
 		MaskVal = XVPHY_IBUFDS_GTXX_CTRL_GTREFCLK0_CEB_MASK;
 	}
 	else if ((*TypePtr == XVPHY_PLL_REFCLKSEL_TYPE_GTREFCLK1) ||
-			((DruTypePtr != NULL) && (*DruTypePtr == XVPHY_PLL_REFCLKSEL_TYPE_GTREFCLK1))) {
+			((InstancePtr->Config.DruIsPresent) &&
+			(*DruTypePtr == XVPHY_PLL_REFCLKSEL_TYPE_GTREFCLK1))) {
 		MaskVal = XVPHY_IBUFDS_GTXX_CTRL_GTREFCLK1_CEB_MASK;
 	}
+	else {
+		if (Dir == XVPHY_DIR_TX) {
+			RegAddr = XVPHY_MISC_TXUSRCLK_REG;
+		}
+		else {
+			RegAddr = XVPHY_MISC_RXUSRCLK_REG;
+		}
+		MaskVal = XVPHY_MISC_XXUSRCLK_REFCLK_CEB_MASK;
+	}
+
+	RegVal = XVphy_ReadReg(InstancePtr->Config.BaseAddr, RegAddr);
 
 	if (Enable) {
 		RegVal &= ~MaskVal;
@@ -1751,8 +1822,7 @@ void XVphy_IBufDsEnable(XVphy *InstancePtr, u8 QuadId, XVphy_DirectionType Dir,
 	else {
 		RegVal |= MaskVal;
 	}
-	XVphy_WriteReg(InstancePtr->Config.BaseAddr, XVPHY_IBUFDS_GTXX_CTRL_REG,
-						RegVal);
+	XVphy_WriteReg(InstancePtr->Config.BaseAddr, RegAddr, RegVal);
 }
 
 /*****************************************************************************/
@@ -1816,6 +1886,9 @@ void XVphy_Set8b10b(XVphy *InstancePtr, u8 QuadId, XVphy_ChannelId ChId,
 	u32 MaskVal;
 	u32 RegVal;
 
+	/* Suppress Warning Messages */
+	QuadId = QuadId;
+
 	if (Dir == XVPHY_DIR_TX) {
 		RegOffset = XVPHY_TX_CONTROL_REG;
 		if (ChId == XVPHY_CHANNEL_ID_CHA) {
@@ -1868,6 +1941,9 @@ u32 XVphy_PowerDownGtPll(XVphy *InstancePtr, u8 QuadId, XVphy_ChannelId ChId,
 	u32 MaskVal = 0;
 	u32 RegVal;
 	u8 Id, Id0, Id1;
+
+	/* Suppress Warning Messages */
+	QuadId = QuadId;
 
 	if (XVPHY_ISCH(ChId)) {
 		XVphy_Ch2Ids(InstancePtr, ChId, &Id0, &Id1);
@@ -2158,6 +2234,8 @@ u32 XVphy_ClkReconfig(XVphy *InstancePtr, u8 QuadId, XVphy_ChannelId ChId)
 void XVphy_Ch2Ids(XVphy *InstancePtr, XVphy_ChannelId ChId,
 		u8 *Id0, u8 *Id1)
 {
+	u8 Channels = 4;
+
 	if (ChId == XVPHY_CHANNEL_ID_CHA) {
 		*Id0 = XVPHY_CHANNEL_ID_CH1;
 		if ((InstancePtr->Config.TxProtocol == XVPHY_PROTOCOL_HDMI) ||
@@ -2165,16 +2243,18 @@ void XVphy_Ch2Ids(XVphy *InstancePtr, XVphy_ChannelId ChId,
 			*Id1 = XVPHY_CHANNEL_ID_CH3;
 		}
 		else {
-			if ((InstancePtr->Config.TxChannels == 1) ||
-					(InstancePtr->Config.RxChannels == 1)) {
+			Channels = ((InstancePtr->Config.TxChannels >=
+							InstancePtr->Config.RxChannels) ?
+									InstancePtr->Config.TxChannels :
+									InstancePtr->Config.RxChannels);
+
+			if (Channels == 1) {
 				*Id1 = XVPHY_CHANNEL_ID_CH1;
 			}
-			else if ((InstancePtr->Config.TxChannels == 2) ||
-						(InstancePtr->Config.RxChannels == 2)) {
+			else if (Channels == 2) {
 				*Id1 = XVPHY_CHANNEL_ID_CH2;
 			}
-			else if ((InstancePtr->Config.TxChannels == 3) ||
-						(InstancePtr->Config.RxChannels == 3)) {
+			else if (Channels == 3) {
 				*Id1 = XVPHY_CHANNEL_ID_CH3;
 			}
 			else {
@@ -2505,13 +2585,12 @@ static u32 XVphy_PllCalculator(XVphy *InstancePtr, u8 QuadId,
 	else {
 		GtPllDivs = &InstancePtr->GtAdaptor->QpllDivs;
 	}
-	xil_printf("PllClkInFreqHzIn = %llu Hz\n", PllClkInFreqHzIn);
+
 	const u8 *M, *N1, *N2, *D;
 	for (N2 = GtPllDivs->N2; *N2 != 0; N2++) {
 	for (N1 = GtPllDivs->N1; *N1 != 0; N1++) {
 	for (M = GtPllDivs->M;   *M != 0;  M++) {
 		PllClkOutFreqHz = (PllClkInFreqHzIn * *N1 * *N2) / *M;
-		xil_printf("PllClkOutFreqHz = %llu Hz\n", PllClkOutFreqHz);
 
 		/* Test if the calculated PLL clock is in the VCO range. */
 		Status = XVphy_CheckPllOpRange(InstancePtr, QuadId, ChId,
@@ -2519,7 +2598,6 @@ static u32 XVphy_PllCalculator(XVphy *InstancePtr, u8 QuadId,
 		if (Status != XST_SUCCESS) {
 			continue;
 		}
-		xil_printf("PllClkOutFreqHz = %llu Hz is in VCO range\n", PllClkOutFreqHz);
 
 		if ((InstancePtr->Config.XcvrType == XVPHY_GT_TYPE_GTPE2) ||
 				(XVPHY_ISCH(ChId))) {
@@ -2528,8 +2606,6 @@ static u32 XVphy_PllCalculator(XVphy *InstancePtr, u8 QuadId,
 		/* Apply TX/RX divisor. */
 		for (D = GtPllDivs->D; *D != 0; D++) {
 			CalcLineRateFreqHz = PllClkOutFreqHz / *D;
-			xil_printf("CalcLineRateFreqHz = %llu Hz, PllPtr->LineRateHz = %llu\n",
-				CalcLineRateFreqHz, PllPtr->LineRateHz);
 			if (CalcLineRateFreqHz == PllPtr->LineRateHz) {
 				goto calc_done;
 			}
@@ -2564,7 +2640,6 @@ calc_done:
 	return XST_SUCCESS;
 }
 
-#if 0
 /*****************************************************************************/
 /**
 * This function will set the default in HDF.
@@ -2579,11 +2654,12 @@ calc_done:
 ******************************************************************************/
 void XVphy_SetDefaultPpc(XVphy *InstancePtr, u8 QuadId)
 {
+#if 0 /* Ppc is set in the Linux driver top-level based on DT */
 	extern XVphy_Config XVphy_ConfigTable[XPAR_XVPHY_NUM_INSTANCES];
 
 	InstancePtr->Config.Ppc = XVphy_ConfigTable[QuadId].Ppc;
-}
 #endif
+}
 
 /*****************************************************************************/
 /**
@@ -2600,6 +2676,9 @@ void XVphy_SetDefaultPpc(XVphy *InstancePtr, u8 QuadId)
 ******************************************************************************/
 void XVphy_SetPpc(XVphy *InstancePtr, u8 QuadId, u8 Ppc)
 {
+	/* Suppress Warning Messages */
+	QuadId = QuadId;
+
 	InstancePtr->Config.Ppc = Ppc;
 }
 
