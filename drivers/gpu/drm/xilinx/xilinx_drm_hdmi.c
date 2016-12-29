@@ -974,8 +974,6 @@ static int xilinx_drm_hdmi_encoder_init(struct platform_device *pdev,
 	XV_HdmiTxSs_IntrDisable(HdmiTxSsPtr);
 	spin_unlock_irqrestore(&hdmi->irq_lock, flags);
 
-	XV_HdmiTxSs_ReportSubcoreVersion(&hdmi->xv_hdmitxss);
-
 	/* TX SS callback setup */
 	XV_HdmiTxSs_SetCallback(HdmiTxSsPtr, XV_HDMITXSS_HANDLER_CONNECT,
 		TxConnectCallback, (void *)hdmi);

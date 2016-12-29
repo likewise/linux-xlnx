@@ -17,5 +17,6 @@ CFLAGS_xilinx-hdmirx.o += -I$(src)/xilinx-hdmi-rx/
 xilinx-hdmi-rx-objs += xilinx-hdmi-rx/xv_hdmirx.o
 xilinx-hdmi-rx-objs += xilinx-hdmi-rx/xv_hdmirx_intr.o
 xilinx-hdmi-rx-objs += xilinx-hdmi-rx/xv_hdmirxss.o
+xilinx-hdmi-rx-objs += xilinx-hdmi-rx/xv_hdmirxss_log.o
 xilinx-hdmi-rx-objs += xilinx-hdmi-rx/xv_hdmirxss_coreinit.o
 xilinx-hdmi-rx-objs += xilinx-hdmi-rx/xv_hdmirx_vsif.o
