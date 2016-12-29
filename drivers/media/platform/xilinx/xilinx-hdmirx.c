@@ -1061,9 +1061,10 @@ static int xhdmirx_probe(struct platform_device *pdev)
 
 	res = platform_get_resource(pdev, IORESOURCE_MEM, 0);
 	xhdmirx->iomem = devm_ioremap_resource(xhdmirx->dev, res);
-	if (IS_ERR(xhdmirx->iomem))
-		return PTR_ERR(xhdmirx->iomem);
-
+	if (IS_ERR(xhdmirx->iomem)) {
+		ret = PTR_ERR(xhdmirx->iomem);
+		goto error_resource;
+	}
 	/* video streaming bus clock */
 	xhdmirx->clk = devm_clk_get(xhdmirx->dev, NULL);
 	if (IS_ERR(xhdmirx->clk))
@@ -1189,8 +1190,6 @@ static int xhdmirx_probe(struct platform_device *pdev)
 	spin_lock_irqsave(&xhdmirx->irq_lock, flags);
 	XV_HdmiRxSs_IntrDisable(HdmiRxSsPtr);
 	spin_unlock_irqrestore(&xhdmirx->irq_lock, flags);
-
-	XV_HdmiRxSs_ReportSubcoreVersion(&xhdmirx->xv_hdmirxss);
 
 	/* RX SS callback setup (from xapp1287/xhdmi_example.c:2146) */
 	XV_HdmiRxSs_SetCallback(HdmiRxSsPtr, XV_HDMIRXSS_HANDLER_CONNECT,

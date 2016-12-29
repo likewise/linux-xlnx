@@ -25,6 +25,7 @@ CFLAGS_xilinx_drm_hdmi.o += -I$(src)/xilinx-hdmi-tx/ -Wno-unused-label
 xilinx-hdmi-tx-objs += xilinx-hdmi-tx/xv_hdmitx.o
 xilinx-hdmi-tx-objs += xilinx-hdmi-tx/xv_hdmitx_intr.o
 xilinx-hdmi-tx-objs += xilinx-hdmi-tx/xv_hdmitxss.o
+xilinx-hdmi-tx-objs += xilinx-hdmi-tx/xv_hdmitxss_log.o
 xilinx-hdmi-tx-objs += xilinx-hdmi-tx/xv_hdmitxss_coreinit.o
 xilinx-hdmi-tx-objs += xilinx-hdmi-tx/xv_hdmitx_vsif.o
 xilinx-hdmi-tx-objs += xilinx-hdmi-tx/xvtc.o
