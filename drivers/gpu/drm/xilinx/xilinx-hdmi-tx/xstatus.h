@@ -1,6 +1,6 @@
 /******************************************************************************
 *
-* Copyright (C) 2014 - 2015 Xilinx, Inc. All rights reserved.
+* Copyright (C) 2002 - 2015 Xilinx, Inc. All rights reserved.
 *
 * Permission is hereby granted, free of charge, to any person obtaining a copy
 * of this software and associated documentation files (the "Software"), to deal
@@ -303,6 +303,8 @@ extern "C" {
 #define XST_SPI_RECEIVE_NOT_EMPTY   1161	/* device received data in slave mode */
 
 #define XST_SPI_COMMAND_ERROR       1162	/* unrecognised command - qspi only */
+#define XST_SPI_POLL_DONE           1163        /* controller completed polling the
+						   device for status */
 
 /********************** OPB Arbiter statuses 1176 - 1200 *********************/
 
@@ -416,7 +418,7 @@ extern "C" {
 
 /**************************** Type Definitions *******************************/
 
-typedef int XStatus;
+typedef s32 XStatus;
 
 /***************** Macros (Inline Functions) Definitions *********************/
 

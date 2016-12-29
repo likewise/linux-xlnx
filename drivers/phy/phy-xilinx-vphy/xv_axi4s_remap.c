@@ -11,11 +11,11 @@
 /************************** Function Implementation *************************/
 #if (defined(__KERNEL__) || (!defined(__linux__))) // -- @NOTE Leon Woestenberg <leon@sidebranch.com>
 int XV_axi4s_remap_CfgInitialize(XV_axi4s_remap *InstancePtr,
-		                         XV_axi4s_remap_Config *ConfigPtr,
-		                         uintptr_t EffectiveAddr) {
+		                 XV_axi4s_remap_Config *ConfigPtr,
+		                 UINTPTR EffectiveAddr) {
     Xil_AssertNonvoid(InstancePtr != NULL);
     Xil_AssertNonvoid(ConfigPtr != NULL);
-    Xil_AssertNonvoid(EffectiveAddr != (uintptr_t)NULL);
+    Xil_AssertNonvoid(EffectiveAddr != (UINTPTR)NULL);
 
     /* Setup the instance */
     InstancePtr->Config = *ConfigPtr;

@@ -1,6 +1,6 @@
 /******************************************************************************
 *
-* Copyright (C) 2015 Xilinx, Inc. All rights reserved.
+* Copyright (C) 2016 Xilinx, Inc. All rights reserved.
 *
 * Permission is hereby granted, free of charge, to any person obtaining a copy
 * of this software and associated documentation files (the "Software"), to deal
@@ -48,6 +48,7 @@
 * 1.00         10/07/15 Initial release.
 * 1.1   yh     20/01/16 Added remapper support
 * 1.2   MG     03/02/16 Added HDCP support
+* 1.3   MH     08/08/16 Updates to optimize out HDCP when excluded.
 * </pre>
 *
 ******************************************************************************/
@@ -61,16 +62,20 @@ extern "C" {
 #include <linux/string.h> // -- @NOTE Leon Woestenberg <leon@sidebranch.com>
 #include "xv_hdmirxss.h"
 #include "xv_hdmirx.h"
-//#include "xtmrctr.h"  // -- @NOTE Rohit Consul
+#ifdef XPAR_XHDCP_NUM_INSTANCES
+#include "xtmrctr.h"
+#endif
 #include "xgpio.h"
 #include "xv_axi4s_remap.h"
 /************************** Constant Definitions *****************************/
 
 /************************** Function Prototypes ******************************/
 int XV_HdmiRxSs_SubcoreInitHdmiRx(XV_HdmiRxSs *HdmiRxSsPtr);
-#if 0
+#ifdef XPAR_XHDCP_NUM_INSTANCES
 int XV_HdmiRxSs_SubcoreInitHdcpTimer(XV_HdmiRxSs *HdmiRxSsPtr);
 int XV_HdmiRxSs_SubcoreInitHdcp14(XV_HdmiRxSs *HdmiRxSsPtr);
+#endif
+#ifdef XPAR_XHDCP22_RX_NUM_INSTANCES
 int XV_HdmiRxSs_SubcoreInitHdcp22(XV_HdmiRxSs *HdmiRxSsPtr);
 #endif
 int XV_HdmiRxSs_SubcoreInitRemapperReset(XV_HdmiRxSs *HdmiRxSsPtr);

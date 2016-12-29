@@ -1,6 +1,6 @@
 /******************************************************************************
 *
-* Copyright (C) 2015 Xilinx, Inc. All rights reserved.
+* Copyright (C) 2016 Xilinx, Inc. All rights reserved.
 *
 * Permission is hereby granted, free of charge, to any person obtaining a copy
 * of this software and associated documentation files (the "Software"), to deal
@@ -45,7 +45,12 @@
 * 1.00         10/07/15 Initial release.
 * 1.1   yh     15/01/16 Add 3D Support
 * 1.2   MG     09/03/16 Added XV_HdmiTx_SetHdmiMode and XV_HdmiTx_SetDviMode
-
+* 1.3   YH     25/07/16 Used UINTPTR instead of u32 for BaseAddress
+*                       XV_HdmiTx_CfgInitialize
+* 1.4   YH     27/07/16 Remove checking VideoMode < (XVIDC_VM_NUM_SUPPORTED));
+* 1.5   YH     17/08/16 Add XV_HdmiTx_SetAxiClkFreq
+*                       Move XV_HdmiTx_DdcInit to XV_HdmiTx_SetAxiClkFreq
+*                       squash unused variable compiler warning
 * </pre>
 *
 ******************************************************************************/
@@ -121,7 +126,6 @@ static const XV_HdmiTx_VicTable VicTable[34] = {
 /************************** Function Prototypes ******************************/
 
 static void StubCallback(void *Callback);
-static int HdmiTx_DdcExec(XV_HdmiTx *InstancePtr);
 
 /************************** Variable Definitions *****************************/
 
@@ -152,14 +156,14 @@ static int HdmiTx_DdcExec(XV_HdmiTx *InstancePtr);
 *
 ******************************************************************************/
 int XV_HdmiTx_CfgInitialize(XV_HdmiTx *InstancePtr, XV_HdmiTx_Config *CfgPtr,
-    uintptr_t EffectiveAddr)
+    UINTPTR EffectiveAddr)
 {
     u32 RegValue;
 
     /* Verify arguments. */
     Xil_AssertNonvoid(InstancePtr != NULL);
     Xil_AssertNonvoid(CfgPtr != NULL);
-    Xil_AssertNonvoid(EffectiveAddr != (uintptr_t)NULL);
+    Xil_AssertNonvoid(EffectiveAddr != (UINTPTR)0x0);
 
     /* Setup the instance */
     (void)memset((void *)InstancePtr, 0, sizeof(XV_HdmiTx));
@@ -167,15 +171,12 @@ int XV_HdmiTx_CfgInitialize(XV_HdmiTx *InstancePtr, XV_HdmiTx_Config *CfgPtr,
         sizeof(XV_HdmiTx_Config));
     InstancePtr->Config.BaseAddress = EffectiveAddr;
 
-#if defined(__MICROBLAZE__)
-    InstancePtr->CpuClkFreq = XPAR_CPU_CORE_CLOCK_FREQ_HZ;
-#elif defined(__arm__)
-    InstancePtr->CpuClkFreq = XPAR_PS7_CORTEXA9_0_CPU_CLK_FREQ_HZ;
-#endif
-
     /* Set all handlers to stub values, let user configure this data later */
     InstancePtr->ConnectCallback = (XV_HdmiTx_Callback)((void *)StubCallback);
     InstancePtr->IsConnectCallbackSet = (FALSE);
+
+    InstancePtr->ToggleCallback = (XV_HdmiTx_Callback)((void *)StubCallback);
+    InstancePtr->IsToggleCallbackSet = (FALSE);
 
     InstancePtr->VsCallback = (XV_HdmiTx_Callback)((void *)StubCallback);
     InstancePtr->IsVsCallbackSet = (FALSE);
@@ -218,6 +219,7 @@ int XV_HdmiTx_CfgInitialize(XV_HdmiTx *InstancePtr, XV_HdmiTx_Config *CfgPtr,
     /* PIO: Set event rising edge masks */
     XV_HdmiTx_WriteReg(InstancePtr->Config.BaseAddress,
     (XV_HDMITX_PIO_IN_EVT_RE_OFFSET),
+            (XV_HDMITX_PIO_IN_HPD_TOGGLE_MASK) |
             (XV_HDMITX_PIO_IN_HPD_MASK) |
             (XV_HDMITX_PIO_IN_VS_MASK) |
             (XV_HDMITX_PIO_IN_LNK_RDY_MASK)
@@ -247,14 +249,32 @@ int XV_HdmiTx_CfgInitialize(XV_HdmiTx *InstancePtr, XV_HdmiTx_Config *CfgPtr,
     /* The audio peripheral is enabled at stream up */
     //XV_HdmiTx_AudioEnable(InstancePtr);
 
-    /* Initialize DDC */
-InstancePtr->CpuClkFreq = 50000000;
-    XV_HdmiTx_DdcInit(InstancePtr, InstancePtr->CpuClkFreq);
-
     /* Reset the hardware and set the flag to indicate the driver is ready */
     InstancePtr->IsReady = (u32)(XIL_COMPONENT_IS_READY);
 
     return (XST_SUCCESS);
+}
+
+/*****************************************************************************/
+/**
+*
+* This function sets the AXI4-Lite Clock Frequency
+*
+* @param    InstancePtr is a pointer to the XV_HdmiTx core instance.
+* @param    ClkFreq specifies the value that needs to be set.
+*
+* @return
+*
+*
+* @note     This is required after a reset or init.
+*
+******************************************************************************/
+void XV_HdmiTx_SetAxiClkFreq(XV_HdmiTx *InstancePtr, u32 ClkFreq)
+{
+	InstancePtr->CpuClkFreq = ClkFreq;
+
+    /* Initialize DDC */
+    XV_HdmiTx_DdcInit(InstancePtr, InstancePtr->CpuClkFreq);
 }
 
 /*****************************************************************************/
@@ -286,7 +306,7 @@ void XV_HdmiTx_SetHdmiMode(XV_HdmiTx *InstancePtr)
 /*****************************************************************************/
 /**
 *
-* This function sets the core into HDMI mode.
+* This function sets the core into DVI mode.
 *
 * @param    InstancePtr is a pointer to the XV_HdmiTx core instance.
 *
@@ -351,9 +371,6 @@ u8 XV_HdmiTx_LookupVic(XVidC_VideoMode VideoMode)
 {
     XV_HdmiTx_VicTable const *Entry;
     u8 Index;
-
-    /* Verify argument. */
-   // Xil_AssertNonvoid(VideoMode < (XVIDC_VM_NUM_SUPPORTED));
 
     for (Index = 0; Index < sizeof(VicTable)/sizeof(XV_HdmiTx_VicTable);
         Index++) {
@@ -502,6 +519,7 @@ int XV_HdmiTx_ClockRatio(XV_HdmiTx *InstancePtr) {
         }
     return XST_SUCCESS;
     }
+    return XST_FAILURE;
 }
 
 /*****************************************************************************/
@@ -644,11 +662,9 @@ XVidC_ColorFormat ColorFormat, XVidC_ColorDepth Bpc, XVidC_PixelsPerClock Ppc,
 XVidC_3DInfo *Info3D)
 {
     u32 TmdsClock;
-    u32 Status;
 
     /* Verify arguments. */
     Xil_AssertNonvoid(InstancePtr != NULL);
-    Xil_AssertNonvoid(VideoMode < (XVIDC_VM_NUM_SUPPORTED));
     Xil_AssertNonvoid((ColorFormat == (XVIDC_CSF_RGB))       ||
                       (ColorFormat == (XVIDC_CSF_YCRCB_444)) ||
                       (ColorFormat == (XVIDC_CSF_YCRCB_422)) ||
@@ -666,9 +682,6 @@ XVidC_3DInfo *Info3D)
     else
         XVidC_Set3DVideoStream(&InstancePtr->Stream.Video, VideoMode, ColorFormat, Bpc, Ppc, Info3D);
 
-//  InstancePtr->Stream.Video.VmId = VideoMode;
-//  InstancePtr->Stream.Video.ColorFormatId = ColorFormat;
-
     /** In HDMI the colordepth in YUV422 is always 12 bits,
     * although on the link itself it is being transmitted as 8-bits.
     * Therefore if the colorspace is YUV422, then force the colordepth
@@ -679,21 +692,6 @@ XVidC_3DInfo *Info3D)
 
     InstancePtr->Stream.Vic = XV_HdmiTx_LookupVic(
         InstancePtr->Stream.Video.VmId);
-
-//  // Other colorspaces
-//  else {
-//      InstancePtr->Stream.Video.ColorDepth = Bpc;
-//  }
-//
-//  InstancePtr->Stream.Video.PixPerClk = Ppc;
-//    InstancePtr->Stream.Video.Timing = *XVidC_GetTimingInfo(
-//      InstancePtr->Stream.Video.VmId);
-//    InstancePtr->Stream.Video.FrameRate = XVidC_GetFrameRate(
-//      InstancePtr->Stream.Video.VmId);
-//    InstancePtr->Stream.Vic = XV_HdmiTx_LookupVic(
-//      InstancePtr->Stream.Video.VmId);
-//    InstancePtr->Stream.Video.IsInterlaced = XVidC_GetVideoFormat(
-//      InstancePtr->Stream.Video.VmId);
 
     // Set TX pixel rate
     XV_HdmiTx_SetPixelRate(InstancePtr);
@@ -1445,7 +1443,6 @@ int XV_HdmiTx_AuxSend(XV_HdmiTx *InstancePtr)
 ******************************************************************************/
 void XV_HdmiTx_DebugInfo(XV_HdmiTx *InstancePtr)
 {
-    u32 Reset;
 
     /* Verify argument. */
     Xil_AssertVoid(InstancePtr != NULL);

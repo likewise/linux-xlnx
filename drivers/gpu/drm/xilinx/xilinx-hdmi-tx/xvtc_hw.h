@@ -33,7 +33,7 @@
 /**
 *
 * @file xvtc_hw.h
-* @addtogroup vtc_v7_0
+* @addtogroup vtc_v7_2
 * @{
 *
 * This header file contains identifiers and register-level core functions (or
@@ -624,7 +624,7 @@ extern "C" {
 * @return	The 32-bit value of the register.
 *
 * @note		C-style signature:
-*		u32 XVtc_ReadReg(uintptr_t BaseAddress, uintptr_t RegOffset)
+*		u32 XVtc_ReadReg(u32 BaseAddress, u32 RegOffset)
 *
 ******************************************************************************/
 #define XVtc_ReadReg(BaseAddress, RegOffset) \
@@ -643,7 +643,7 @@ extern "C" {
 * @return	None.
 *
 * @note		C-style signature:
-*		void XVtc_WriteReg(uintptr_t BaseAddress, uintptr_t RegOffset, u32 Data)
+*		void XVtc_WriteReg(u32 BaseAddress, u32 RegOffset, u32 Data)
 *
 ******************************************************************************/
 #define XVtc_WriteReg(BaseAddress, RegOffset, Data) 	\

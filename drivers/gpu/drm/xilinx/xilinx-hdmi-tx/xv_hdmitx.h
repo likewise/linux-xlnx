@@ -1,6 +1,6 @@
 /******************************************************************************
 *
-* Copyright (C) 2015 Xilinx, Inc. All rights reserved.
+* Copyright (C) 2016 Xilinx, Inc. All rights reserved.
 *
 * Permission is hereby granted, free of charge, to any person obtaining a copy
 * of this software and associated documentation files (the "Software"), to deal
@@ -124,6 +124,10 @@
 * 1.1   yh     15/01/16 Add 3D Support
 * 1.2   MG     09/03/16 Added XV_HdmiTx_SetHdmiMode and XV_HdmiTx_SetDviMode.
 *                       Removed support for reduced blanking
+* 1.3   YH     25/07/16 Used UINTPTR instead of u32 for BaseAddress
+*                       XV_HdmiTx_Config
+*                       XV_HdmiTx_CfgInitialize
+* 1.4   YH     17/08/16 Added XV_HdmiTx_SetAxiClkFreq
 * </pre>
 *
 ******************************************************************************/
@@ -159,9 +163,10 @@ extern "C" {
 */
 typedef enum {
     XV_HDMITX_HANDLER_CONNECT = 1,  // Handler for connect
+    XV_HDMITX_HANDLER_TOGGLE,       // Handler for toggle
     XV_HDMITX_HANDLER_VS,           // Handler for vsync
-    XV_HDMITX_HANDLER_STREAM_DOWN,          // Handler for stream down
-    XV_HDMITX_HANDLER_STREAM_UP             // Handler for stream up
+    XV_HDMITX_HANDLER_STREAM_DOWN,  // Handler for stream down
+    XV_HDMITX_HANDLER_STREAM_UP     // Handler for stream up
 } XV_HdmiTx_HandlerType;
 /*@}*/
 
@@ -179,7 +184,7 @@ typedef enum {
 */
 typedef struct {
     u16 DeviceId;       /**< DeviceId is the unique ID of the HDMI TX core */
-    uintptr_t BaseAddress;    /**< BaseAddress is the physical
+    UINTPTR BaseAddress;    /**< BaseAddress is the physical
                         * base address of the core's registers */
 } XV_HdmiTx_Config;
 
@@ -273,6 +278,13 @@ typedef struct {
     void *ConnectRef;                       /**< To be passed to the connect
                                             interrupt callback */
     u32 IsConnectCallbackSet;               /**< Set flag. This flag is set
+                                to true when the callback has been registered */
+
+    XV_HdmiTx_Callback ToggleCallback;     /**< Callback for toggle event
+                                            interrupt */
+    void *ToggleRef;                       /**< To be passed to the toggle
+                                            interrupt callback */
+    u32 IsToggleCallbackSet;               /**< Set flag. This flag is set
                                 to true when the callback has been registered */
 
     XV_HdmiTx_Callback VsCallback;          /**< Callback for Vsync event
@@ -803,7 +815,7 @@ XV_HdmiTx_Config *XV_HdmiTx_LookupConfig(u16 DeviceId);
 /* Initialization and control functions in xv_hdmitx.c */
 int XV_HdmiTx_CfgInitialize(XV_HdmiTx *InstancePtr,
     XV_HdmiTx_Config *CfgPtr,
-    uintptr_t EffectiveAddr);
+    UINTPTR EffectiveAddr);
 void XV_HdmiTx_SetHdmiMode(XV_HdmiTx *InstancePtr);
 void XV_HdmiTx_SetDviMode(XV_HdmiTx *InstancePtr);
 void XV_HdmiTx_Clear(XV_HdmiTx *InstancePtr);
@@ -822,6 +834,7 @@ void XV_HdmiTx_SetColorFormat(XV_HdmiTx *InstancePtr);
 void XV_HdmiTx_SetColorDepth(XV_HdmiTx *InstancePtr);
 int XV_HdmiTx_IsStreamScrambled(XV_HdmiTx *InstancePtr);
 int XV_HdmiTx_IsStreamConnected(XV_HdmiTx *InstancePtr);
+void XV_HdmiTx_SetAxiClkFreq(XV_HdmiTx *InstancePtr, u32 ClkFreq);
 void XV_HdmiTx_DdcInit(XV_HdmiTx *InstancePtr, u32 Frequency);
 int XV_HdmiTx_DdcWrite(XV_HdmiTx *InstancePtr, u8 Slave, u16 Length,
     u8 *Buffer, u8 Stop);

@@ -1,6 +1,6 @@
 /******************************************************************************
 *
-* Copyright (C) 2015 Xilinx, Inc. All rights reserved.
+* Copyright (C) 2016 Xilinx, Inc. All rights reserved.
 *
 * Permission is hereby granted, free of charge, to any person obtaining a copy
 * of this software and associated documentation files (the "Software"), to deal
@@ -46,7 +46,9 @@
 * Ver   Who    Date     Changes
 * ----- ------ -------- --------------------------------------------------
 * 1.00         10/07/15 Initial release.
-
+* 1.01  YH     25/07/16 Used UINTPTR instead of u32 for BaseAddress
+*                       XV_HdmiTx_WriteReg
+*                       XV_HdmiTx_ReadReg
 * </pre>
 *
 ******************************************************************************/
@@ -142,6 +144,7 @@ extern "C" {
 #define XV_HDMITX_PIO_IN_VS_MASK            (1<<3)  /**< PIO In Vsync mask */
 #define XV_HDMITX_PIO_IN_PPP_MASK           0x07    /**< PIO In Pixel packing
                                                     * phase mask */
+#define XV_HDMITX_PIO_IN_HPD_TOGGLE_MASK    (1<<8)  /**< PIO In HPD toggle mask */
 #define XV_HDMITX_PIO_IN_PPP_SHIFT          5       /**< PIO In Pixel packing
                                                     * phase shift */
 
@@ -287,11 +290,11 @@ extern "C" {
 * @return   The 32-bit value of the register.
 *
 * @note     C-style signature:
-*       u32 XV_HdmiTx_ReadReg(uintptr_t BaseAddress, uintptr_t RegOffset)
+*       u32 XV_HdmiTx_ReadReg(u32 BaseAddress, u32 RegOffset)
 *
 ******************************************************************************/
 #define XV_HdmiTx_ReadReg(BaseAddress, RegOffset) \
-    XV_HdmiTx_In32((BaseAddress) + ((u32)RegOffset))
+    XV_HdmiTx_In32((BaseAddress) + (RegOffset))
 
 /*****************************************************************************/
 /**
@@ -308,11 +311,11 @@ extern "C" {
 * @return   None.
 *
 * @note     C-style signature:
-*       void XV_HdmiTx_WriteReg(uintptr_t BaseAddress, uintptr_t RegOffset, u32 Data)
+*       void XV_HdmiTx_WriteReg(u32 BaseAddress, u32 RegOffset, u32 Data)
 *
 ******************************************************************************/
 #define XV_HdmiTx_WriteReg(BaseAddress, RegOffset, Data) \
-    XV_HdmiTx_Out32((BaseAddress) + ((u32)RegOffset), (u32)(Data))
+    XV_HdmiTx_Out32((BaseAddress) + (RegOffset), (u32)(Data))
 /*@}*/
 
 /************************** Function Prototypes ******************************/

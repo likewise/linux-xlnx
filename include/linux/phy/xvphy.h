@@ -54,6 +54,10 @@
  *                     Added TxBufferBypass in XVphy_Config structure
  *                     Added XVphy_SetDefaultPpc and XVphy_SetPpc functions
  *       als           Added XVphy_GetLineRateHz function.
+ * 1.2   gm            Added HdmiFastSwitch in XVphy_Config
+ *                     Changed EffectiveAddr datatype in XVphy_CfgInitialize
+ *                       to UINTPTR
+ *                     Added log events for debugging
  * </pre>
  *
 *******************************************************************************/
@@ -292,6 +296,15 @@ typedef enum {
 	XVPHY_LOG_EVT_TX_FREQ,		/**< Log event TX frequency. */
 	XVPHY_LOG_EVT_RX_FREQ,		/**< Log event RX frequency. */
 	XVPHY_LOG_EVT_DRU_EN,		/**< Log event DRU enable/disable. */
+	XVPHY_LOG_EVT_GT_PLL_LAYOUT,/**< Log event GT PLL Layout Change. */
+	XVPHY_LOG_EVT_GT_UNBONDED,  /**< Log event GT Unbonded Change. */
+	XVPHY_LOG_EVT_1PPC_ERR,     /**< Log event 1 PPC Error. */
+	XVPHY_LOG_EVT_PPC_MSMTCH_ERR,/**< Log event PPC MismatchError. */
+	XVPHY_LOG_EVT_VDCLK_HIGH_ERR,/**< Log event VidClk more than 148.5 MHz. */
+	XVPHY_LOG_EVT_NO_DRU,		/**< Log event Vid not supported no DRU. */
+	XVPHY_LOG_EVT_GT_QPLL_CFG_ERR,/**< Log event QPLL Config not found. */
+	XVPHY_LOG_EVT_GT_CPLL_CFG_ERR,/**< Log event QPLL Config not found. */
+	XVPHY_LOG_EVT_VD_NOT_SPRTD_ERR,/**< Log event Vid format not supported. */
 	XVPHY_LOG_EVT_DUMMY,		/**< Dummy Event should be last */
 } XVphy_LogEvent;
 
@@ -522,7 +535,7 @@ typedef struct {
  */
 typedef struct {
 	u16 DeviceId;			/**< Device instance ID. */
-	uintptr_t BaseAddr;			/**< The base address of the core
+	UINTPTR BaseAddr;		/**< The base address of the core
 						instance. */
 	XVphy_GtType XcvrType;		/**< VPHY Transceiver Type */
 	u8 TxChannels;			/**< No. of active channels in TX */
@@ -539,6 +552,8 @@ typedef struct {
 	XVidC_PixelsPerClock Ppc;	/**< Number of input pixels per
 						 clock. */
 	u8 TxBufferBypass;		/**< TX Buffer Bypass is enabled in the
+						design. */
+	u8  HdmiFastSwitch;		/**< HDMI fast switching is enabled in the
 						design. */
 } XVphy_Config;
 
@@ -656,7 +671,7 @@ typedef struct {
 
 /* xvphy.c: Setup and initialization functions. */
 void XVphy_CfgInitialize(XVphy *InstancePtr, XVphy_Config *ConfigPtr,
-		uintptr_t EffectiveAddr);
+		UINTPTR EffectiveAddr);
 u32 XVphy_PllInitialize(XVphy *InstancePtr, u8 QuadId, XVphy_ChannelId ChId,
 		XVphy_PllRefClkSelType QpllRefClkSel,
 		XVphy_PllRefClkSelType CpllxRefClkSel,
