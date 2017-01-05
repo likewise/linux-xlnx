@@ -26,6 +26,7 @@
 #include <linux/videodev2.h>
 #include <linux/slab.h>
 #include <linux/delay.h>
+#include <linux/of.h>
 #include <media/v4l2-device.h>
 #include <media/v4l2-ctrls.h>
 #include <linux/of.h>
