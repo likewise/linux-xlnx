@@ -28,6 +28,7 @@
 #include <linux/delay.h>
 #include <media/v4l2-device.h>
 #include <media/v4l2-ctrls.h>
+#include <linux/of.h>
 
 MODULE_DESCRIPTION("i2c device driver for dp159 redriver and retimer");
 MODULE_AUTHOR("Leon Woestenberg");
@@ -470,7 +471,7 @@ static const struct i2c_device_id dp159_id[] = {
 MODULE_DEVICE_TABLE(i2c, dp159_id);
 
 #if IS_ENABLED(CONFIG_OF)
-static const struct of_device_id d159_of_match[] = {
+static const struct of_device_id dp159_of_match[] = {
         { .compatible = "ti,dp159", },
         { /* sentinel */ },
 };
@@ -481,7 +482,9 @@ static struct i2c_driver dp159_driver = {
 	.driver = {
 		.owner = THIS_MODULE,
 		.name	= "dp159",
+//#if IS_ENABLED(CONFIG_OF)
 		.of_match_table = of_match_ptr(dp159_of_match),
+//#endif
 	},
 	.probe		= dp159_probe,
 	.remove		= dp159_remove,
