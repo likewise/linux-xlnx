@@ -1,0 +1,22 @@
+* Texas Instruments dp159 redriver/retimer
+
+The dp159 device is a redriver/retimer found driving DP/HDMI links.
+
+Required Properties :
+- compatible : value must be "ti,dp159"
+
+Note:
+- reg can be 0x5e (instead of 0x2c) for the Engineering Sample,
+  the driver will then steer this device differently
+
+Example:
+
+	i2c0@1c22000 {
+		...
+		...
+		dp159@2c {
+			compatible = "ti,dp159";
+			reg = <0x2c>;
+		};
+		...
+	};
