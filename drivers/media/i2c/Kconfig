@@ -731,14 +731,6 @@ config VIDEO_M52790
 	 To compile this driver as a module, choose M here: the
 	 module will be called m52790.
 
-config VIDEO_DP159
-	tristate "Texas Instruments DP159 Redriver/retimer"
-	depends on VIDEO_V4L2 && I2C
-	---help---
-	 Support for the Texas Instruments DP159 Redriver/retimer.
-
-	 To compile this driver as a module, choose M here: the
-	 module will be called m52790.
 endmenu
 
 menu "Sensors used on soc_camera driver"

@@ -1,8 +1,8 @@
 /*
- * Xilinx Video HDMI RX Subsystem driver (Early Access Release)
+ * Xilinx Video HDMI RX Subsystem driver
  *
- * Copyright (C) 2016 Leon Woestenberg <leon@sidebranch.com>
- * Copyright (C) 2016 Xilinx, Inc.
+ * Copyright (C) 2016-2017 Leon Woestenberg <leon@sidebranch.com>
+ * Copyright (C) 2016-2017 Xilinx, Inc.
  *
  * Authors: Leon Woestenberg <leon@sidebranch.com>
  *          Rohit Consul <rohitco@xilinx.com>
@@ -29,9 +29,9 @@
 #include <media/v4l2-subdev.h>
 #include <media/v4l2-dv-timings.h>
 
-#include "xilinx-vip.h"
+#include <linux/phy/phy-vphy.h>
 
-#include "linux/phy/phy-vphy.h"
+#include "xilinx-vip.h"
 
 /* baseline driver includes */
 #include "xilinx-hdmi-rx/xv_hdmirxss.h"
@@ -220,8 +220,9 @@ static int xhdmirx_get_edid(struct v4l2_subdev *subdev, struct v4l2_edid *edid) 
 
 static void xhdmirx_set_hpd(struct xhdmirx_device *xhdmirx, int enable)
 {
+	XV_HdmiRxSs *HdmiRxSsPtr;
 	BUG_ON(!xhdmirx);
-	XV_HdmiRxSs *HdmiRxSsPtr = &xhdmirx->xv_hdmirxss;
+	HdmiRxSsPtr = &xhdmirx->xv_hdmirxss;
 	XV_HdmiRx_SetHpd(HdmiRxSsPtr->HdmiRxPtr, enable);
 }
 
@@ -349,7 +350,6 @@ static int xhdmirx_query_dv_timings(struct v4l2_subdev *subdev,
 			struct v4l2_dv_timings *timings)
 {
 	struct xhdmirx_device *xhdmirx = to_xhdmirx(subdev);
-	printk(KERN_INFO "xhdmirx_set_format\n");
 	struct v4l2_bt_timings *bt = &timings->bt;
 
 	if (!timings)
@@ -996,27 +996,123 @@ static int xhdmirx_parse_of(struct xhdmirx_device *xhdmirx, XV_HdmiRxSs_Config *
 {
 	struct device *dev = xhdmirx->dev;
 	struct device_node *node = dev->of_node;
-	(void)dev;
-	(void)node;
-#if 0
-	struct device_node *ports;
-	struct device_node *port;
-	unsigned int nports = 0;
-	bool has_endpoint = false;
-#endif
+//	struct device_node *ports;
+	int ret;
 
-#if 0 // example bool
-	bool has_dre = false;
-	has_dre = of_property_read_bool(node, "xlnx,include-dre");
-#endif
-#if 0 // example u32
-	u32 value;
-	int err;
-	err = of_property_read_u32(node, "xlnx,datawidth", &value);
+	printk(KERN_INFO "Reading HDMI Rx Device Tree Info\n");
+
+//	ports = of_get_child_by_name(node, "ports");
+//	if (ports == NULL)
+//		ports = node;
+
+	ret = of_property_read_u32(node, "xlnx,input-pixels-per-clock", (u32 *)&config->Ppc);
+	if (ret < 0) {
+		goto error_dt;
+	}
+	ret = of_property_read_u32(node, "xlnx,max-bits-per-component", (u32 *)&config->MaxBitsPerPixel);
+	if (ret < 0) {
+		goto error_dt;
+	}
+	ret = of_property_read_u32(node, "xlnx,include-hdmi-rx", (u32 *)&config->HdmiRx.IsPresent);
+	if (ret < 0) {
+		goto error_dt;
+	}
+	ret = of_property_read_u32(node, "xlnx,devid-hdmi-rx", (u32 *)&config->HdmiRx.DeviceId);
+	if (ret < 0) {
+		goto error_dt;
+	}
+	ret  = of_property_read_u32(node, "xlnx,offset-hdmi-rx", (u32 *)&config->HdmiRx.AddrOffset);
+	if (ret < 0) {
+		goto error_dt;
+	}
+	ret = of_property_read_u32(node, "xlnx,include-remapper", (u32 *)&config->Remapper.IsPresent);
+	if (ret < 0) {
+		goto error_dt;
+	}
+	ret = of_property_read_u32(node, "xlnx,devid-remapper", (u32 *)&config->Remapper.DeviceId);
+	if (ret < 0) {
+		goto error_dt;
+	}
+	ret  = of_property_read_u32(node, "xlnx,offset-remapper", (u32 *)&config->Remapper.AddrOffset);
+	if (ret < 0) {
+		goto error_dt;
+	}
+	ret = of_property_read_u32(node, "xlnx,include-remap-gpio", (u32 *)&config->RemapperReset.IsPresent);
+	if (ret < 0) {
+		goto error_dt;
+	}
+	ret = of_property_read_u32(node, "xlnx,devid-remap-gpio", (u32 *)&config->RemapperReset.DeviceId);
+	if (ret < 0) {
+		goto error_dt;
+	}
+	ret  = of_property_read_u32(node, "xlnx,offset-remap-gpio", (u32 *)&config->RemapperReset.AddrOffset);
+	if (ret < 0) {
+		goto error_dt;
+	}
+	ret = of_property_read_u32(node, "xlnx,include-timer", (u32 *)&config->HdcpTimer.IsPresent);
+	if (ret < 0) {
+		goto error_dt;
+	}
+	ret = of_property_read_u32(node, "xlnx,devid-timer", (u32 *)&config->HdcpTimer.DeviceId);
+	if (ret < 0) {
+		goto error_dt;
+	}
+	ret = of_property_read_u32(node, "xlnx,offset-timer", (u32 *)&config->HdcpTimer.AddrOffset);
+	if (ret < 0) {
+		goto error_dt;
+	}
+	ret = of_property_read_u32(node, "xlnx,include-hdcp-1-4", (u32 *)&config->Hdcp14.IsPresent);
+	if (ret < 0) {
+		goto error_dt;
+	}
+	ret = of_property_read_u32(node, "xlnx,devid-hdcp-1-4", (u32 *)&config->Hdcp14.DeviceId);
+	if (ret < 0) {
+		goto error_dt;
+	}
+	ret = of_property_read_u32(node, "xlnx,offset-hdcp-1-4", (u32 *)&config->Hdcp14.AddrOffset);
+	if (ret < 0) {
+		goto error_dt;
+	}
+	ret = of_property_read_u32(node, "xlnx,include-hdcp-2-2", (u32 *)&config->Hdcp22.IsPresent);
+	if (ret < 0) {
+		goto error_dt;
+	}
+	ret = of_property_read_u32(node, "xlnx,devid-hdcp-2-2", (u32 *)&config->Hdcp22.DeviceId);
+	if (ret < 0) {
+		goto error_dt;
+	}
+	ret = of_property_read_u32(node, "xlnx,offset-hdcp-2-2", (u32 *)&config->Hdcp22.AddrOffset);
+	if (ret < 0) {
+		goto error_dt;
+	}
+#if 1
+        printk(KERN_INFO  "Config.PPC %d\n", config->Ppc);
+        printk(KERN_INFO  "Config.BPC %d\n", config->MaxBitsPerPixel);
+        printk(KERN_INFO  "Config.IsHdmiRx %d\n", config->HdmiRx.IsPresent);
+        printk(KERN_INFO  "Config.IsHdcp14 %d\n", config->Hdcp14.IsPresent);
+        printk(KERN_INFO  "Config.IsHdcp22 %d\n", config->Hdcp22.IsPresent);
+        printk(KERN_INFO  "Config.IsRemapper %lx\n", config->Remapper.IsPresent);
+        printk(KERN_INFO  "Config.IsGpio %d\n", config->RemapperReset.IsPresent);
+        printk(KERN_INFO  "Config.IsHdcpTimer %d\n", config->HdcpTimer.IsPresent);
+        printk(KERN_INFO  "Config.Remap-devid %d\n", config->Remapper.DeviceId);
+        printk(KERN_INFO  "Config.Remap-offset %lx\n", config->Remapper.AddrOffset);
+        printk(KERN_INFO  "Config.gpio-devid %d\n", config->RemapperReset.DeviceId);
+        printk(KERN_INFO  "Config.gpio-offset %p\n", config->RemapperReset.AddrOffset);
+        printk(KERN_INFO  "Config.timer-devid %d\n", config->HdcpTimer.DeviceId);
+        printk(KERN_INFO  "Config.timer-offset %lx\n", config->HdcpTimer.AddrOffset);
+        printk(KERN_INFO  "Config.hdcp14-devid %d\n", config->Hdcp14.DeviceId);
+        printk(KERN_INFO  "Config.hdcp14-offset %lx\n", config->Hdcp14.AddrOffset);
+        printk(KERN_INFO  "Config.hdcp22-devid %d\n", config->Hdcp22.DeviceId);
+        printk(KERN_INFO  "Config.hdcp22-offset %lx\n", config->Hdcp22.AddrOffset);
 #endif
 
 	return 0;
+
+error_dt:
+		dev_err(dev, "Error Reading Xilinx Hdmi Rx Device Tree");
+		return ret;
 }
+
 
 static int xhdmirx_probe(struct platform_device *pdev)
 {
