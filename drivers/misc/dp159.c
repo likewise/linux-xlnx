@@ -62,275 +62,18 @@ static inline int dp159_read(struct i2c_client *client, u8 reg)
 static int dp159_program(struct i2c_client *client, int mode)
 {
 	int r;
-	if (client->addr == 0x2C) {
-		switch (mode) {
-		/* HDMI 1.4 (250Mbps - 1.2Gbps) */
-		case 0 :
-			// Select page 1
-			r = dp159_write(client, 0xff, 0x01);
-
-			// PLL_FBDIV is 280
-			r = dp159_write(client, 0x04, 0x80);
-			r = dp159_write(client, 0x05, 0x02);
-
-			// PLL_PREDIV is 2
-			r = dp159_write(client, 0x08, 0x02);
-
-			// CDR_CONFIG[4:0]
-			r = dp159_write(client, 0x0e, 0x10);
-
-			// CP_CURRENT
-			r = dp159_write(client, 0x01, 0x81);
-			usleep_range(10000, 11000);
-
-			// Enable Bandgap
-			r = dp159_write(client, 0x00, 0x02);
-			usleep_range(10000, 11000);
-			// Enable PLL
-			r = dp159_write(client, 0x00, 0x03);
-
-			// Enable TX
-			r = dp159_write(client, 0x10, 0x0f);
-
-			// HDMI_TWPST1
-			r = dp159_write(client, 0x14, 0x10);
-
-			// DP_TWPST1
-			r = dp159_write(client, 0x16, 0x10);
-
-			// DP_TWPST2
-			r = dp159_write(client, 0x17, 0x00);
-
-			// Slew CTRL
-			r = dp159_write(client, 0x12, 0x28);
-
-			// FIR_UPD
-			r = dp159_write(client, 0x13, 0x0f);
-			r = dp159_write(client, 0x13, 0x00);
-
-			// TX_RATE
-			r = dp159_write(client, 0x11, 0xC0);
-
-			// Enable receivers
-			r = dp159_write(client, 0x30, 0x0f);
-
-			// PD_RXINT
-			r = dp159_write(client, 0x32, 0x00);
-
-			// RX_RATE
-			r = dp159_write(client, 0x31, 0xC0);
-
-			// Disable offset correction
-			r = dp159_write(client, 0x34, 0x00);
-
-			// Change default of CDR_STL
-			r = dp159_write(client, 0x3c, 0x04);
-
-			// Change default of CDR_SO_TR
-			r = dp159_write(client, 0x3D, 0x06);
-
-			// EQFTC
-			r = dp159_write(client, 0x4D, 0x38);
-
-			// Enable Adaptive EQ
-			r = dp159_write(client, 0x4c, 0x03);
-
-			// Select page 0
-			r = dp159_write(client, 0xff, 0x00);
-
-			// Gate HPD_SNK
-			r = dp159_write(client, 0x09, 0x01);
-
-			// Set GPIO
-			r = dp159_write(client, 0xe0, 0x01);
-
-			// Un gate HPD_SNK
-			r = dp159_write(client, 0x09, 0x00);
-			return 0;
-			break;
-
-		case 1 : // HDMI 1.4 (1.2Gbps - 3Gbps)
-			// Select page 1
-			r = dp159_write(client, 0xff, 0x01);
-
-			// PLL_FBDIV is 140
-			r = dp159_write(client, 0x04, 0x40);
-			r = dp159_write(client, 0x05, 0x01);
-
-			// PLL_PREDIV is 4
-			r = dp159_write(client, 0x08, 0x04);
-
-			// CDR_CONFIG[4:0]
-			r = dp159_write(client, 0x0e, 0x10);
-
-			// CP_CURRENT
-			r = dp159_write(client, 0x01, 0x81);
-			usleep_range(10000, 11000);
-			// Enable Bandgap
-			r = dp159_write(client, 0x00, 0x02);
-			usleep_range(10000, 11000);
-			// Enable PLL
-			r = dp159_write(client, 0x00, 0x03);
-
-			// Enable TX
-			r = dp159_write(client, 0x10, 0x0f);
-
-			// HDMI_TWPST1
-			r = dp159_write(client, 0x14, 0x10);
-
-			// DP_TWPST1
-			r = dp159_write(client, 0x16, 0x10);
-
-			// DP_TWPST2
-			r = dp159_write(client, 0x17, 0x00);
-
-			// Slew CTRL
-			r = dp159_write(client, 0x12, 0x28);
-
-			// FIR_UPD
-			r = dp159_write(client, 0x13, 0x0f);
-			r = dp159_write(client, 0x13, 0x00);
-
-			// TX_RATE
-			r = dp159_write(client, 0x11, 0x70);
-
-			// Enable receivers
-			r = dp159_write(client, 0x30, 0x0f);
-
-			// PD_RXINT
-			r = dp159_write(client, 0x32, 0x00);
-
-			// RX_RATE
-			r = dp159_write(client, 0x31, 0x40);
-
-			// Disable offset correction
-			r = dp159_write(client, 0x34, 0x00);
-
-			// Change default of CDR_STL
-			r = dp159_write(client, 0x3c, 0x04);
-
-			// Change default of CDR_SO_TR
-			r = dp159_write(client, 0x3D, 0x06);
-
-			// EQFTC
-			r = dp159_write(client, 0x4D, 0x28);
-
-			// Enable Adaptive EQ
-			r = dp159_write(client, 0x4c, 0x03);
-
-			// Select page 0
-			r = dp159_write(client, 0xff, 0x00);
-
-			// Gate HPD_SNK
-			r = dp159_write(client, 0x09, 0x01);
-
-			// Set GPIO
-			r = dp159_write(client, 0xe0, 0x01);
-
-			// Un gate HPD_SNK
-			r = dp159_write(client, 0x09, 0x00);
-			return 0;
-			break;
-
-		case 2 : // HDMI 2.0 (3.4Gbps - 6 Gbps)
-
-			 // Select page 1
-			r = dp159_write(client, 0xff, 0x01);
-
-			// PLL_FBDIV is 280
-			r = dp159_write(client, 0x04, 0x80);
-			r = dp159_write(client, 0x05, 0x02);
-
-			// PLL_PREDIV is 4
-			r = dp159_write(client, 0x08, 0x04);
-
-			// CDR_CONFIG[4:0]
-			r = dp159_write(client, 0x0e, 0x10);
-
-			// CP_CURRENT
-			r = dp159_write(client, 0x01, 0x81);
-			usleep_range(10000, 11000);
-			// Enable Bandgap
-			r = dp159_write(client, 0x00, 0x02);
-			usleep_range(10000, 11000);
-			// Enable PLL
-			r = dp159_write(client, 0x00, 0x03);
-
-			// Enable TX
-			r = dp159_write(client, 0x10, 0x0f);
-
-			// HDMI_TWPST1
-			r = dp159_write(client, 0x14, 0x10);
-
-			// DP_TWPST1
-			r = dp159_write(client, 0x16, 0x10);
-
-			// DP_TWPST2
-			r = dp159_write(client, 0x17, 0x00);
-
-			// Slew CTRL
-			r = dp159_write(client, 0x12, 0x28);
-
-			// FIR_UPD
-			r = dp159_write(client, 0x13, 0x0f);
-			r = dp159_write(client, 0x13, 0x00);
-
-			// TX_RATE
-			r = dp159_write(client, 0x11, 0x30);
-
-			// Enable receivers
-			r = dp159_write(client, 0x30, 0x0f);
-
-			// PD_RXINT
-			r = dp159_write(client, 0x32, 0x00);
-
-			// RX_RATE
-			r = dp159_write(client, 0x31, 0x00);
-
-			// Disable offset correction
-			r = dp159_write(client, 0x34, 0x00);
-
-			// Change default of CDR_STL
-			r = dp159_write(client, 0x3c, 0x04);
-
-			// Change default of CDR_SO_TR
-			r = dp159_write(client, 0x3D, 0x06);
-
-			// EQFTC
-			r = dp159_write(client, 0x4D, 0x18);
-
-			// Enable Adaptive EQ
-			r = dp159_write(client, 0x4c, 0x03);
-
-			// Select page 0
-			r = dp159_write(client, 0xff, 0x00);
-
-			// Gate HPD_SNK
-			r = dp159_write(client, 0x09, 0x01);
-
-			// Set GPIO
-			r = dp159_write(client, 0xe0, 0x01);
-
-			// Un gate HPD_SNK
-			r = dp159_write(client, 0x09, 0x00);
-			return 0;
-			break;
-		} /* switch (mode) */
-	/* DP159 ES? */
-	} else if (client->addr == 0x5C) {
-		if (mode == 2) {
-			r = dp159_write(client, 0x0A, 0x36);	// Automatic retimer for HDMI 2.0
-			r = dp159_write(client, 0x0B, 0x1a);
-
-			r = dp159_write(client, 0x0C, 0xa1);
-			r = dp159_write(client, 0x0D, 0x00);
-		} else {
-			r = dp159_write(client, 0x0A, 0x35);			// Automatic redriver to retimer crossover at 1.0 Gbps
-			//r = dp159_write(client, 0x0A, 0x34);			// The redriver mode must be selected to support low video rates
-			r = dp159_write(client, 0x0B, 0x01);
-			r = dp159_write(client, 0x0C, 0xA0);				// Set VSWING data decrease by 24%
-			r = dp159_write(client, 0x0D, 0x00);
-		}
+	if (mode == 2) {
+		r = dp159_write(client, 0x0A, 0x36);	// Automatic retimer for HDMI 2.0
+		r = dp159_write(client, 0x0B, 0x1a);
+
+		r = dp159_write(client, 0x0C, 0xa1);
+		r = dp159_write(client, 0x0D, 0x00);
+	} else {
+		r = dp159_write(client, 0x0A, 0x35);			// Automatic redriver to retimer crossover at 1.0 Gbps
+		//r = dp159_write(client, 0x0A, 0x34);			// The redriver mode must be selected to support low video rates
+		r = dp159_write(client, 0x0B, 0x01);
+		r = dp159_write(client, 0x0C, 0xA0);				// Set VSWING data decrease by 24%
+		r = dp159_write(client, 0x0D, 0x00);
 	}
 }
 
@@ -340,6 +83,7 @@ int clk_tx_set_rate(struct clk_hw *hw, unsigned long rate, unsigned long parent_
 {
 	struct clk_tx_linerate *clk;
 	clk = to_clk_tx_linerate(hw);
+	printk(KERN_INFO "clk_tx_set_rate(): rate = %lu, parent_rate = %lu\n", rate, parent_rate);
 	return 0;
 };
 
@@ -347,6 +91,7 @@ int clk_tx_recalc_rate(struct clk_hw *hw, unsigned long parent_rate)
 {
 	struct clk_tx_linerate *clk;
 	clk = to_clk_tx_linerate(hw);
+	printk(KERN_INFO "clk_tx_recalc_rate(): parent_rate = %lu\n", parent_rate);
 	return 0;
 };
 
@@ -355,6 +100,7 @@ long clk_tx_round_rate(struct clk_hw *hw,
 {
 	struct clk_tx_linerate *clk;
 	clk = to_clk_tx_linerate(hw);
+	printk(KERN_INFO "clk_tx_round_rate(): parent_rate = %lu\n", parent_rate);
 	return 0;
 };
 
@@ -373,6 +119,7 @@ static int dp159_probe(struct i2c_client *client,
 	/* Check if the adapter supports the needed features */
 	if (!i2c_check_functionality(client->adapter, I2C_FUNC_SMBUS_BYTE_DATA))
 		return -EIO;
+	printk(KERN_INFO "p159_probe() client->addr = %d\n", (int)client->addr);
 
 	/* allocate fixed-rate clock */
 	clk_tx = kzalloc(sizeof(*clk_tx), GFP_KERNEL);

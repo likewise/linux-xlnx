@@ -553,12 +553,12 @@ static int xvphy_probe(struct platform_device *pdev)
 	Status = XVphy_HdmiInitialize(&vphydev->xvphy, 0,
 		&config, 50*1000*1000/*@TODO get logic clock from DT*/);
 	if (Status != XST_SUCCESS) {
-		printk(KERN_INFO "HDMI VPHY initialization error\n\r");
+		printk(KERN_INFO "HDMI VPHY initialization error\n");
 		return XST_FAILURE;
 	}
 
 	Data = XVphy_GetVersion(&vphydev->xvphy);
-	xil_printf("VPhy version : %02d.%02d (%04x)\n\r", ((Data >> 24) & 0xFF), ((Data >> 16) & 0xFF), (Data & 0xFFFF));
+	xil_printf("VPhy version : %02d.%02d (%04x)\n", ((Data >> 24) & 0xFF), ((Data >> 16) & 0xFF), (Data & 0xFFFF));
 
 	vphydev->dev = &pdev->dev;
 	/* set a pointer to our driver data */
@@ -577,7 +577,7 @@ static int xvphy_probe(struct platform_device *pdev)
 		dev_info(&pdev->dev, "DRU reference clock frequency %0d Hz\n\r",
 						XVphy_DruGetRefClkFreqHz(&vphydev->xvphy));
 	}
-	printk(KERN_INFO "HDMI VPHY initialization completed\n\r");
+	printk(KERN_INFO "HDMI VPHY initialization completed\n");
 
 	return 0;
 }

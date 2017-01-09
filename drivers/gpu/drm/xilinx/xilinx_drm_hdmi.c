@@ -85,8 +85,12 @@ struct xilinx_drm_hdmi {
 	/* schedule (future) work */
 	struct workqueue_struct *work_queue;
 	struct delayed_work delayed_work_enable_hotplug;
-	/* input reference clock */
+	/* input reference clock that we configure */
 	struct clk *tx_clk;
+
+	/* retimer that we configure by setting a clock rate */
+	struct clk *retimer_clk;
+
 	bool cable_connected;
 	bool hdmi_stream_up;
 	bool have_edid;
@@ -405,6 +409,13 @@ static void TxStreamUpCallback(void *CallbackRef)
 	else {
 		TxLineRate = VphyPtr->Quads[0].Plls[XVPHY_CHANNEL_ID_CMN1 -
 			XVPHY_CHANNEL_ID_CH1].LineRateHz;
+	}
+
+	/* configure an external retimer through a (virtual) CCF clock
+	 * (this was tested against the DP159 misc retimer driver) */
+	if (hdmi->retimer_clk) {
+		(void)clk_set_rate(hdmi->retimer_clk,
+			(signed long long)TxLineRate);
 	}
 
 	/* Enable TX TMDS clock*/
@@ -1247,6 +1258,26 @@ static int xilinx_drm_hdmi_probe(struct platform_device *pdev)
 	tx_clk_rate = clk_get_rate(hdmi->tx_clk);
 	//dev_info(&pdev->dev, "tx-clk rate = %lu\n", tx_clk_rate);
 #endif
+
+	hdmi->retimer_clk = devm_clk_get(&pdev->dev, "retimer-clk");
+	if (IS_ERR(hdmi->retimer_clk)) {
+		ret = PTR_ERR(hdmi->retimer_clk);
+		hdmi->retimer_clk = NULL;
+		if (ret == -EPROBE_DEFER) {
+			dev_err(&pdev->dev, "defering initialization; retimer-clk not (yet) available.\n");
+		} else {
+			dev_err(&pdev->dev, "failed to get the retimer-clk.\n");
+		}
+		return ret;
+	}
+	dev_info(&pdev->dev, "got retimer-clk\n");
+
+	ret = clk_prepare_enable(hdmi->retimer_clk);
+	if (ret) {
+		dev_err(&pdev->dev, "failed to enable retimer-clk\n");
+		return ret;
+	}
+	dev_info(&pdev->dev, "enabled retimer-clk\n");
 
 	/* @TODO spread phy[index] over RX/TX as */
 	index = 2;
