@@ -991,7 +991,7 @@ static int xilinx_drm_hdmi_encoder_init(struct platform_device *pdev,
 
 	xvphy_mutex_lock(hdmi->phy[0]);
 	/* the callback is not specific to a single lane, but we need to
-	 * provide one of the phy's as reference */
+	 * provide one of the phys as reference */
 	XVphy_SetHdmiCallback(hdmi->xvphy, XVPHY_HDMI_HANDLER_TXINIT,
 		VphyHdmiTxInitCallback, (void *)hdmi);
 
@@ -1128,7 +1128,6 @@ XV_axi4s_remap_Config* XV_axi4s_remap_LookupConfig_TX(u16 DeviceId) {
 	BUG_ON(1);
 	return NULL;
 }
-
 
 static void xilinx_drm_hdmi_config_init(XV_HdmiTxSs_Config *config, void __iomem *iomem)
 {

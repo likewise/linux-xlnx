@@ -16,6 +16,7 @@
 #include <linux/delay.h>
 #include <dt-bindings/phy/phy.h>
 #include <linux/list.h>
+#include <linux/slab.h>
 #include <linux/interrupt.h>
 
 #include "linux/phy/phy-vphy.h"
@@ -475,6 +476,8 @@ static int xvphy_probe(struct platform_device *pdev)
 	struct xvphy_dev *vphydev;
 	struct phy_provider *provider;
 	struct phy *phy;
+	struct clk *clk;
+
 	struct resource *res;
 	int lanecount, port = 0, index = 0;
 	int ret;
