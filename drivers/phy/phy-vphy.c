@@ -446,12 +446,12 @@ static int vphy_parse_of(struct xvphy_dev *vphydev, XVphy_Config *c)
 		goto error_dt;
 	c->TxRefClkSel = val;
 
-	rc = of_property_read_u32(node, "rx-pll-selection", &val);
+	rc = of_property_read_u32(node, "xlnx,rx-pll-selection", &val);
 	if (rc < 0)
 		goto error_dt;
 	c->RxSysPllClkSel = val;
 
-	rc = of_property_read_u32(node, "tx-pll-selection", &val);
+	rc = of_property_read_u32(node, "xlnx,tx-pll-selection", &val);
 	if (rc < 0)
 		goto error_dt;
 	c->TxSysPllClkSel = val;
@@ -468,6 +468,7 @@ static int vphy_parse_of(struct xvphy_dev *vphydev, XVphy_Config *c)
 	has_dre = of_property_read_bool(node, "xlnx,include-dre");
 #endif
 error_dt:
+	dev_err(vphydev->dev, "Error parsing device tree");
 	return -EINVAL;
 }
 
@@ -492,12 +493,18 @@ static int xvphy_probe(struct platform_device *pdev)
 	u32 Status;
 	u32 Data;
 
+	dev_info(&pdev->dev, "xvphy_probe()\n");
+
 	vphydev = devm_kzalloc(&pdev->dev, sizeof(*vphydev), GFP_KERNEL);
 	if (!vphydev)
 		return -ENOMEM;
 
 	/* mutex that protects against concurrent access */
 	mutex_init(&vphydev->xvphy_mutex);
+
+	vphydev->dev = &pdev->dev;
+	/* set a pointer to our driver data */
+	platform_set_drvdata(pdev, vphydev);
 
 	ret = vphy_parse_of(vphydev, &config);
 	if (ret) return ret;
@@ -552,6 +559,7 @@ static int xvphy_probe(struct platform_device *pdev)
 		dev_err(&pdev->dev, "platform_get_irq() failed\n");
 		return vphydev->irq;
 	}
+	axi_lite_rate = 50*1000*1000;
 
 	/* the AXI lite clock is used for the clock rate detector */
 	vphydev->axi_lite_clk = devm_clk_get(&pdev->dev, "axi-lite");
@@ -573,6 +581,7 @@ static int xvphy_probe(struct platform_device *pdev)
 		return ret;
 	}
 	axi_lite_rate = clk_get_rate(vphydev->axi_lite_clk);
+
 	dev_info(&pdev->dev, "AXI Lite clock rate = %lu Hz\n", axi_lite_rate);
 
 	provider = devm_of_phy_provider_register(&pdev->dev, xvphy_xlate);
@@ -591,10 +600,6 @@ static int xvphy_probe(struct platform_device *pdev)
 
 	Data = XVphy_GetVersion(&vphydev->xvphy);
 	xil_printf("VPhy version : %02d.%02d (%04x)\n", ((Data >> 24) & 0xFF), ((Data >> 16) & 0xFF), (Data & 0xFFFF));
-
-	vphydev->dev = &pdev->dev;
-	/* set a pointer to our driver data */
-	platform_set_drvdata(pdev, vphydev);
 
 	ret = devm_request_threaded_irq(&pdev->dev, vphydev->irq, xvphy_irq_handler, xvphy_irq_thread,
 			IRQF_TRIGGER_HIGH /*IRQF_SHARED*/, "xilinx-vphy", vphydev/*dev_id*/);
