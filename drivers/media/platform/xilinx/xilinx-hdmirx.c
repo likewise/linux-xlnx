@@ -1122,6 +1122,7 @@ static int xhdmirx_probe(struct platform_device *pdev)
 		xhdmirx->phy[index] = devm_phy_get(xhdmirx->dev, phy_name);
 		if (IS_ERR(xhdmirx->phy[index])) {
 			ret = PTR_ERR(xhdmirx->phy[index]);
+			xhdmirx->phy[index] = NULL;
 			dev_err(xhdmirx->dev, "failed to get phy lane %s, error %d\n", phy_name, ret);
 			goto error_phy;
 		}
@@ -1292,6 +1293,7 @@ error_irq:
 
 error_phy:
 	printk(KERN_INFO "xhdmirx_probe() error_phy:\n");
+	/* release the lanes that we did get, if we did not get all lanes */
 	for (index = 0; index < 2; index++) {
 		if (xhdmirx->phy[index]) {
 			printk(KERN_INFO "phy_exit() xhdmirx->phy[%d] = %p\n", index, xhdmirx->phy[index]);
