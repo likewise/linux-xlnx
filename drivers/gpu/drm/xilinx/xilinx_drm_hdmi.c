@@ -71,6 +71,7 @@ struct xilinx_drm_hdmi {
 
 	/* video streaming bus clock */
 	struct clk *clk;
+	struct clk *axi_lite_clk;
 
 	/* interrupt number */
 	int irq;
@@ -307,6 +308,7 @@ static void EnableColorBar(struct xilinx_drm_hdmi *hdmi,
 	/* Disable RX clock forwarding */
 	XVphy_Clkout1OBufTdsEnable(VphyPtr, XVPHY_DIR_RX, (FALSE));
 
+#if 0
 	if (hdmi->tx_clk) {
 
 		dev_info(hdmi->dev, "tx-clk: setting rate to VphyPtr->HdmiTxRefClkHz = %u\n", VphyPtr->HdmiTxRefClkHz);
@@ -316,6 +318,7 @@ static void EnableColorBar(struct xilinx_drm_hdmi *hdmi,
 		//tx_clk_rate = clk_get_rate(hdmi->tx_clk);
 		dev_info(hdmi->dev, "tx-clk rate = %lu\n", tx_clk_rate);
 	}
+#endif
 }
 
 static void TxConnectCallback(void *CallbackRef)
@@ -795,7 +798,6 @@ static int xilinx_drm_hdmi_get_edid_block(void *data, u8 *buf, unsigned int bloc
 	struct xilinx_drm_hdmi *hdmi = (struct xilinx_drm_hdmi *)data;
 	XV_HdmiTxSs *HdmiTxSsPtr;
 	int ret;
-	int i, j;
 
 	BUG_ON(!hdmi);
 	/* out of bounds? */
@@ -820,23 +822,6 @@ static int xilinx_drm_hdmi_get_edid_block(void *data, u8 *buf, unsigned int bloc
 		dev_info(hdmi->dev, "xilinx_drm_hdmi_get_edid_block() failed reading EDID\n");
 		return -EINVAL;
 	}
-#if 0
-
-	dev_info(hdmi->dev, "xilinx_drm_hdmi_get_edid_block() block #%d, len %d\n",
-		block, len);
-	for (i = 0; i < 256; i += 16) {
-		u8 b[128];
-		u8 *bp = b;
-		if (i == 128)
-			dev_info(hdmi->dev, "\n");
-		for (j = i; j < i + 16; j++) {
-			sprintf(bp, "0x%02x, ", buffer[j]);
-			bp += 6;
-		}
-		bp[0] = '\0';
-		dev_info(hdmi->dev, "%s\n", b);
-	}
-#endif
 
 	/* then copy the requested 128-byte block(s) */
 	memcpy(buf, buffer + block * 128, len);
@@ -1072,46 +1057,46 @@ static int xilinx_drm_hdmi_encoder_init(struct platform_device *pdev,
 #endif
 static XV_HdmiTxSs_Config config =
 {
-	XPAR_XV_HDMITXSS_0_DEVICE_ID,
-	XPAR_XV_HDMITXSS_0_BASEADDR,
-	XPAR_XV_HDMITXSS_0_HIGHADDR,
-	XPAR_XV_HDMITXSS_0_INPUT_PIXELS_PER_CLOCK,
-	XPAR_XV_HDMITXSS_0_MAX_BITS_PER_COMPONENT,
-
-	{
-		XPAR_V_HDMI_TX_SS_0_AXI_GPIO_PRESENT,
-		XPAR_V_HDMI_TX_SS_0_AXI_GPIO_DEVICE_ID,
-		XPAR_V_HDMI_TX_SS_0_AXI_GPIO_BASEADDR
+	.DeviceId = XPAR_XV_HDMITXSS_0_DEVICE_ID,
+	.BaseAddress = XPAR_XV_HDMITXSS_0_BASEADDR,
+	.HighAddress = XPAR_XV_HDMITXSS_0_HIGHADDR,
+	.Ppc = XPAR_XV_HDMITXSS_0_INPUT_PIXELS_PER_CLOCK,
+	.MaxBitsPerPixel = XPAR_XV_HDMITXSS_0_MAX_BITS_PER_COMPONENT,
+	/* .AxiLiteClkFreq */
+	.RemapperReset = {
+		.IsPresent = XPAR_V_HDMI_TX_SS_0_AXI_GPIO_PRESENT,
+		.DeviceId = XPAR_V_HDMI_TX_SS_0_AXI_GPIO_DEVICE_ID,
+		.AddrOffset = XPAR_V_HDMI_TX_SS_0_AXI_GPIO_BASEADDR
 	},
-	{
-		XPAR_V_HDMI_TX_SS_0_AXI_TIMER_PRESENT,
-		XPAR_V_HDMI_TX_SS_0_AXI_TIMER_DEVICE_ID,
-		XPAR_V_HDMI_TX_SS_0_AXI_TIMER_BASEADDR
+	.HdcpTimer = {
+		.IsPresent = XPAR_V_HDMI_TX_SS_0_AXI_TIMER_PRESENT,
+		.DeviceId = XPAR_V_HDMI_TX_SS_0_AXI_TIMER_DEVICE_ID,
+		.AddrOffset = XPAR_V_HDMI_TX_SS_0_AXI_TIMER_BASEADDR
 	},
-	{
-		XPAR_V_HDMI_TX_SS_0_HDCP14_PRESENT,
-		XPAR_V_HDMI_TX_SS_0_HDCP14_DEVICE_ID,
-		XPAR_V_HDMI_TX_SS_0_HDCP14_BASEADDR
+	.Hdcp14 = {
+		.IsPresent = XPAR_V_HDMI_TX_SS_0_HDCP14_PRESENT,
+		.DeviceId = XPAR_V_HDMI_TX_SS_0_HDCP14_DEVICE_ID,
+		.AddrOffset = XPAR_V_HDMI_TX_SS_0_HDCP14_BASEADDR
 	},
-	{
-		XPAR_V_HDMI_TX_SS_0_HDCP22_PRESENT,
-		XPAR_V_HDMI_TX_SS_0_HDCP22_DEVICE_ID,
-		XPAR_V_HDMI_TX_SS_0_HDCP22_BASEADDR
+	.Hdcp22 = {
+		.IsPresent = XPAR_V_HDMI_TX_SS_0_HDCP22_PRESENT,
+		.DeviceId = XPAR_V_HDMI_TX_SS_0_HDCP22_DEVICE_ID,
+		.AddrOffset = XPAR_V_HDMI_TX_SS_0_HDCP22_BASEADDR
 	},
-	{
-		XPAR_V_HDMI_TX_SS_0_V_AXI4S_REMAP_PRESENT,
-		XPAR_V_HDMI_TX_SS_0_V_AXI4S_REMAP_DEVICE_ID,
-		XPAR_V_HDMI_TX_SS_0_V_AXI4S_REMAP_S_AXI_CTRL_BASEADDR
+	.Remapper = {
+		.IsPresent = XPAR_V_HDMI_TX_SS_0_V_AXI4S_REMAP_PRESENT,
+		.DeviceId = XPAR_V_HDMI_TX_SS_0_V_AXI4S_REMAP_DEVICE_ID,
+		.AddrOffset = XPAR_V_HDMI_TX_SS_0_V_AXI4S_REMAP_S_AXI_CTRL_BASEADDR
 	},
-	{
-		XPAR_HDMI_OUTPUT_V_HDMI_TX_SS_0_V_HDMI_TX_PRESENT,
-		XPAR_HDMI_OUTPUT_V_HDMI_TX_SS_0_V_HDMI_TX_DEVICE_ID,
-		XPAR_HDMI_OUTPUT_V_HDMI_TX_SS_0_V_HDMI_TX_BASEADDR
+	.HdmiTx = {
+		.IsPresent = XPAR_HDMI_OUTPUT_V_HDMI_TX_SS_0_V_HDMI_TX_PRESENT,
+		.DeviceId = XPAR_HDMI_OUTPUT_V_HDMI_TX_SS_0_V_HDMI_TX_DEVICE_ID,
+		.AddrOffset = XPAR_HDMI_OUTPUT_V_HDMI_TX_SS_0_V_HDMI_TX_BASEADDR
 	},
-	{
-		XPAR_V_HDMI_TX_SS_0_V_TC_PRESENT,
-		XPAR_V_HDMI_TX_SS_0_V_TC_DEVICE_ID,
-		XPAR_V_HDMI_TX_SS_0_V_TC_BASEADDR
+	.Vtc = {
+		.IsPresent = XPAR_V_HDMI_TX_SS_0_V_TC_PRESENT,
+		.DeviceId = XPAR_V_HDMI_TX_SS_0_V_TC_DEVICE_ID,
+		.AddrOffset = XPAR_V_HDMI_TX_SS_0_V_TC_BASEADDR
 	},
 };
 
@@ -1140,10 +1125,11 @@ XV_axi4s_remap_Config* XV_axi4s_remap_LookupConfig_TX(u16 DeviceId) {
 	return NULL;
 }
 
-static void xilinx_drm_hdmi_config_init(XV_HdmiTxSs_Config *config, void __iomem *iomem)
+static void xilinx_drm_hdmi_config_init(XV_HdmiTxSs_Config *config, void __iomem *iomem, u32 axi_clk_rate)
 {
 	config->BaseAddress = (uintptr_t)iomem;
 	config->HighAddress = (uintptr_t)iomem + 0xFFFF;
+	config->AxiLiteClkFreq = axi_clk_rate;
 };
 
 /* -----------------------------------------------------------------------------
@@ -1183,6 +1169,7 @@ static int xilinx_drm_hdmi_probe(struct platform_device *pdev)
 	unsigned int index;
 	unsigned long tx_clk_rate;
 	struct resource *res;
+	unsigned long axi_clk_rate;
 
 	/* allocate zeroed HDMI TX device structure */
 	hdmi = devm_kzalloc(&pdev->dev, sizeof(*hdmi), GFP_KERNEL);
@@ -1212,11 +1199,19 @@ static int xilinx_drm_hdmi_probe(struct platform_device *pdev)
 		return PTR_ERR(hdmi->iomem);
 
 	/* video streaming bus clock */
-	hdmi->clk = devm_clk_get(hdmi->dev, NULL);
+	hdmi->clk = devm_clk_get(hdmi->dev, "video");
 	if (IS_ERR(hdmi->clk))
 		return PTR_ERR(hdmi->clk);
 
 	clk_prepare_enable(hdmi->clk);
+
+	/* AXI lite register bus clock */
+	hdmi->axi_lite_clk = devm_clk_get(hdmi->dev, "axi-lite");
+	if (IS_ERR(hdmi->axi_lite_clk))
+		return PTR_ERR(hdmi->axi_lite_clk);
+
+	clk_prepare_enable(hdmi->axi_lite_clk);
+	axi_clk_rate = clk_get_rate(hdmi->axi_lite_clk);
 
 	/* get irq */
 	hdmi->irq = platform_get_irq(pdev, 0);
@@ -1302,8 +1297,10 @@ static int xilinx_drm_hdmi_probe(struct platform_device *pdev)
 		}
 	}
 
+	printk(KERN_INFO "axi_clk_rate = %u Hz\n", axi_clk_rate);
+
 	/* initialize the source configuration structure */
-	xilinx_drm_hdmi_config_init(&config, hdmi->iomem);
+	xilinx_drm_hdmi_config_init(&config, hdmi->iomem, (u32)axi_clk_rate);
 
 	printk(KERN_INFO "&config = %p\n", &config);
 	printk(KERN_INFO "hdmi->iomem = %lx\n", (unsigned long)hdmi->iomem);
