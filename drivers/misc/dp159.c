@@ -63,6 +63,8 @@ static inline int dp159_read(struct i2c_client *client, u8 reg)
 static int dp159_program(struct i2c_client *client, unsigned long rate)
 {
 	int r;
+	printk(KERN_INFO "dp159_program(rate = %lu)\n", rate);
+
 	if ((rate / (1000000)) > 3400) {
 		r = dp159_write(client, 0x0A, 0x36);	// Automatic retimer for HDMI 2.0
 		r = dp159_write(client, 0x0B, 0x1a);
@@ -84,7 +86,7 @@ int clk_tx_set_rate(struct clk_hw *hw, unsigned long rate, unsigned long parent_
 {
 	struct clk_tx_linerate *clk;
 	clk = to_clk_tx_linerate(hw);
-	printk(KERN_INFO "clk_tx_set_rate(): rate = %lu, parent_rate = %lu\n", rate, parent_rate);
+	printk(KERN_INFO "dp159: clk_tx_set_rate(): rate = %lu, parent_rate = %lu\n", rate, parent_rate);
 	clk->rate = rate;
 	dp159_program(clk->client, rate);
 	return 0;
@@ -94,7 +96,7 @@ unsigned long clk_tx_recalc_rate(struct clk_hw *hw, unsigned long parent_rate)
 {
 	struct clk_tx_linerate *clk;
 	clk = to_clk_tx_linerate(hw);
-	printk(KERN_INFO "clk_tx_recalc_rate(): parent_rate = %lu\n", parent_rate);
+	printk(KERN_INFO "dp159: clk_tx_recalc_rate(): parent_rate = %lu\n", parent_rate);
 	return clk->rate;
 };
 

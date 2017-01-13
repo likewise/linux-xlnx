@@ -174,14 +174,19 @@ static irqreturn_t hdmitx_irq_handler(int irq, void *dev_id)
 	return IRQ_WAKE_THREAD;
 }
 
+/* @NOTE remove later; debugging purposes */
+#define HDMITX_DEBUG_IRQ 0
+
 /* (struct xilinx_drm_hdmi *)dev_id */
 static irqreturn_t hdmitx_irq_thread(int irq, void *dev_id)
 {
 	struct xilinx_drm_hdmi *hdmi;
-
-	static int irq_count = 0;
 	XV_HdmiTxSs *HdmiTxSsPtr;
 	unsigned long flags;
+
+/* @NOTE remove later; debugging purposes */
+#if (defined(HDMITX_DEBUG_IRQ) && HDMITX_DEBUG_IRQ)
+	static int irq_count = 0;
 	int i;
 	char which[NUM_SUBCORE_IRQ + 1] = "012";
 	int which_mask = 0;
@@ -189,6 +194,7 @@ static irqreturn_t hdmitx_irq_thread(int irq, void *dev_id)
 	static u32 OldData;
 	static int count = 0;
 	//printk(KERN_INFO "hdmitx_irq_thread()\n");
+#endif
 
 	BUG_ON(!dev_id);
 	hdmi = (struct xilinx_drm_hdmi *)dev_id;
@@ -196,6 +202,7 @@ static irqreturn_t hdmitx_irq_thread(int irq, void *dev_id)
 		printk(KERN_INFO "irq_thread: !dev_id\n");
 		return IRQ_HANDLED;
 	}
+	/* driver is being torn down, do not process further interrupts */
 	if (hdmi->teardown) {
 		printk(KERN_INFO "irq_thread: teardown\n");
 		return IRQ_HANDLED;
@@ -205,17 +212,15 @@ static irqreturn_t hdmitx_irq_thread(int irq, void *dev_id)
 	BUG_ON(!HdmiTxSsPtr->HdmiTxPtr);
 
 	mutex_lock(&hdmi->hdmi_mutex);
-	/* call baremetal interrupt handler, this in turn will
-	 * call the registed callbacks functions */
 
-#if 0
+/* @NOTE remove later; debugging purposes */
+#if (defined(HDMITX_DEBUG_IRQ) && HDMITX_DEBUG_IRQ)
 	for (i = 0; i < NUM_SUBCORE_IRQ; i++) {
 		which[i] = hdmi->IntrStatus[i]? '0' + i: '.';
 		which_mask |= (hdmi->IntrStatus[i]? 1: 0) << i;
 	}
 	which[NUM_SUBCORE_IRQ] = 0;
-#endif
-#if 0
+	/* show changes*/
 	Data = XV_HdmiTx_ReadReg(HdmiTxSsPtr->HdmiTxPtr->Config.BaseAddress,
 		(XV_HDMITX_PIO_IN_OFFSET));
 	count++;
@@ -223,16 +228,14 @@ static irqreturn_t hdmitx_irq_thread(int irq, void *dev_id)
 		printk(KERN_INFO "PIO.DAT = 0x%08x, HDMI TX SS interrupt count = %d\n", (int)Data, count);
 		OldData = Data;
 	}
-#endif
-#if 0
 	printk(KERN_INFO "PIO.EVT = 0x%08x, PIO.DAT = 0x%08x, DDC.EVT = 0x%08x\n",
 	 hdmi->IntrStatus[0], (int)Data, hdmi->IntrStatus[0]);
 #endif
 
+	/* call baremetal interrupt handler, this in turn will
+	 * call the registed callbacks functions */
 	if (hdmi->IntrStatus[0]) HdmiTx_PioIntrHandler(HdmiTxSsPtr->HdmiTxPtr);
 	if (hdmi->IntrStatus[1]) HdmiTx_DdcIntrHandler(HdmiTxSsPtr->HdmiTxPtr);
-
-	//printk(KERN_INFO "hdmitx_irq_thread() %s 0x%08x\n", which, (int)which_mask);
 
 	mutex_unlock(&hdmi->hdmi_mutex);
 
@@ -240,85 +243,13 @@ static irqreturn_t hdmitx_irq_thread(int irq, void *dev_id)
 	/* unmask interrupt request */
 	XV_HdmiTxSs_IntrEnable(HdmiTxSsPtr);
 	spin_unlock_irqrestore(&hdmi->irq_lock, flags);
-	//printk(KERN_INFO "hdmitx_irq_thread() %s 0x%08x done\n", which, (int)which_mask);
+
+/* @NOTE remove later; debugging purposes */
+#if (defined(HDMITX_DEBUG_IRQ) && HDMITX_DEBUG_IRQ)
+	printk(KERN_INFO "hdmitx_irq_thread() %s 0x%08x done\n", which, (int)which_mask);
+#endif
 
 	return IRQ_HANDLED;
-}
-
-/* entered with both tx and vphy mutex taken */
-static void EnableColorBar(struct xilinx_drm_hdmi *hdmi,
-	XVidC_VideoMode      VideoMode,
-	XVidC_ColorFormat    ColorFormat,
-	XVidC_ColorDepth     Bpc)
-{
-	XVphy *VphyPtr;
-	XV_HdmiTxSs *HdmiTxSsPtr;
-	XVidC_VideoStream *HdmiTxSsVidStreamPtr;
-	u32 TmdsClock = 0;
-	u32 Result;
-	u32 PixelClock;
-	unsigned long tx_clk_rate;
-
-	BUG_ON(!hdmi);
-
-	HdmiTxSsPtr = &hdmi->xv_hdmitxss;
-	BUG_ON(!HdmiTxSsPtr);
-
-	VphyPtr = hdmi->xvphy;
-	BUG_ON(!VphyPtr);
-
-	HdmiTxSsVidStreamPtr = XV_HdmiTxSs_GetVideoStream(HdmiTxSsPtr);
-
-	if (XVphy_IsBonded(VphyPtr, 0, XVPHY_CHANNEL_ID_CH1)) {
-		dev_info(hdmi->dev, "Both the GT RX and GT TX are clocked by the RX reference clock.\n");
-		return;
-	}
-
-	if (VideoMode < XVIDC_VM_NUM_SUPPORTED) {
-		dev_info(hdmi->dev, "Starting colorbar\n\r");
-
-		// Disable TX TDMS clock
-		XVphy_Clkout1OBufTdsEnable(VphyPtr, XVPHY_DIR_TX, (FALSE));
-
-		// Get pixel clock
-		PixelClock = XVidC_GetPixelClockHzByVmId(VideoMode);
-
-		// In YUV420 the pixel clock is actually the half of the
-		// reported pixel clock
-		if (ColorFormat == XVIDC_CSF_YCRCB_420) {
-			PixelClock = PixelClock / 2;
-		}
-	}
-
-	TmdsClock = XV_HdmiTxSs_SetStream(HdmiTxSsPtr, VideoMode, ColorFormat, Bpc, NULL);
-
-	// Set TX reference clock
-	VphyPtr->HdmiTxRefClkHz = TmdsClock;
-
-	// Set GT TX parameters
-	Result = XVphy_SetHdmiTxParam(VphyPtr, 0, XVPHY_CHANNEL_ID_CHA,
-					HdmiTxSsVidStreamPtr->PixPerClk,
-					HdmiTxSsVidStreamPtr->ColorDepth,
-					HdmiTxSsVidStreamPtr->ColorFormatId);
-
-	if (Result == (XST_FAILURE)) {
-		dev_info(hdmi->dev, "Unable to set requested TX video resolution.\n\r");
-	}
-
-	/* Disable RX clock forwarding */
-	XVphy_Clkout1OBufTdsEnable(VphyPtr, XVPHY_DIR_RX, (FALSE));
-
-#if 0
-	if (hdmi->tx_clk) {
-
-		dev_info(hdmi->dev, "tx-clk: setting rate to VphyPtr->HdmiTxRefClkHz = %u\n", VphyPtr->HdmiTxRefClkHz);
-
-		tx_clk_rate = clk_set_rate(hdmi->tx_clk, VphyPtr->HdmiTxRefClkHz);
-
-		//tx_clk_rate = clk_get_rate(hdmi->tx_clk);
-		dev_info(hdmi->dev, "tx-clk rate = %lu\n", tx_clk_rate);
-	}
-#endif
 }
 
 static void TxConnectCallback(void *CallbackRef)
@@ -341,11 +272,6 @@ static void TxConnectCallback(void *CallbackRef)
 		xst_hdmi20 = XV_HdmiTxSs_DetectHdmi20(HdmiTxSsPtr);
 		dev_info(hdmi->dev, "HDMI %s\n", xst_hdmi20? "2.0": "1.4");
 		XVphy_IBufDsEnable(VphyPtr, 0, XVPHY_DIR_TX, (TRUE));
-#if 0
-		dev_info(hdmi->dev, "TxConnectCallback(): EnableColorBar()\n");
-		//EnableColorBar(hdmi, XVIDC_VM_3840x2160_30_P, XVIDC_CSF_RGB, XVIDC_BPC_8);
-		EnableColorBar(hdmi, XVIDC_VM_1920x1080_60_P, XVIDC_CSF_RGB, XVIDC_BPC_8);
-#endif
 	}
 	else {
 		dev_info(hdmi->dev, "TxConnectCallback(): TX disconnected\n");
@@ -372,7 +298,7 @@ static void TxStreamUpCallback(void *CallbackRef)
 	struct xilinx_drm_hdmi *hdmi = (struct xilinx_drm_hdmi *)CallbackRef;
 	XVphy *VphyPtr;
 	XV_HdmiTxSs *HdmiTxSsPtr;
-	XVidC_VideoStream *HdmiTxSsVidStreamPtr;
+	//XVidC_VideoStream *HdmiTxSsVidStreamPtr;
 	XVphy_PllType TxPllType;
 	u64 TxLineRate;
 
@@ -417,6 +343,7 @@ static void TxStreamUpCallback(void *CallbackRef)
 	/* configure an external retimer through a (virtual) CCF clock
 	 * (this was tested against the DP159 misc retimer driver) */
 	if (hdmi->retimer_clk) {
+		dev_info(hdmi->dev, "dp159: clk_set_rate(hdmi->retimer_clk, TxLineRate=%lld\n", TxLineRate);
 		(void)clk_set_rate(hdmi->retimer_clk,
 			(signed long long)TxLineRate);
 	}
@@ -458,7 +385,7 @@ static void TxStreamDownCallback(void *CallbackRef)
 	struct xilinx_drm_hdmi *hdmi = (struct xilinx_drm_hdmi *)CallbackRef;
 	XVphy *VphyPtr;
 	XV_HdmiTxSs *HdmiTxSsPtr;
-	XVidC_VideoStream *HdmiTxSsVidStreamPtr;
+	//XVidC_VideoStream *HdmiTxSsVidStreamPtr;
 
 	BUG_ON(!hdmi);
 
@@ -474,12 +401,12 @@ static void TxStreamDownCallback(void *CallbackRef)
 
 static void TxVsCallback(void *CallbackRef)
 {
+#if 0
 	struct xilinx_drm_hdmi *hdmi = (struct xilinx_drm_hdmi *)CallbackRef;
 	XV_HdmiTxSs *HdmiTxSsPtr = &hdmi->xv_hdmitxss;
 	XVphy *VphyPtr = hdmi->xvphy;
 	BUG_ON(!hdmi);
 	BUG_ON(!VphyPtr);
-#if 0
   /* Audio Infoframe */
   /* Only when not in pass-through */
   if (!IsPassThrough) {
@@ -639,14 +566,13 @@ static void xilinx_drm_hdmi_mode_set(struct drm_encoder *encoder,
 				   struct drm_display_mode *mode,
 				   struct drm_display_mode *adjusted_mode)
 {
-	XVidC_VideoTiming vt;
+	//XVidC_VideoTiming vt;
 	XVphy *VphyPtr;
 	XV_HdmiTxSs *HdmiTxSsPtr;
 	XVidC_VideoStream *HdmiTxSsVidStreamPtr;
 	u32 TmdsClock = 0;
 	u32 Result;
-	u32 PixelClock;
-	unsigned long tx_clk_rate;
+	//u32 PixelClock;
 
 	struct xilinx_drm_hdmi *hdmi = to_hdmi(encoder);
 	dev_info(hdmi->dev, "xilinx_drm_hdmi_mode_set()\n");
@@ -1125,13 +1051,6 @@ XV_axi4s_remap_Config* XV_axi4s_remap_LookupConfig_TX(u16 DeviceId) {
 	return NULL;
 }
 
-static void xilinx_drm_hdmi_config_init(XV_HdmiTxSs_Config *config, void __iomem *iomem, u32 axi_clk_rate)
-{
-	config->BaseAddress = (uintptr_t)iomem;
-	config->HighAddress = (uintptr_t)iomem + 0xFFFF;
-	config->AxiLiteClkFreq = axi_clk_rate;
-};
-
 /* -----------------------------------------------------------------------------
  * Platform Device Driver
  */
@@ -1140,26 +1059,23 @@ static int xilinx_drm_hdmi_parse_of(struct xilinx_drm_hdmi *hdmi, XV_HdmiTxSs_Co
 {
 	struct device *dev = hdmi->dev;
 	struct device_node *node = dev->of_node;
-	(void)dev;
-	(void)node;
-#if 0
-	struct device_node *ports;
-	struct device_node *port;
-	unsigned int nports = 0;
-	bool has_endpoint = false;
-#endif
+	int rc;
+	u32 val;
 
-#if 0 // example bool
-	bool has_dre = false;
-	has_dre = of_property_read_bool(node, "xlnx,include-dre");
-#endif
-#if 0 // example u32
-	u32 value;
-	int err;
-	err = of_property_read_u32(node, "xlnx,datawidth", &value);
-#endif
+	rc = of_property_read_u32(node, "xlnx,input-pixels-per-clock", &val);
+	if (rc < 0)
+		goto error_dt;
+	config->Ppc = val;
 
+	rc = of_property_read_u32(node, "xlnx,max-bits-per-component", &val);
+	if (rc < 0)
+		goto error_dt;
+	config->MaxBitsPerPixel = val;
 	return 0;
+
+error_dt:
+	dev_err(hdmi->dev, "Error parsing device tree");
+	return rc;
 }
 
 static int xilinx_drm_hdmi_probe(struct platform_device *pdev)
@@ -1198,6 +1114,9 @@ static int xilinx_drm_hdmi_probe(struct platform_device *pdev)
 	if (IS_ERR(hdmi->iomem))
 		return PTR_ERR(hdmi->iomem);
 
+	config.BaseAddress = (uintptr_t)hdmi->iomem;
+	config.HighAddress = config.BaseAddress + resource_size(res);
+
 	/* video streaming bus clock */
 	hdmi->clk = devm_clk_get(hdmi->dev, "video");
 	if (IS_ERR(hdmi->clk))
@@ -1213,7 +1132,7 @@ static int xilinx_drm_hdmi_probe(struct platform_device *pdev)
 	clk_prepare_enable(hdmi->axi_lite_clk);
 	axi_clk_rate = clk_get_rate(hdmi->axi_lite_clk);
 
-	/* get irq */
+		/* get irq */
 	hdmi->irq = platform_get_irq(pdev, 0);
 	if (hdmi->irq <= 0) {
 		dev_err(&pdev->dev, "platform_get_irq() failed\n");
@@ -1221,58 +1140,25 @@ static int xilinx_drm_hdmi_probe(struct platform_device *pdev)
 		return hdmi->irq;
 	}
 
-#if 0
-	if (!hdmi->tx_clk) {
-		hdmi->tx_clk = devm_clk_get(&pdev->dev, "tx-clk");
-		if (IS_ERR(hdmi->tx_clk)) {
-			ret = PTR_ERR(hdmi->tx_clk);
-			hdmi->tx_clk = NULL;
-			if (ret == -EPROBE_DEFER) {
-				dev_err(&pdev->dev, "defering initialization; tx-clk not (yet) available.\n");
-			} else {
-				dev_err(&pdev->dev, "failed to get the tx-clk.\n");
-			}
-			return ret;
-		}
-	}
-	dev_info(&pdev->dev, "got tx-clk\n");
-
-	ret = clk_prepare_enable(hdmi->tx_clk);
-	if (ret) {
-		dev_err(&pdev->dev, "failed to enable tx-clk\n");
-		return ret;
-	}
-	dev_info(&pdev->dev, "enabled tx-clk\n");
-
-	dev_info(hdmi->dev, "Initializing Si5324 TX clock to 50 MHz\n");
-
-	tx_clk_rate = clk_get_rate(hdmi->tx_clk);
-	//dev_info(&pdev->dev, "tx-clk rate = %lu\n", tx_clk_rate);
-	/* http://events.linuxfoundation.org/sites/events/files/slides/gregory-clement-common-clock-framework-how-to-use-it.pdf */
-	tx_clk_rate = clk_set_rate(hdmi->tx_clk, 50*1000*1000);
-	tx_clk_rate = clk_get_rate(hdmi->tx_clk);
-	//dev_info(&pdev->dev, "tx-clk rate = %lu\n", tx_clk_rate);
-#endif
-
 	hdmi->retimer_clk = devm_clk_get(&pdev->dev, "retimer-clk");
 	if (IS_ERR(hdmi->retimer_clk)) {
 		ret = PTR_ERR(hdmi->retimer_clk);
 		hdmi->retimer_clk = NULL;
 		if (ret == -EPROBE_DEFER) {
 			dev_err(&pdev->dev, "defering initialization; retimer-clk not (yet) available.\n");
-		} else {
-			dev_err(&pdev->dev, "failed to get the retimer-clk.\n");
+			return ret;
+		} else if (ret < 0) {
+			dev_err(&pdev->dev, "Did not find a retimer-clk, not driver an external retimer device driver.\n");
 		}
-		return ret;
+	} else {
+		dev_info(&pdev->dev, "got retimer-clk\n");
+		ret = clk_prepare_enable(hdmi->retimer_clk);
+		if (ret) {
+			dev_err(&pdev->dev, "failed to enable retimer-clk\n");
+			return ret;
+		}
+		dev_info(&pdev->dev, "enabled retimer-clk\n");
 	}
-	dev_info(&pdev->dev, "got retimer-clk\n");
-
-	ret = clk_prepare_enable(hdmi->retimer_clk);
-	if (ret) {
-		dev_err(&pdev->dev, "failed to enable retimer-clk\n");
-		return ret;
-	}
-	dev_info(&pdev->dev, "enabled retimer-clk\n");
 
 	/* @TODO spread phy[index] over RX/TX as */
 	index = 2;
@@ -1297,79 +1183,17 @@ static int xilinx_drm_hdmi_probe(struct platform_device *pdev)
 		}
 	}
 
-	printk(KERN_INFO "axi_clk_rate = %u Hz\n", axi_clk_rate);
+	printk(KERN_INFO "axi_clk_rate = %lu Hz\n", axi_clk_rate);
 
-	/* initialize the source configuration structure */
-	xilinx_drm_hdmi_config_init(&config, hdmi->iomem, (u32)axi_clk_rate);
+	config.AxiLiteClkFreq = axi_clk_rate;
 
 	printk(KERN_INFO "&config = %p\n", &config);
 	printk(KERN_INFO "hdmi->iomem = %lx\n", (unsigned long)hdmi->iomem);
 
 	platform_set_drvdata(pdev, hdmi);
 
-	/*** consider moving this into encoder_init ***/
-#if 0
-	mutex_lock(&hdmi->hdmi_mutex);
-	platform_set_drvdata(pdev, hdmi);
+	/* remainder of initialization is in encoder_init() */
 
-	HdmiTxSsPtr = (XV_HdmiTxSs *)&hdmi->xv_hdmitxss;
-	printk(KERN_INFO "HdmiTxSsPtr = %p\n", HdmiTxSsPtr);
-
-	// Initialize top level and all included sub-cores
-	Status = XV_HdmiTxSs_CfgInitialize(HdmiTxSsPtr, &config,
-		(uintptr_t)hdmi->iomem);
-	if (Status != XST_SUCCESS)
-	{
-		dev_err(hdmi->dev, "initialization failed with error %d\n", Status);
-		return -EINVAL;
-	}
-
-	spin_lock_irqsave(&hdmi->irq_lock, flags);
-	XV_HdmiTxSs_IntrDisable(HdmiTxSsPtr);
-	spin_unlock_irqrestore(&hdmi->irq_lock, flags);
-
-	XV_HdmiTxSs_ReportSubcoreVersion(&hdmi->xv_hdmitxss);
-
-	/* TX SS callback setup */
-	XV_HdmiTxSs_SetCallback(HdmiTxSsPtr, XV_HDMITXSS_HANDLER_CONNECT,
-		TxConnectCallback, (void *)hdmi);
-	XV_HdmiTxSs_SetCallback(HdmiTxSsPtr, XV_HDMITXSS_HANDLER_VS,
-		TxVsCallback, (void *)hdmi);
-	XV_HdmiTxSs_SetCallback(HdmiTxSsPtr, XV_HDMITXSS_HANDLER_STREAM_UP,
-		TxStreamUpCallback, (void *)hdmi);
-	XV_HdmiTxSs_SetCallback(HdmiTxSsPtr, XV_HDMITXSS_HANDLER_STREAM_DOWN,
-		TxStreamDownCallback, (void *)hdmi);
-
-	/* get a reference to the XVphy data structure */
-	hdmi->xvphy = xvphy_get_xvphy(hdmi->phy[0]);
-
-	BUG_ON(!hdmi->xvphy);
-
-	xvphy_mutex_lock(hdmi->phy[0]);
-	/* the callback is not specific to a single lane, but we need to
-	 * provide one of the phy's as reference */
-	XVphy_SetHdmiCallback(hdmi->xvphy, XVPHY_HDMI_HANDLER_TXINIT,
-		VphyHdmiTxInitCallback, (void *)hdmi);
-
-	XVphy_SetHdmiCallback(hdmi->xvphy, XVPHY_HDMI_HANDLER_TXREADY,
-		VphyHdmiTxReadyCallback, (void *)hdmi);
-	xvphy_mutex_unlock(hdmi->phy[0]);
-
-
-	/* Request the interrupt */
-	ret = devm_request_threaded_irq(&pdev->dev, hdmi->irq, hdmitx_irq_handler, hdmitx_irq_thread,
-		IRQF_TRIGGER_HIGH /*| IRQF_SHARED*/, "xilinx-hdmitxss", hdmi/*dev_id*/);
-	if (ret) {
-		dev_err(&pdev->dev, "unable to request IRQ %d\n", hdmi->irq);
-		return ret;
-	}
-
-	mutex_unlock(&hdmi->hdmi_mutex);
-
-	spin_lock_irqsave(&hdmi->irq_lock, flags);
-	XV_HdmiTxSs_IntrEnable(HdmiTxSsPtr);
-	spin_unlock_irqrestore(&hdmi->irq_lock, flags);
-#endif
 	dev_info(&pdev->dev, "xilinx_drm_hdmi_probe() succesfull.\n");
 
 	return 0;
@@ -1385,7 +1209,7 @@ static int xilinx_drm_hdmi_remove(struct platform_device *pdev)
 }
 
 static const struct of_device_id xilinx_drm_hdmi_of_match[] = {
-	{ .compatible = "xlnx,v-hdmitxss-2.0", },
+	{ .compatible = "xlnx,v-hdmi-tx-ss-2.0", },
 	{ /* end of table */ },
 };
 MODULE_DEVICE_TABLE(of, xilinx_drm_hdmi_of_match);
