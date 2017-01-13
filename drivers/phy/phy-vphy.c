@@ -34,6 +34,7 @@
 #include "phy-xilinx-vphy/xvidc_edid.h"
 #include "phy-xilinx-vphy/xv_axi4s_remap.h"
 #include "phy-xilinx-vphy/xv_axi4s_remap_hw.h"
+
 /**
  * struct xvphy_lane - representation of a lane
  * @phy: pointer to the kernel PHY device
@@ -59,17 +60,13 @@ struct xvphy_lane {
 };
 
 /**
- * struct xvphy_dev - representation of a ZynMP GT device
+ * struct xvphy_dev - representation of a Xilinx Video PHY
  * @dev: pointer to device
  * @iomem: serdes base address
- * @gtr_mutex: mutex for locking
- * @lanes: pointer to all the lanes
- * @fpd: base address for full power domain devices reset control
- * @lpd: base address for low power domain devices reset control
- * @tx_term_fix: fix for GT issue
  */
 struct xvphy_dev {
 	struct device *dev;
+	/* virtual remapped I/O memory */
 	void __iomem *iomem;
 	int irq;
 	/* protects the XVphy baseline against concurrent access */
@@ -77,6 +74,8 @@ struct xvphy_dev {
 	struct xvphy_lane *lanes[4];
 	/* bookkeeping for the baseline subsystem driver instance */
 	XVphy xvphy;
+	/* AXI Lite clock drives the clock detector */
+	struct clk *axi_lite_clk;
 };
 
 /* template function available to controller in dependent driver */
@@ -90,7 +89,7 @@ int xvphy_do_something(struct phy *phy)
 }
 EXPORT_SYMBOL_GPL(xvphy_do_something);
 
-/* given the (Linux) phy, return the xvphy */
+/* given the (Linux) phy handle, return the xvphy */
 XVphy *xvphy_get_xvphy(struct phy *phy)
 {
 	struct xvphy_lane *vphy_lane = phy_get_drvdata(phy);
@@ -101,7 +100,7 @@ XVphy *xvphy_get_xvphy(struct phy *phy)
 }
 EXPORT_SYMBOL_GPL(xvphy_get_xvphy);
 
-/* given the (Linux) phy, enter critical section of xvphy baseline code */
+/* given the (Linux) phy handle, enter critical section of xvphy baseline code */
 void xvphy_mutex_lock(struct phy *phy)
 {
 	struct xvphy_lane *vphy_lane = phy_get_drvdata(phy);
@@ -111,7 +110,7 @@ void xvphy_mutex_lock(struct phy *phy)
 }
 EXPORT_SYMBOL_GPL(xvphy_mutex_lock);
 
-/* given the (Linux) phy, exit critical section of xvphy baseline code */
+/* given the (Linux) phy handle, exit critical section of xvphy baseline code */
 void xvphy_mutex_unlock(struct phy *phy)
 {
 	struct xvphy_lane *vphy_lane = phy_get_drvdata(phy);
@@ -209,6 +208,7 @@ static irqreturn_t xvphy_irq_handler(int irq, void *dev_id)
 		return IRQ_NONE;
 	//printk(KERN_DEBUG "xvphy_irq_handler()\n");
 
+	/* disable interrupts in the VPHY, they are re-enabled once serviced */
 	XVphy_IntrDisable(&vphydev->xvphy, XVPHY_INTR_HANDLER_TYPE_TXRESET_DONE |
 			XVPHY_INTR_HANDLER_TYPE_RXRESET_DONE |
 			XVPHY_INTR_HANDLER_TYPE_CPLL_LOCK |
@@ -233,16 +233,18 @@ static irqreturn_t xvphy_irq_thread(int irq, void *dev_id)
 	if (!vphydev)
 		return IRQ_NONE;
 
-	printk(KERN_DEBUG "xvphy_irq_thread()\n");
+	//printk(KERN_DEBUG "xvphy_irq_thread()\n");
 	/* call baremetal interrupt handler with mutex locked */
 	mutex_lock(&vphydev->xvphy_mutex);
 
 	IntrStatus = XVphy_ReadReg(vphydev->xvphy.Config.BaseAddr, XVPHY_INTR_STS_REG);
 	printk(KERN_DEBUG "XVphy IntrStatus = 0x%08x\n", IntrStatus);
 
+	/* handle pending interrupts */
 	XVphy_InterruptHandler(&vphydev->xvphy);
 	mutex_unlock(&vphydev->xvphy_mutex);
 
+	/* enable interrupt requesting in the VPHY */
 	XVphy_IntrEnable(&vphydev->xvphy, XVPHY_INTR_HANDLER_TYPE_TXRESET_DONE |
 		XVPHY_INTR_HANDLER_TYPE_RXRESET_DONE |
 		XVPHY_INTR_HANDLER_TYPE_CPLL_LOCK |
@@ -268,7 +270,7 @@ static irqreturn_t xvphy_irq_thread(int irq, void *dev_id)
 static int xvphy_phy_init(struct phy *phy)
 {
 	BUG_ON(!phy);
-	struct xvphy_lane *vphy_lane = NULL;
+	//struct xvphy_lane *vphy_lane = NULL;
 	printk(KERN_INFO "xvphy_phy_init(%p).\n", phy);
 
 	//printk(KERN_INFO "xvphy_probe() found %d phy lanes from device-tree configuration.\n", index);
@@ -293,7 +295,6 @@ static struct phy *xvphy_xlate(struct device *dev,
 	struct xvphy_lane *vphy_lane = NULL;
 	struct device_node *phynode = args->np;
 	int index;
-	int i;
 	u8 controller;
 	u8 instance_num;
 
@@ -332,54 +333,6 @@ static struct phy *xvphy_xlate(struct device *dev,
 	dev_info(dev, "xvphy_xlate() returns phy %p\n", vphy_lane->phy);
 	BUG_ON(!vphy_lane->phy);
 	return vphy_lane->phy;
-#if 0
-
-	/* derive lane type */
-	if (xvphy_set_lanetype(vphy_lane, controller, instance_num) < 0) {
-		dev_err(vphydev->dev, "Invalid lane type\n");
-		return ERR_PTR(-EINVAL);
-	}
-
-	/* configures SSC settings for a lane */
-	if (xvphy_configure_lane(vphy_lane) < 0) {
-		dev_err(vphydev->dev, "Invalid clock rate: %d\n",
-						vphy_lane->refclk_rate);
-		return ERR_PTR(-EINVAL);
-	}
-	/*
-	 * Check Interconnect Matrix is obeyed i.e, given lane type
-	 * is allowed to operate on the lane.
-	 */
-	for (i = 0; i < CONTROLLERS_PER_LANE; i++) {
-		if (icm_matrix[index][i] == gtr_phy->type)
-			return gtr_phy->phy;
-	}
-
-#ifdef XPAR_XV_HDMITXSS_NUM_INSTANCES
-    /* VPHY callback setup */
-    XVphy_SetHdmiCallback(&Vphy,
-    						XVPHY_HDMI_HANDLER_TXINIT,
-    						VphyHdmiTxInitCallback,
-    						(void *)&Vphy);
-    XVphy_SetHdmiCallback(&Vphy,
-    						XVPHY_HDMI_HANDLER_TXREADY,
-    						VphyHdmiTxReadyCallback,
-    						(void *)&Vphy);
-#endif
-#ifdef XPAR_XV_HDMIRXSS_NUM_INSTANCES
-    XVphy_SetHdmiCallback(&Vphy,
-    						XVPHY_HDMI_HANDLER_RXINIT,
-    						VphyHdmiRxInitCallback,
-    						(void *)&Vphy);
-    XVphy_SetHdmiCallback(&Vphy,
-    						XVPHY_HDMI_HANDLER_RXREADY,
-    						VphyHdmiRxReadyCallback,
-    						(void *)&Vphy);
-#endif
-#endif
-
-	/* Should not reach here */
-	return ERR_PTR(-EINVAL);
 }
 
 #if 0
@@ -388,7 +341,7 @@ static struct phy *xvphy_xlate(struct device *dev,
  */
 typedef struct {
 	u16 DeviceId;			/**< Device instance ID. */
-	uintptr_t BaseAddr;			/**< The base address of the core
+	UINTPTR BaseAddr;		/**< The base address of the core
 						instance. */
 	XVphy_GtType XcvrType;		/**< VPHY Transceiver Type */
 	u8 TxChannels;			/**< No. of active channels in TX */
@@ -406,31 +359,34 @@ typedef struct {
 						 clock. */
 	u8 TxBufferBypass;		/**< TX Buffer Bypass is enabled in the
 						design. */
+	u8  HdmiFastSwitch;		/**< HDMI fast switching is enabled in the
+						design. */
 } XVphy_Config;
-
 #endif
 
 static XVphy_Config config = {
-	XPAR_VID_PHY_CONTROLLER_0_DEVICE_ID,
-	XPAR_VID_PHY_CONTROLLER_0_BASEADDR,
-	XPAR_VID_PHY_CONTROLLER_0_TRANSCEIVER,
-	XPAR_VID_PHY_CONTROLLER_0_TX_NO_OF_CHANNELS,
-	XPAR_VID_PHY_CONTROLLER_0_RX_NO_OF_CHANNELS,
-	XPAR_VID_PHY_CONTROLLER_0_TX_PROTOCOL,
-	XPAR_VID_PHY_CONTROLLER_0_RX_PROTOCOL,
-	XPAR_VID_PHY_CONTROLLER_0_TX_REFCLK_SEL,
-	XPAR_VID_PHY_CONTROLLER_0_RX_REFCLK_SEL,
-	XPAR_VID_PHY_CONTROLLER_0_TX_PLL_SELECTION,
-	XPAR_VID_PHY_CONTROLLER_0_RX_PLL_SELECTION,
-	XPAR_VID_PHY_CONTROLLER_0_NIDRU,
-	XPAR_VID_PHY_CONTROLLER_0_NIDRU_REFCLK_SEL,
-	XPAR_VID_PHY_CONTROLLER_0_INPUT_PIXELS_PER_CLOCK,
-	XPAR_VID_PHY_CONTROLLER_0_TX_BUFFER_BYPASS
-};
-
-static void vphy_config_init(XVphy_Config *config, void __iomem *iomem)
-{
-	config->BaseAddr = (uintptr_t)iomem;
+	.DeviceId = XPAR_VID_PHY_CONTROLLER_0_DEVICE_ID,
+	.BaseAddr = XPAR_VID_PHY_CONTROLLER_0_BASEADDR,
+	.XcvrType = XPAR_VID_PHY_CONTROLLER_0_TRANSCEIVER,
+	/* xlnx,tx-no-of-channels (u8) */
+	.TxChannels = XPAR_VID_PHY_CONTROLLER_0_TX_NO_OF_CHANNELS,
+	/* xlnx,rx-no-of-channels (u8) */
+	.RxChannels = XPAR_VID_PHY_CONTROLLER_0_RX_NO_OF_CHANNELS,
+	.TxProtocol = XPAR_VID_PHY_CONTROLLER_0_TX_PROTOCOL,
+	.RxProtocol = XPAR_VID_PHY_CONTROLLER_0_RX_PROTOCOL,
+	.TxRefClkSel = XPAR_VID_PHY_CONTROLLER_0_TX_REFCLK_SEL,
+	.RxRefClkSel = XPAR_VID_PHY_CONTROLLER_0_RX_REFCLK_SEL,
+	.TxSysPllClkSel = XPAR_VID_PHY_CONTROLLER_0_TX_PLL_SELECTION,
+	.RxSysPllClkSel = XPAR_VID_PHY_CONTROLLER_0_RX_PLL_SELECTION,
+	/* xlnx,nidru = <0x1>; */
+	.DruIsPresent = XPAR_VID_PHY_CONTROLLER_0_NIDRU,
+	/* xlnx,nidru-refclk-sel */
+	.DruRefClkSel = XPAR_VID_PHY_CONTROLLER_0_NIDRU_REFCLK_SEL,
+	/* xlnx,input-pixels-per-clock = <0x1>; */
+	.Ppc = XPAR_VID_PHY_CONTROLLER_0_INPUT_PIXELS_PER_CLOCK,
+	.TxBufferBypass = XPAR_VID_PHY_CONTROLLER_0_TX_BUFFER_BYPASS,
+	/* xlnx,hdmi-fast-switch = <0x1>; */
+	.HdmiFastSwitch = 1
 };
 
 static struct phy_ops xvphy_phyops = {
@@ -438,30 +394,81 @@ static struct phy_ops xvphy_phyops = {
 	.owner		= THIS_MODULE,
 };
 
-static int vphy_parse_of(struct xvphy_dev *vphydev)
+static int vphy_parse_of(struct xvphy_dev *vphydev, XVphy_Config *c)
 {
 	struct device *dev = vphydev->dev;
 	struct device_node *node = dev->of_node;
-	(void)dev;
-	(void)node;
+	int rc;
+	u32 val;
+
+	rc = of_property_read_u32(node, "xlnx,input-pixels-per-clock", &val);
+	if (rc < 0)
+		goto error_dt;
+	c->Ppc = val;
+
+	rc = of_property_read_u32(node, "xlnx,nidru", &val);
+	if (rc < 0)
+		goto error_dt;
+	c->DruIsPresent = val;
+
+	rc = of_property_read_u32(node, "xlnx,nidru-refclk-sel", &val);
+	if (rc < 0)
+		goto error_dt;
+	c->DruRefClkSel = val;
+
+	rc = of_property_read_u32(node, "xlnx,rx-no-of-channels", &val);
+	if (rc < 0)
+		goto error_dt;
+	c->RxChannels = val;
+
+	rc = of_property_read_u32(node, "xlnx,tx-no-of-channels", &val);
+	if (rc < 0)
+		goto error_dt;
+	c->TxChannels = val;
+
+	rc = of_property_read_u32(node, "xlnx,rx-protocol", &val);
+	if (rc < 0)
+		goto error_dt;
+	c->RxProtocol = val;
+
+	rc = of_property_read_u32(node, "xlnx,tx-protocol", &val);
+	if (rc < 0)
+		goto error_dt;
+	c->TxProtocol = val;
+
+	rc = of_property_read_u32(node, "xlnx,rx-refclk-sel", &val);
+	if (rc < 0)
+		goto error_dt;
+	c->RxRefClkSel = val;
+
+	rc = of_property_read_u32(node, "xlnx,tx-refclk-sel", &val);
+	if (rc < 0)
+		goto error_dt;
+	c->TxRefClkSel = val;
+
+	rc = of_property_read_u32(node, "rx-pll-selection", &val);
+	if (rc < 0)
+		goto error_dt;
+	c->RxSysPllClkSel = val;
+
+	rc = of_property_read_u32(node, "tx-pll-selection", &val);
+	if (rc < 0)
+		goto error_dt;
+	c->TxSysPllClkSel = val;
+
+	return 0;
 #if 0
-	struct device_node *ports;
-	struct device_node *port;
-	unsigned int nports = 0;
-	bool has_endpoint = false;
+	rc = of_property_read_u32(node, "xlnx,hdmi-fast-switch", (u32 *)c->HdmiFastSwitch);
+	if (rc < 0)
+		goto error_dt;
 #endif
 
 #if 0 // example bool
 	bool has_dre = false;
 	has_dre = of_property_read_bool(node, "xlnx,include-dre");
 #endif
-#if 0 // example u32
-	u32 value;
-	int err;
-	err = of_property_read_u32(node, "xlnx,datawidth", &value);
-#endif
-
-	return 0;
+error_dt:
+	return -EINVAL;
 }
 
 /**
@@ -476,7 +483,7 @@ static int xvphy_probe(struct platform_device *pdev)
 	struct xvphy_dev *vphydev;
 	struct phy_provider *provider;
 	struct phy *phy;
-	struct clk *clk;
+	unsigned long axi_lite_rate;
 
 	struct resource *res;
 	int lanecount, port = 0, index = 0;
@@ -489,19 +496,11 @@ static int xvphy_probe(struct platform_device *pdev)
 	if (!vphydev)
 		return -ENOMEM;
 
-	res = platform_get_resource(pdev, IORESOURCE_MEM, 0);
-	vphydev->iomem = devm_ioremap_resource(&pdev->dev, res);
-	if (IS_ERR(vphydev->iomem))
-		return PTR_ERR(vphydev->iomem);
-
-	vphydev->irq = platform_get_irq(pdev, 0);
-	if (vphydev->irq <= 0) {
-		dev_err(&pdev->dev, "platform_get_irq() failed\n");
-		return vphydev->irq;
-	}
-
 	/* mutex that protects against concurrent access */
 	mutex_init(&vphydev->xvphy_mutex);
+
+	ret = vphy_parse_of(vphydev, &config);
+	if (ret) return ret;
 
 	BUG_ON(!np);
 	for_each_child_of_node(np, child) {
@@ -540,18 +539,51 @@ static int xvphy_probe(struct platform_device *pdev)
 
 	printk(KERN_INFO "xvphy_probe() found %d phy lanes from device-tree configuration.\n", index);
 
+	res = platform_get_resource(pdev, IORESOURCE_MEM, 0);
+	vphydev->iomem = devm_ioremap_resource(&pdev->dev, res);
+	if (IS_ERR(vphydev->iomem))
+		return PTR_ERR(vphydev->iomem);
+
+	/* set address in configuration data */
+	config.BaseAddr = (uintptr_t)vphydev->iomem;
+
+	vphydev->irq = platform_get_irq(pdev, 0);
+	if (vphydev->irq <= 0) {
+		dev_err(&pdev->dev, "platform_get_irq() failed\n");
+		return vphydev->irq;
+	}
+
+	/* the AXI lite clock is used for the clock rate detector */
+	vphydev->axi_lite_clk = devm_clk_get(&pdev->dev, "axi-lite");
+	if (IS_ERR(vphydev->axi_lite_clk)) {
+		ret = PTR_ERR(vphydev->axi_lite_clk);
+		vphydev->axi_lite_clk = NULL;
+		if (ret == -EPROBE_DEFER) {
+			dev_err(&pdev->dev, "defering initialization; axi lite clk not (yet) available.\n");
+		} else {
+			dev_err(&pdev->dev, "failed to get the axi lite clk.\n");
+		}
+		return ret;
+	}
+	dev_info(&pdev->dev, "got axi-lite clk\n");
+
+	ret = clk_prepare_enable(vphydev->axi_lite_clk);
+	if (ret) {
+		dev_err(&pdev->dev, "failed to enable axi-lite clk\n");
+		return ret;
+	}
+	axi_lite_rate = clk_get_rate(vphydev->axi_lite_clk);
+	dev_info(&pdev->dev, "AXI Lite clock rate = %lu Hz\n", axi_lite_rate);
+
 	provider = devm_of_phy_provider_register(&pdev->dev, xvphy_xlate);
 	if (IS_ERR(provider)) {
 		dev_err(&pdev->dev, "registering provider failed\n");
 			return PTR_ERR(provider);
 	}
 
-	/* initialize configuration data */
-	vphy_config_init(&config, vphydev->iomem);
-
 	/* Initialize HDMI VPHY */
-	Status = XVphy_HdmiInitialize(&vphydev->xvphy, 0,
-		&config, 50*1000*1000/*@TODO get logic clock from DT*/);
+	Status = XVphy_HdmiInitialize(&vphydev->xvphy, 0/*QuadID*/,
+		&config, axi_lite_rate);
 	if (Status != XST_SUCCESS) {
 		printk(KERN_INFO "HDMI VPHY initialization error\n");
 		return XST_FAILURE;

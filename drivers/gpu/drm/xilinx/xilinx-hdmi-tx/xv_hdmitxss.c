@@ -1472,7 +1472,7 @@ void XV_HdmiTxSs_ShowEdid(XV_HdmiTxSs *InstancePtr)
         print("\n\r");
 
         XVidC_EdidGetManName(&Buffer[0], (char *) EdidManName);
-        xil_printf("Manufacturer name : %S\n\r", EdidManName);
+        xil_printf("Manufacturer name : %s\n\r", EdidManName);
 
         print("\n\rRaw data\n\r");
         print("----------------------------------------------------\n\r");
