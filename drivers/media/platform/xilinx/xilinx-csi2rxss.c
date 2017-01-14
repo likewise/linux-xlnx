@@ -1577,7 +1577,18 @@ static int xcsi2rxss_probe(struct platform_device *pdev)
 	 */
 	xcsi2rxss_reset(&xcsi2rxss->core);
 
+#if 0
 	xcsi2rxss->core.events =  (struct xcsi2rxss_event *)&xcsi2rxss_events;
+#else
+	pr_alert("%s sizeof(xcsi2rxss_events) = %d sizeof(struct xcsi2rxss_event) = %d Num events %d\n",
+			__func__, sizeof(xcsi2rxss_events), sizeof(struct xcsi2rxss_event), XMIPICSISS_NUM_EVENTS);
+
+	xcsi2rxss->core.events = kmalloc(sizeof(xcsi2rxss_events), GFP_KERNEL);
+	if (!xcsi2rxss->core.events)
+		return -ENOMEM;
+
+	memcpy(xcsi2rxss->core.events, xcsi2rxss_events, sizeof(xcsi2rxss_events));
+#endif
 
 	/* Initialize V4L2 subdevice and media entity */
 	xcsi2rxss->pads[0].flags = MEDIA_PAD_FL_SOURCE;
