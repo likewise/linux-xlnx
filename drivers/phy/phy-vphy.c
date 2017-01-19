@@ -372,11 +372,17 @@ static XVphy_Config config = {
 	.TxChannels = XPAR_VID_PHY_CONTROLLER_0_TX_NO_OF_CHANNELS,
 	/* xlnx,rx-no-of-channels (u8) */
 	.RxChannels = XPAR_VID_PHY_CONTROLLER_0_RX_NO_OF_CHANNELS,
+	/* xlnx,tx-protocol */
 	.TxProtocol = XPAR_VID_PHY_CONTROLLER_0_TX_PROTOCOL,
+	/* xlnx,rx-protocol */
 	.RxProtocol = XPAR_VID_PHY_CONTROLLER_0_RX_PROTOCOL,
+	/* xlnx,tx-refclk-sel */
 	.TxRefClkSel = XPAR_VID_PHY_CONTROLLER_0_TX_REFCLK_SEL,
+	/* xlnx,rx-refclk-sel */
 	.RxRefClkSel = XPAR_VID_PHY_CONTROLLER_0_RX_REFCLK_SEL,
+	/* xlnx,tx-pll-selection */
 	.TxSysPllClkSel = XPAR_VID_PHY_CONTROLLER_0_TX_PLL_SELECTION,
+	/* xlnx,rx-pll-selection */
 	.RxSysPllClkSel = XPAR_VID_PHY_CONTROLLER_0_RX_PLL_SELECTION,
 	/* xlnx,nidru = <0x1>; */
 	.DruIsPresent = XPAR_VID_PHY_CONTROLLER_0_NIDRU,
@@ -456,6 +462,11 @@ static int vphy_parse_of(struct xvphy_dev *vphydev, XVphy_Config *c)
 		goto error_dt;
 	c->TxSysPllClkSel = val;
 
+	rc = of_property_read_u32(node, "xlnx,hdmi-fast-switch", &val);
+	if (rc < 0)
+		goto error_dt;
+	c->HdmiFastSwitch = val;
+
 	return 0;
 #if 0
 	rc = of_property_read_u32(node, "xlnx,hdmi-fast-switch", (u32 *)c->HdmiFastSwitch);
@@ -506,10 +517,10 @@ static int xvphy_probe(struct platform_device *pdev)
 	/* set a pointer to our driver data */
 	platform_set_drvdata(pdev, vphydev);
 
+	BUG_ON(!np);
 	ret = vphy_parse_of(vphydev, &config);
 	if (ret) return ret;
 
-	BUG_ON(!np);
 	for_each_child_of_node(np, child) {
 		struct xvphy_lane *vphy_lane;
 
@@ -559,7 +570,6 @@ static int xvphy_probe(struct platform_device *pdev)
 		dev_err(&pdev->dev, "platform_get_irq() failed\n");
 		return vphydev->irq;
 	}
-	axi_lite_rate = 50*1000*1000;
 
 	/* the AXI lite clock is used for the clock rate detector */
 	vphydev->axi_lite_clk = devm_clk_get(&pdev->dev, "axi-lite");
