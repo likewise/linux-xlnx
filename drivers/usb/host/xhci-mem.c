@@ -401,7 +401,7 @@ void xhci_free_or_cache_endpoint_ring(struct xhci_hcd *xhci,
 	int rings_cached;
 
 	rings_cached = virt_dev->num_rings_cached;
-	if (rings_cached < XHCI_MAX_RINGS_CACHED) {
+	if (0) {
 		virt_dev->ring_cache[rings_cached] =
 			virt_dev->eps[ep_index].ring;
 		virt_dev->num_rings_cached++;
