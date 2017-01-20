@@ -42,6 +42,7 @@ MODULE_PARM_DESC(debug, "Debugging messages, 0=Off (default), 1=On");
 struct clk_tx_linerate {
 	struct clk_hw hw;
 	struct i2c_client *client;
+	struct clk *clk;
 	unsigned long rate;
 };
 
@@ -66,18 +67,21 @@ static int dp159_program(struct i2c_client *client, unsigned long rate)
 	printk(KERN_INFO "dp159_program(rate = %lu)\n", rate);
 
 	if ((rate / (1000000)) > 3400) {
+		printk(KERN_INFO "dp159_program(rate = %lu) for HDMI 2.0\n", rate);
 		r = dp159_write(client, 0x0A, 0x36);	// Automatic retimer for HDMI 2.0
 		r = dp159_write(client, 0x0B, 0x1a);
 
 		r = dp159_write(client, 0x0C, 0xa1);
 		r = dp159_write(client, 0x0D, 0x00);
 	} else {
+		printk(KERN_INFO "dp159_program(rate = %lu) for HDMI 1.4\n", rate);
 		r = dp159_write(client, 0x0A, 0x35);			// Automatic redriver to retimer crossover at 1.0 Gbps
 		//r = dp159_write(client, 0x0A, 0x34);			// The redriver mode must be selected to support low video rates
 		r = dp159_write(client, 0x0B, 0x01);
 		r = dp159_write(client, 0x0C, 0xA0);				// Set VSWING data decrease by 24%
 		r = dp159_write(client, 0x0D, 0x00);
 	}
+	return r;
 }
 
 #define to_clk_tx_linerate(_hw) container_of(_hw, struct clk_tx_linerate, hw)
@@ -118,6 +122,7 @@ static int dp159_probe(struct i2c_client *client,
 			const struct i2c_device_id *id)
 {
 	struct clk_tx_linerate *clk_tx;
+	struct clk *clk;
 	struct clk_init_data init;
 	int ret;
 
@@ -129,6 +134,13 @@ static int dp159_probe(struct i2c_client *client,
 		dev_err(&client->dev, "Identification registers do not indicate DP159 presence.\n");
 		return -ENODEV;
 	}
+
+	/* initialize to HDMI 1.4 */
+	(void)dp159_write(client, 0x0A, 0x35);			// Automatic redriver to retimer crossover at 1.0 Gbps
+	//r = dp159_write(client, 0x0A, 0x34);			// The redriver mode must be selected to support low video rates
+	(void)dp159_write(client, 0x0B, 0x01);
+	(void)dp159_write(client, 0x0C, 0xA0);				// Set VSWING data decrease by 24%
+	(void)dp159_write(client, 0x0D, 0x00);
 
 	/* allocate fixed-rate clock */
 	clk_tx = kzalloc(sizeof(*clk_tx), GFP_KERNEL);
@@ -144,14 +156,15 @@ static int dp159_probe(struct i2c_client *client,
 	clk_tx->hw.init = &init;
 
 	/* register the clock */
-	clk_tx = clk_register(&client->dev, to_clk_tx_linerate(&clk_tx->hw));
-	if (IS_ERR(clk_tx)) {
+	clk = clk_register(&client->dev, &clk_tx->hw);
+	if (IS_ERR(clk)) {
 		kfree(clk_tx);
-		return ERR_PTR(clk_tx);
+		return PTR_ERR(clk);
 	}
 	/* reference to client in clock */
 	clk_tx->client = client;
-	/* reference to clk in client */
+	clk_tx->clk = clk;
+	/* reference to clk_tx in client */
 	i2c_set_clientdata(client, (void *)clk_tx);
 	dev_info(&client->dev, "DP159 retimer.\n");
 
@@ -169,7 +182,7 @@ static int dp159_remove(struct i2c_client *client)
 	struct clk_tx_linerate *clk_tx;
 	clk_tx = (struct clk_tx_linerate *)i2c_get_clientdata(client);
 	if (clk_tx)
-		clk_unregister(to_clk_tx_linerate(&clk_tx->hw));
+		clk_unregister(clk_tx->clk);
 	return 0;
 }
 
