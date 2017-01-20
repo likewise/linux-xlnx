@@ -137,7 +137,7 @@ static int dp159_probe(struct i2c_client *client,
 
 	init.name = "clk_tx_linerate";
 	init.ops = &clk_tx_rate_ops;
-	init.flags = /*flags |*/ CLK_IS_BASIC;
+	init.flags = 0; ///*flags | CLK_IS_BASIC*/;
 	init.parent_names = NULL;
 	init.num_parents = 0;
 
