@@ -742,10 +742,13 @@ static void RxStreamUpCallback(void *CallbackRef)
 	/* @TODO correct mapping, see https://linuxtv.org/downloads/v4l-dvb-apis/field-order.html#v4l2-field */
 	xhdmirx->detected_format.field = Stream->IsInterlaced? V4L2_FIELD_INTERLACED: V4L2_FIELD_NONE;
 	/* https://linuxtv.org/downloads/v4l-dvb-apis/ch02s05.html#v4l2-colorspace */
-	if (Stream->ColorFormatId == XVIDC_CSF_RGB)
+	if (Stream->ColorFormatId == XVIDC_CSF_RGB) {
+		dev_info(xhdmirx->dev, "xhdmirx->detected_format.colorspace = V4L2_COLORSPACE_SRGB\n");
 		xhdmirx->detected_format.colorspace = V4L2_COLORSPACE_SRGB;
-	else
+	} else {
+		dev_info(xhdmirx->dev, "xhdmirx->detected_format.colorspace = V4L2_COLORSPACE_REC709\n");
 		xhdmirx->detected_format.colorspace = V4L2_COLORSPACE_REC709;
+	}
 
 	/* https://linuxtv.org/downloads/v4l-dvb-apis/subdev.html#v4l2-mbus-framefmt */
 	/* see UG934 page 8 */
