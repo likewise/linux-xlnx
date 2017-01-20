@@ -339,9 +339,9 @@ static int xvtc_probe(struct platform_device *pdev)
 		return ret;
 
 	platform_set_drvdata(pdev, xvtc);
-
+#if 0
 	xvip_print_version(&xvtc->xvip);
-
+#endif
 	xvtc_register_device(xvtc);
 
 	return 0;
