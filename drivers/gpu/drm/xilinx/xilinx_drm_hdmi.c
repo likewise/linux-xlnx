@@ -1028,14 +1028,13 @@ static XV_HdmiTxSs_Config config =
 
 XVtc_Config *XVtc_LookupConfig(u16 DeviceId)
 {
-	BUG_ON(1);
-	return (XVtc_Config *)NULL;
+	return (XVtc_Config *)&config.Vtc;
 }
 
 static XV_HdmiTx_Config XV_HdmiTx_FixedConfig =
 {
 	XPAR_XV_HDMITX_0_DEVICE_ID,
-	XPAR_XV_HDMITX_0_BASEADDR
+	XPAR_XV_HDMITX_0_BASEADDR /*offset= 0 */
 };
 XV_HdmiTx_Config *XV_HdmiTx_LookupConfig(u16 DeviceId)
 {
@@ -1071,6 +1070,16 @@ static int xilinx_drm_hdmi_parse_of(struct xilinx_drm_hdmi *hdmi, XV_HdmiTxSs_Co
 	if (rc < 0)
 		goto error_dt;
 	config->MaxBitsPerPixel = val;
+
+	rc = of_property_read_u32(node, "xlnx,vtc-offset", &val);
+	if (rc < 0) {
+		dev_info(hdmi->dev, "Not using an internal VTC.");
+		config->Vtc.IsPresent = 0;
+	} else if (rc == 0) {
+		dev_info(hdmi->dev, "Using an internal VTC.");
+		config->Vtc.IsPresent = 1;
+		config->Vtc.AddrOffset = val;
+	}
 	return 0;
 
 error_dt:
@@ -1157,7 +1166,8 @@ static int xilinx_drm_hdmi_probe(struct platform_device *pdev)
 			dev_err(&pdev->dev, "failed to enable retimer-clk\n");
 			return ret;
 		}
-		dev_info(&pdev->dev, "enabled retimer-clk\n");
+		dev_info(&pdev->dev, "prepared and enabled retimer-clk\n");
+		clk_set_rate(hdmi->retimer_clk, 50*1000*1000);
 	}
 
 	/* @TODO spread phy[index] over RX/TX as */
