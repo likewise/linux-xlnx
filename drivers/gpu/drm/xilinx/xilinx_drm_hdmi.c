@@ -37,9 +37,6 @@
 #include <linux/pm.h>
 #include <linux/workqueue.h>
 
-#if 0
-#include "xilinx_drm_dp_sub.h"
-#endif
 #include "xilinx_drm_drv.h"
 
 #include "linux/phy/phy-vphy.h"
@@ -512,7 +509,9 @@ static bool xilinx_drm_hdmi_mode_fixup(struct drm_encoder *encoder,
 	dev_info(hdmi->dev, "xilinx_drm_hdmi_mode_fixup()\n");
 	mutex_lock(&hdmi->hdmi_mutex);
 
-#if 0
+	/* if mode fixups are needed, do them here */
+
+#if 0 /* example DP mode fixup */
 	int diff = mode->htotal - mode->hsync_end;
 	/*
 	 * ZynqMP DP requires horizontal backporch to be greater than 12.
@@ -657,7 +656,7 @@ static void xilinx_drm_hdmi_mode_set(struct drm_encoder *encoder,
 		PixelClock = PixelClock / 2;
 	}
 #endif
-	/* @TODO incorrect */
+	/* @TODO incorrect, this is only called to set XVIDC_CSF_RGB and XVIDC_BPC_8, there is no other BSP API yet */
 	if (mode->vdisplay == 720) {
 		TmdsClock = XV_HdmiTxSs_SetStream(HdmiTxSsPtr, XVIDC_VM_1280x720_60_P, XVIDC_CSF_RGB, XVIDC_BPC_8, NULL);
 		dev_info(hdmi->dev, "1280x720\n");
@@ -828,7 +827,7 @@ static int xilinx_drm_hdmi_get_modes(struct drm_encoder *encoder,
 
 		return 0;
 	}
-#if 1
+#if 1 // @TODO remove, this is used during side-by-side testing of DP/HDMI on the same screen
 	/* always add 1080p */
 	xilinx_drm_hdmi_hardcode(connector);
 #endif
@@ -1076,9 +1075,10 @@ static int xilinx_drm_hdmi_parse_of(struct xilinx_drm_hdmi *hdmi, XV_HdmiTxSs_Co
 		dev_info(hdmi->dev, "Not using an internal VTC.");
 		config->Vtc.IsPresent = 0;
 	} else if (rc == 0) {
-		dev_info(hdmi->dev, "Using an internal VTC.");
 		config->Vtc.IsPresent = 1;
+		config->Vtc.DeviceId = 0;
 		config->Vtc.AddrOffset = val;
+		dev_info(hdmi->dev, "Using an internal VTC at offset %lu.", config->Vtc.AddrOffset);
 	}
 	return 0;
 
@@ -1092,7 +1092,6 @@ static int xilinx_drm_hdmi_probe(struct platform_device *pdev)
 	struct xilinx_drm_hdmi *hdmi;
 	int ret;
 	unsigned int index;
-	unsigned long tx_clk_rate;
 	struct resource *res;
 	unsigned long axi_clk_rate;
 
@@ -1141,7 +1140,7 @@ static int xilinx_drm_hdmi_probe(struct platform_device *pdev)
 	clk_prepare_enable(hdmi->axi_lite_clk);
 	axi_clk_rate = clk_get_rate(hdmi->axi_lite_clk);
 
-		/* get irq */
+	/* get irq */
 	hdmi->irq = platform_get_irq(pdev, 0);
 	if (hdmi->irq <= 0) {
 		dev_err(&pdev->dev, "platform_get_irq() failed\n");
@@ -1149,6 +1148,7 @@ static int xilinx_drm_hdmi_probe(struct platform_device *pdev)
 		return hdmi->irq;
 	}
 
+	/* support to drive an external retimer IC on the TX path, depending on TX clock line rate */
 	hdmi->retimer_clk = devm_clk_get(&pdev->dev, "retimer-clk");
 	if (IS_ERR(hdmi->retimer_clk)) {
 		ret = PTR_ERR(hdmi->retimer_clk);
@@ -1159,7 +1159,7 @@ static int xilinx_drm_hdmi_probe(struct platform_device *pdev)
 		} else if (ret < 0) {
 			dev_err(&pdev->dev, "Did not find a retimer-clk, not driver an external retimer device driver.\n");
 		}
-	} else {
+	} else if (hdmi->retimer_clk) {
 		dev_info(&pdev->dev, "got retimer-clk\n");
 		ret = clk_prepare_enable(hdmi->retimer_clk);
 		if (ret) {
@@ -1168,6 +1168,8 @@ static int xilinx_drm_hdmi_probe(struct platform_device *pdev)
 		}
 		dev_info(&pdev->dev, "prepared and enabled retimer-clk\n");
 		clk_set_rate(hdmi->retimer_clk, 50*1000*1000);
+	} else {
+		dev_info(&pdev->dev, "no retimer-clk specified\n");
 	}
 
 	/* @TODO spread phy[index] over RX/TX as */
