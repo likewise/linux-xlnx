@@ -1048,12 +1048,10 @@ static int xhdmirx_probe(struct platform_device *pdev)
 	INIT_DELAYED_WORK(&xhdmirx->delayed_work_enable_hotplug,
 		xhdmirx_delayed_work_enable_hotplug);
 
-#if 0
 	/* parse open firmware device tree data */
 	ret = xhdmirx_parse_of(xhdmirx, &config);
 	if (ret < 0)
 		return ret;
-#endif
 
 	res = platform_get_resource(pdev, IORESOURCE_MEM, 0);
 	xhdmirx->iomem = devm_ioremap_resource(xhdmirx->dev, res);
