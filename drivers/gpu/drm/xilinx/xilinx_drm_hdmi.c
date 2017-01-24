@@ -375,6 +375,9 @@ static void TxStreamUpCallback(void *CallbackRef)
 	HdmiTxSsVidStreamPtr = XV_HdmiTxSs_GetVideoStream(HdmiTxSsPtr);
 	XVidC_ReportStreamInfo(HdmiTxSsVidStreamPtr);
 #endif
+#if 1
+	XV_HdmiTx_DebugInfo(HdmiTxSsPtr->HdmiTxPtr);
+#endif
 }
 
 static void TxStreamDownCallback(void *CallbackRef)
