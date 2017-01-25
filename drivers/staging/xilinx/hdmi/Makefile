@@ -1,0 +1,66 @@
+# V4L2 (HDMI RX)
+# mainlining: drivers/media/platform/xilinx/Makefile
+# mainlining: remove STAGING suffix from CONFIG
+
+obj-$(CONFIG_VIDEO_XILINX_HDMI_RX_STAGING) += xilinx-hdmi-rx.o
+
+# top-level Linux driver source
+xilinx-hdmi-rx-objs := xilinx-hdmirx.o
+
+# the C API around the IP registers
+CFLAGS_xilinx-hdmirx.o += -I$(src)/xilinx-hdmi-rx/
+xilinx-hdmi-rx-objs += xilinx-hdmi-rx/xv_hdmirx.o
+xilinx-hdmi-rx-objs += xilinx-hdmi-rx/xv_hdmirx_intr.o
+xilinx-hdmi-rx-objs += xilinx-hdmi-rx/xv_hdmirxss.o
+xilinx-hdmi-rx-objs += xilinx-hdmi-rx/xv_hdmirxss_log.o
+xilinx-hdmi-rx-objs += xilinx-hdmi-rx/xv_hdmirxss_coreinit.o
+xilinx-hdmi-rx-objs += xilinx-hdmi-rx/xv_hdmirx_vsif.o
+
+# DRM (HDMI TX)
+# mainlining: drivers/gpu/drm/xilinx/Makefile
+# mainlining: remove STAGING suffix from CONFIG
+
+obj-$(CONFIG_DRM_XILINX_HDMI_STAGING) += xilinx-hdmi-tx.o
+
+# top-level Linux driver source
+xilinx-hdmi-tx-objs := xilinx_drm_hdmi.o
+
+# the C API around the IP registers
+CFLAGS_xilinx_drm_hdmi.o += -I$(src)/xilinx-hdmi-tx/ -Wno-unused-label
+xilinx-hdmi-tx-objs += xilinx-hdmi-tx/xv_hdmitx.o
+xilinx-hdmi-tx-objs += xilinx-hdmi-tx/xv_hdmitx_intr.o
+xilinx-hdmi-tx-objs += xilinx-hdmi-tx/xv_hdmitxss.o
+xilinx-hdmi-tx-objs += xilinx-hdmi-tx/xv_hdmitxss_log.o
+xilinx-hdmi-tx-objs += xilinx-hdmi-tx/xv_hdmitxss_coreinit.o
+xilinx-hdmi-tx-objs += xilinx-hdmi-tx/xv_hdmitx_vsif.o
+xilinx-hdmi-tx-objs += xilinx-hdmi-tx/xvtc.o
+xilinx-hdmi-tx-objs += xilinx-hdmi-tx/xvtc_intr.o
+
+# module interdependency during linking
+# (probably only needed when building separate modules)
+KBUILD_EXTRA_SYMBOLS += ../../../phy/Modules.symvers
+
+# PHY (HDMI RX/TX)
+# mainlining: drivers/phy/Makefile
+# mainlining: remove STAGING suffix from CONFIG
+
+obj-$(CONFIG_PHY_XILINX_VPHY_STAGING)		+= phy-xilinx-vphy.o
+
+# top-level Linux driver source
+phy-xilinx-vphy-objs := phy-vphy.o
+
+# the C API around the IP registers
+CFLAGS_phy-vphy.o += -I$(src)/phy-xilinx-vphy/
+phy-xilinx-vphy-objs += phy-xilinx-vphy/xvphy.o
+phy-xilinx-vphy-objs += phy-xilinx-vphy/xvphy_gthe4.o
+phy-xilinx-vphy-objs += phy-xilinx-vphy/xvphy_hdmi.o
+phy-xilinx-vphy-objs += phy-xilinx-vphy/xvphy_hdmi_intr.o
+phy-xilinx-vphy-objs += phy-xilinx-vphy/xvphy_intr.o
+phy-xilinx-vphy-objs += phy-xilinx-vphy/xvphy_log.o
+phy-xilinx-vphy-objs += phy-xilinx-vphy/xgpio.o
+phy-xilinx-vphy-objs += phy-xilinx-vphy/xgpio_extra.o
+phy-xilinx-vphy-objs += phy-xilinx-vphy/xgpio_intr.o
+phy-xilinx-vphy-objs += phy-xilinx-vphy/xv_axi4s_remap.o
+phy-xilinx-vphy-objs += phy-xilinx-vphy/xvidc.o
+phy-xilinx-vphy-objs += phy-xilinx-vphy/xvidc_edid.o
+phy-xilinx-vphy-objs += phy-xilinx-vphy/xvidc_timings_table.o
