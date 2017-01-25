@@ -1,11 +1,9 @@
-# mainlining: remove STAGING suffix from CONFIG in Makefile
-# mainlining: remove STAGING suffix from CONFIG in Kconfig
 # mainlining: remove CFLAGS<...> += -I$(src)/include
 # see below for further mainlining hints
 
 # V4L2 (HDMI RX)
 # mainlining: drivers/media/platform/xilinx/Makefile
-obj-$(CONFIG_VIDEO_XILINX_HDMI_RX_STAGING) += xilinx-hdmi-rx.o
+obj-$(CONFIG_VIDEO_XILINX_HDMI_RX) += xilinx-hdmi-rx.o
 
 # top-level Linux driver source
 xilinx-hdmi-rx-objs := xilinx-hdmirx.o
@@ -23,7 +21,7 @@ xilinx-hdmi-rx-objs += xilinx-hdmi-rx/xv_hdmirx_vsif.o
 # DRM (HDMI TX)
 # mainlining: drivers/gpu/drm/xilinx/Makefile
 
-obj-$(CONFIG_DRM_XILINX_HDMI_STAGING) += xilinx-hdmi-tx.o
+obj-$(CONFIG_DRM_XILINX_HDMI) += xilinx-hdmi-tx.o
 
 # top-level Linux driver source
 xilinx-hdmi-tx-objs := xilinx_drm_hdmi.o
@@ -47,7 +45,7 @@ KBUILD_EXTRA_SYMBOLS += ../../../phy/Modules.symvers
 # PHY (HDMI RX/TX)
 # mainlining: drivers/phy/Makefile
 
-obj-$(CONFIG_PHY_XILINX_VPHY_STAGING)		+= phy-xilinx-vphy.o
+obj-$(CONFIG_PHY_XILINX_VPHY)		+= phy-xilinx-vphy.o
 
 # top-level Linux driver source
 phy-xilinx-vphy-objs := phy-vphy.o
