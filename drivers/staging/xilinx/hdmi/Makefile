@@ -9,6 +9,7 @@ xilinx-hdmi-rx-objs := xilinx-hdmirx.o
 
 # the C API around the IP registers
 CFLAGS_xilinx-hdmirx.o += -I$(src)/xilinx-hdmi-rx/
+CFLAGS_xilinx-hdmirx.o += -I$(src)/include/
 xilinx-hdmi-rx-objs += xilinx-hdmi-rx/xv_hdmirx.o
 xilinx-hdmi-rx-objs += xilinx-hdmi-rx/xv_hdmirx_intr.o
 xilinx-hdmi-rx-objs += xilinx-hdmi-rx/xv_hdmirxss.o
@@ -27,6 +28,7 @@ xilinx-hdmi-tx-objs := xilinx_drm_hdmi.o
 
 # the C API around the IP registers
 CFLAGS_xilinx_drm_hdmi.o += -I$(src)/xilinx-hdmi-tx/ -Wno-unused-label
+CFLAGS_xilinx_drm_hdmi.o += -I$(src)/include
 xilinx-hdmi-tx-objs += xilinx-hdmi-tx/xv_hdmitx.o
 xilinx-hdmi-tx-objs += xilinx-hdmi-tx/xv_hdmitx_intr.o
 xilinx-hdmi-tx-objs += xilinx-hdmi-tx/xv_hdmitxss.o
@@ -48,6 +50,8 @@ obj-$(CONFIG_PHY_XILINX_VPHY_STAGING)		+= phy-xilinx-vphy.o
 
 # top-level Linux driver source
 phy-xilinx-vphy-objs := phy-vphy.o
+
+CFLAGS_phy-vphy.o += -I$(src)/include
 
 # the C API around the IP registers
 CFLAGS_phy-vphy.o += -I$(src)/phy-xilinx-vphy/
