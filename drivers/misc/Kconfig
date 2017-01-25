@@ -816,15 +816,6 @@ config XILINX_TRAFGEN
 
 	  If unsure, say N
 
-config RETIMER_DP159
-        tristate "Texas Instruments DP159 Redriver/retimer"
-        depends on VIDEO_V4L2 && I2C
-        ---help---
-         Support for the Texas Instruments DP159 Redriver/retimer.
-
-         To compile this driver as a module, choose M here: the
-         module will be called dp159.
-
 source "drivers/misc/jesd204b/Kconfig"
 source "drivers/misc/c2port/Kconfig"
 source "drivers/misc/eeprom/Kconfig"
