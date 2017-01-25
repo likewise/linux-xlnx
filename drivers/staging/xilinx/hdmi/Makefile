@@ -10,7 +10,7 @@ xilinx-hdmi-rx-objs := xilinx-hdmirx.o
 
 # the C API around the IP registers
 CFLAGS_xilinx-hdmirx.o += -I$(src)/xilinx-hdmi-rx/
-CFLAGS_xilinx-hdmirx.o += -I$(src)/include/
+CFLAGS_xilinx-hdmirx.o += -I$(src)/include/ -I${src}/../../../media/platform/xilinx
 xilinx-hdmi-rx-objs += xilinx-hdmi-rx/xv_hdmirx.o
 xilinx-hdmi-rx-objs += xilinx-hdmi-rx/xv_hdmirx_intr.o
 xilinx-hdmi-rx-objs += xilinx-hdmi-rx/xv_hdmirxss.o
@@ -28,7 +28,7 @@ xilinx-hdmi-tx-objs := xilinx_drm_hdmi.o
 
 # the C API around the IP registers
 CFLAGS_xilinx_drm_hdmi.o += -I$(src)/xilinx-hdmi-tx/ -Wno-unused-label
-CFLAGS_xilinx_drm_hdmi.o += -I$(src)/include
+CFLAGS_xilinx_drm_hdmi.o += -I$(src)/include -I${src}/../../../gpu/drm/xilinx/
 xilinx-hdmi-tx-objs += xilinx-hdmi-tx/xv_hdmitx.o
 xilinx-hdmi-tx-objs += xilinx-hdmi-tx/xv_hdmitx_intr.o
 xilinx-hdmi-tx-objs += xilinx-hdmi-tx/xv_hdmitxss.o
