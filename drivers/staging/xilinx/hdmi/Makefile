@@ -1,7 +1,10 @@
+# mainlining: remove STAGING suffix from CONFIG in Makefile
+# mainlining: remove STAGING suffix from CONFIG in Kconfig
+# mainlining: remove CFLAGS<...> += -I$(src)/include
+# see below for further mainlining hints
+
 # V4L2 (HDMI RX)
 # mainlining: drivers/media/platform/xilinx/Makefile
-# mainlining: remove STAGING suffix from CONFIG
-
 obj-$(CONFIG_VIDEO_XILINX_HDMI_RX_STAGING) += xilinx-hdmi-rx.o
 
 # top-level Linux driver source
@@ -19,7 +22,6 @@ xilinx-hdmi-rx-objs += xilinx-hdmi-rx/xv_hdmirx_vsif.o
 
 # DRM (HDMI TX)
 # mainlining: drivers/gpu/drm/xilinx/Makefile
-# mainlining: remove STAGING suffix from CONFIG
 
 obj-$(CONFIG_DRM_XILINX_HDMI_STAGING) += xilinx-hdmi-tx.o
 
@@ -44,7 +46,6 @@ KBUILD_EXTRA_SYMBOLS += ../../../phy/Modules.symvers
 
 # PHY (HDMI RX/TX)
 # mainlining: drivers/phy/Makefile
-# mainlining: remove STAGING suffix from CONFIG
 
 obj-$(CONFIG_PHY_XILINX_VPHY_STAGING)		+= phy-xilinx-vphy.o
 
