@@ -35,6 +35,16 @@
 #include "phy-xilinx-vphy/xv_axi4s_remap.h"
 #include "phy-xilinx-vphy/xv_axi4s_remap_hw.h"
 
+#if 0 // WIP
+#include "phy-xilinx-vphy/bigdigits.h"
+#include "phy-xilinx-vphy/xhdcp22_cipher.h"
+#include "phy-xilinx-vphy/xhdcp22_mmult.h"
+#include "phy-xilinx-vphy/xhdcp22_rng.h"
+#include "phy-xilinx-vphy/xhdcp22_common.h"
+
+#include "phy-xilinx-vphy/xtmrctr.h"
+#endif
+
 /**
  * struct xvphy_lane - representation of a lane
  * @phy: pointer to the kernel PHY device
@@ -159,8 +169,7 @@ int xvphy_set_hdmi_callback(struct phy *phy, XVphy_HdmiHandlerType HandlerType,
 EXPORT_SYMBOL_GPL(xvphy_set_hdmi_callback);
 #endif
 
-/* instead of wrappers, just export the existing baseline API to our closely related consuming
- * controller drivers. Functions must be called inbetween xvphy_mutex_lock/xvphy_mutex_unlock */
+/* XVphy Functions must be called inbetween xvphy_mutex_lock/xvphy_mutex_unlock */
 EXPORT_SYMBOL_GPL(XVphy_GetPllType);
 EXPORT_SYMBOL_GPL(XVphy_IBufDsEnable);
 EXPORT_SYMBOL_GPL(XVphy_SetHdmiCallback);
@@ -171,31 +180,6 @@ EXPORT_SYMBOL_GPL(XVphy_MmcmStart);
 EXPORT_SYMBOL_GPL(XVphy_Clkout1OBufTdsEnable);
 EXPORT_SYMBOL_GPL(XVphy_SetHdmiTxParam);
 EXPORT_SYMBOL_GPL(XVphy_IsBonded);
-
-/* common functionality shared between RX and TX */
-EXPORT_SYMBOL_GPL(XVidC_ReportTiming);
-EXPORT_SYMBOL_GPL(XVidC_SetVideoStream);
-EXPORT_SYMBOL_GPL(XVidC_ReportStreamInfo);
-EXPORT_SYMBOL_GPL(XVidC_EdidGetManName);
-EXPORT_SYMBOL_GPL(XVidC_Set3DVideoStream);
-EXPORT_SYMBOL_GPL(XVidC_GetPixelClockHzByVmId);
-EXPORT_SYMBOL_GPL(XVidC_GetVideoModeId);
-EXPORT_SYMBOL_GPL(XVidC_GetPixelClockHzByHVFr);
-EXPORT_SYMBOL_GPL(XGpio_DiscreteWrite);
-EXPORT_SYMBOL_GPL(XGpio_SetDataDirection);
-EXPORT_SYMBOL_GPL(XGpio_CfgInitialize);
-EXPORT_SYMBOL_GPL(XV_axi4s_remap_Set_width);
-EXPORT_SYMBOL_GPL(XV_axi4s_remap_Set_outPixRepeat);
-EXPORT_SYMBOL_GPL(XV_axi4s_remap_Start);
-EXPORT_SYMBOL_GPL(XV_axi4s_remap_Set_height);
-EXPORT_SYMBOL_GPL(XV_axi4s_remap_Set_inPixClk);
-EXPORT_SYMBOL_GPL(XV_axi4s_remap_Set_inPixDrop);
-EXPORT_SYMBOL_GPL(XV_axi4s_remap_Set_inHDMI420);
-EXPORT_SYMBOL_GPL(XV_axi4s_remap_CfgInitialize);
-EXPORT_SYMBOL_GPL(XV_axi4s_remap_Set_ColorFormat);
-EXPORT_SYMBOL_GPL(XV_axi4s_remap_EnableAutoRestart);
-EXPORT_SYMBOL_GPL(XV_axi4s_remap_Set_outPixClk);
-EXPORT_SYMBOL_GPL(XV_axi4s_remap_Set_outHDMI420);
 
 static irqreturn_t xvphy_irq_handler(int irq, void *dev_id)
 {
@@ -649,3 +633,74 @@ MODULE_LICENSE("GPL");
 MODULE_AUTHOR("Leon Woestenberg <leon@sidebranch.com>");
 MODULE_DESCRIPTION("Xilinx Vphy driver");
 
+/* common functionality shared between RX and TX */
+EXPORT_SYMBOL_GPL(XVidC_ReportTiming);
+EXPORT_SYMBOL_GPL(XVidC_SetVideoStream);
+EXPORT_SYMBOL_GPL(XVidC_ReportStreamInfo);
+EXPORT_SYMBOL_GPL(XVidC_EdidGetManName);
+EXPORT_SYMBOL_GPL(XVidC_Set3DVideoStream);
+EXPORT_SYMBOL_GPL(XVidC_GetPixelClockHzByVmId);
+EXPORT_SYMBOL_GPL(XVidC_GetVideoModeId);
+EXPORT_SYMBOL_GPL(XVidC_GetPixelClockHzByHVFr);
+EXPORT_SYMBOL_GPL(XGpio_DiscreteWrite);
+EXPORT_SYMBOL_GPL(XGpio_SetDataDirection);
+EXPORT_SYMBOL_GPL(XGpio_CfgInitialize);
+EXPORT_SYMBOL_GPL(XV_axi4s_remap_Set_width);
+EXPORT_SYMBOL_GPL(XV_axi4s_remap_Set_outPixRepeat);
+EXPORT_SYMBOL_GPL(XV_axi4s_remap_Start);
+EXPORT_SYMBOL_GPL(XV_axi4s_remap_Set_height);
+EXPORT_SYMBOL_GPL(XV_axi4s_remap_Set_inPixClk);
+EXPORT_SYMBOL_GPL(XV_axi4s_remap_Set_inPixDrop);
+EXPORT_SYMBOL_GPL(XV_axi4s_remap_Set_inHDMI420);
+EXPORT_SYMBOL_GPL(XV_axi4s_remap_CfgInitialize);
+EXPORT_SYMBOL_GPL(XV_axi4s_remap_Set_ColorFormat);
+EXPORT_SYMBOL_GPL(XV_axi4s_remap_EnableAutoRestart);
+EXPORT_SYMBOL_GPL(XV_axi4s_remap_Set_outPixClk);
+EXPORT_SYMBOL_GPL(XV_axi4s_remap_Set_outHDMI420);
+
+#if 0
+EXPORT_SYMBOL_GPL(mpAdd);
+EXPORT_SYMBOL_GPL(mpConvFromOctets);
+EXPORT_SYMBOL_GPL(mpConvToOctets);
+EXPORT_SYMBOL_GPL(mpDivide);
+EXPORT_SYMBOL_GPL(mpEqual);
+EXPORT_SYMBOL_GPL(mpGetBit);
+EXPORT_SYMBOL_GPL(mpModExp);
+EXPORT_SYMBOL_GPL(mpModInv);
+EXPORT_SYMBOL_GPL(mpModMult);
+EXPORT_SYMBOL_GPL(mpModulo);
+EXPORT_SYMBOL_GPL(mpMultiply);
+EXPORT_SYMBOL_GPL(mpShiftLeft);
+EXPORT_SYMBOL_GPL(mpSubtract);
+
+EXPORT_SYMBOL_GPL(XHdcp22Cipher_CfgInitialize);
+EXPORT_SYMBOL_GPL(XHdcp22Cipher_LookupConfig);
+EXPORT_SYMBOL_GPL(XHdcp22Cipher_SetKs);
+EXPORT_SYMBOL_GPL(XHdcp22Cipher_SetLc128);
+EXPORT_SYMBOL_GPL(XHdcp22Cipher_SetRiv);
+EXPORT_SYMBOL_GPL(XHdcp22Cmn_Aes128Encrypt);
+EXPORT_SYMBOL_GPL(XHdcp22Cmn_HmacSha256Hash);
+EXPORT_SYMBOL_GPL(XHdcp22Cmn_Sha256Hash);
+EXPORT_SYMBOL_GPL(XHdcp22_mmult_CfgInitialize);
+EXPORT_SYMBOL_GPL(XHdcp22_mmult_IsDone);
+EXPORT_SYMBOL_GPL(XHdcp22_mmult_IsReady);
+EXPORT_SYMBOL_GPL(XHdcp22_mmult_LookupConfig);
+EXPORT_SYMBOL_GPL(XHdcp22_mmult_Read_U_Words);
+EXPORT_SYMBOL_GPL(XHdcp22_mmult_Start);
+EXPORT_SYMBOL_GPL(XHdcp22_mmult_Write_A_Words);
+EXPORT_SYMBOL_GPL(XHdcp22_mmult_Write_B_Words);
+EXPORT_SYMBOL_GPL(XHdcp22_mmult_Write_NPrime_Words);
+EXPORT_SYMBOL_GPL(XHdcp22_mmult_Write_N_Words);
+EXPORT_SYMBOL_GPL(XHdcp22Rng_CfgInitialize);
+EXPORT_SYMBOL_GPL(XHdcp22Rng_GetRandom);
+EXPORT_SYMBOL_GPL(XHdcp22Rng_LookupConfig);
+EXPORT_SYMBOL_GPL(XTmrCtr_CfgInitialize);
+EXPORT_SYMBOL_GPL(XTmrCtr_GetValue);
+EXPORT_SYMBOL_GPL(XTmrCtr_LookupConfig);
+EXPORT_SYMBOL_GPL(XTmrCtr_Reset);
+EXPORT_SYMBOL_GPL(XTmrCtr_SetHandler);
+EXPORT_SYMBOL_GPL(XTmrCtr_SetOptions);
+EXPORT_SYMBOL_GPL(XTmrCtr_SetResetValue);
+EXPORT_SYMBOL_GPL(XTmrCtr_Start);
+EXPORT_SYMBOL_GPL(XTmrCtr_Stop);
+#endif
