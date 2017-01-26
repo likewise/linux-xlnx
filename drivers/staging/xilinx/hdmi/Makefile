@@ -18,6 +18,10 @@ xilinx-hdmi-rx-objs += xilinx-hdmi-rx/xv_hdmirxss_log.o
 xilinx-hdmi-rx-objs += xilinx-hdmi-rx/xv_hdmirxss_coreinit.o
 xilinx-hdmi-rx-objs += xilinx-hdmi-rx/xv_hdmirx_vsif.o
 
+# WIP
+#xilinx-hdmi-rx-objs += xilinx-hdmi-rx/xhdcp22_rx.o
+#xilinx-hdmi-rx-objs += xilinx-hdmi-rx/xhdcp22_rx_crypt.o
+
 # DRM (HDMI TX)
 # mainlining: drivers/gpu/drm/xilinx/Makefile
 
@@ -67,3 +71,13 @@ phy-xilinx-vphy-objs += phy-xilinx-vphy/xv_axi4s_remap.o
 phy-xilinx-vphy-objs += phy-xilinx-vphy/xvidc.o
 phy-xilinx-vphy-objs += phy-xilinx-vphy/xvidc_edid.o
 phy-xilinx-vphy-objs += phy-xilinx-vphy/xvidc_timings_table.o
+
+# WIP
+#phy-xilinx-vphy-objs += phy-xilinx-vphy/xhdcp22_cipher.o
+#phy-xilinx-vphy-objs += phy-xilinx-vphy/xhdcp22_mmult.o
+#phy-xilinx-vphy-objs += phy-xilinx-vphy/xhdcp22_rng.o
+#phy-xilinx-vphy-objs += phy-xilinx-vphy/bigdigits.o
+#phy-xilinx-vphy-objs += phy-xilinx-vphy/xtmrctr.o
+#phy-xilinx-vphy-objs += phy-xilinx-vphy/aes.o
+#phy-xilinx-vphy-objs += phy-xilinx-vphy/sha1.o
+#phy-xilinx-vphy-objs += phy-xilinx-vphy/sha2.o
