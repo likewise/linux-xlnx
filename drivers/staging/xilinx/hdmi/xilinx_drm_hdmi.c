@@ -341,8 +341,7 @@ static void TxStreamUpCallback(void *CallbackRef)
 	 * (this was tested against the DP159 misc retimer driver) */
 	if (hdmi->retimer_clk) {
 		dev_info(hdmi->dev, "dp159: clk_set_rate(hdmi->retimer_clk, TxLineRate=%lld\n", TxLineRate);
-		(void)clk_set_rate(hdmi->retimer_clk,
-			(signed long long)TxLineRate);
+		(void)clk_set_rate(hdmi->retimer_clk, (signed long long)TxLineRate);
 	}
 
 	/* Enable TX TMDS clock*/
@@ -428,7 +427,7 @@ static void VphyHdmiTxInitCallback(void *CallbackRef)
 
 	VphyPtr = hdmi->xvphy;
 	BUG_ON(!VphyPtr);
-	dev_info(hdmi->dev, "VphyHdmiTxInitCallback\n");
+	//dev_info(hdmi->dev, "VphyHdmiTxInitCallback\n");
 
 	/* a pair of mutexes must be locked in fixed order to prevent deadlock,
 	 * and the order is RX SS then XVPHY, so first unlock XVPHY then lock both */
@@ -439,11 +438,13 @@ static void VphyHdmiTxInitCallback(void *CallbackRef)
 	xvphy_mutex_lock(hdmi->phy[0]);
 	//dev_info(hdmi->dev, "xvphy_mutex_lock() done\n");
 
+	dev_info(hdmi->dev, "VphyHdmiTxInitCallback(): XV_HdmiTxSs_RefClockChangeInit()\n");
+
 	XV_HdmiTxSs_RefClockChangeInit(HdmiTxSsPtr);
 
 	/* unlock RX SS but keep XVPHY locked */
 	mutex_unlock(&hdmi->hdmi_mutex);
-	dev_info(hdmi->dev, "VphyHdmiTxInitCallback() done\n");
+	//dev_info(hdmi->dev, "VphyHdmiTxInitCallback() done\n");
 }
 
 /* entered with vphy mutex taken */
@@ -460,7 +461,7 @@ static void VphyHdmiTxReadyCallback(void *CallbackRef)
 	VphyPtr = hdmi->xvphy;
 	BUG_ON(!VphyPtr);
 
-	dev_info(hdmi->dev, "VphyHdmiTxReadyCallback\r\n");
+	dev_info(hdmi->dev, "VphyHdmiTxReadyCallback(): NOP\n");
 }
 
 /* drm_encoder_slave_funcs */
@@ -677,7 +678,7 @@ static void xilinx_drm_hdmi_mode_set(struct drm_encoder *encoder,
 	// Set TX reference clock
 	VphyPtr->HdmiTxRefClkHz = mode->crtc_clock * 1000;
 	dev_info(hdmi->dev, "Setting VphyPtr->HdmiTxRefClkHz (from mode->crtc_clock) = %d\n", VphyPtr->HdmiTxRefClkHz);
-	dev_info(hdmi->dev, "(TmdsClock = %u)\n", TmdsClock);
+	dev_info(hdmi->dev, "(TmdsClock = %u, from XV_HdmiTxSs_SetStream())\n", TmdsClock);
 
 	// Set GT TX parameters
 	Result = XVphy_SetHdmiTxParam(VphyPtr, 0, XVPHY_CHANNEL_ID_CHA,
@@ -688,6 +689,9 @@ static void xilinx_drm_hdmi_mode_set(struct drm_encoder *encoder,
 	if (Result == (XST_FAILURE)) {
 		dev_info(hdmi->dev, "Unable to set requested TX video resolution.\n\r");
 	}
+
+	XVidC_ReportStreamInfo(HdmiTxSsVidStreamPtr);
+	XV_HdmiTx_DebugInfo(HdmiTxSsPtr->HdmiTxPtr);
 
 	/* Disable RX clock forwarding */
 	XVphy_Clkout1OBufTdsEnable(VphyPtr, XVPHY_DIR_RX, (FALSE));
@@ -901,6 +905,10 @@ static int xilinx_drm_hdmi_encoder_init(struct platform_device *pdev,
 	/* TX SS callback setup */
 	XV_HdmiTxSs_SetCallback(HdmiTxSsPtr, XV_HDMITXSS_HANDLER_CONNECT,
 		TxConnectCallback, (void *)hdmi);
+#if 0 /* @TODO Add for HDCP */
+	XV_HdmiTxSs_SetCallback(HdmiTxSsPtr, XV_HDMITXSS_HANDLER_TOGGLE,
+		TxToggleCallback, (void *)hdmi);
+#endif
 	XV_HdmiTxSs_SetCallback(HdmiTxSsPtr, XV_HDMITXSS_HANDLER_VS,
 		TxVsCallback, (void *)hdmi);
 	XV_HdmiTxSs_SetCallback(HdmiTxSsPtr, XV_HDMITXSS_HANDLER_STREAM_UP,
@@ -1072,6 +1080,8 @@ static int xilinx_drm_hdmi_parse_of(struct xilinx_drm_hdmi *hdmi, XV_HdmiTxSs_Co
 	if (rc < 0)
 		goto error_dt;
 	config->MaxBitsPerPixel = val;
+
+	//"xlnx,gfx-fmt";
 
 	rc = of_property_read_u32(node, "xlnx,vtc-offset", &val);
 	if (rc < 0) {
