@@ -575,6 +575,7 @@ static void xilinx_drm_hdmi_mode_set(struct drm_encoder *encoder,
 	XVidC_VideoStream *HdmiTxSsVidStreamPtr;
 	u32 TmdsClock = 0;
 	u32 Result;
+	XVidC_ColorFormat xvidc_colorfmt;
 	//u32 PixelClock;
 
 	struct xilinx_drm_hdmi *hdmi = to_hdmi(encoder);
@@ -660,25 +661,33 @@ static void xilinx_drm_hdmi_mode_set(struct drm_encoder *encoder,
 		PixelClock = PixelClock / 2;
 	}
 #endif
+
+	//xvidc_colorfmt = XVIDC_CSF_YUV422;
+	xvidc_colorfmt = XVIDC_CSF_RGB;
+
 	/* @TODO incorrect, this is only called to set XVIDC_CSF_RGB and XVIDC_BPC_8, there is no other BSP API yet */
 	if (mode->vdisplay == 720) {
-		TmdsClock = XV_HdmiTxSs_SetStream(HdmiTxSsPtr, XVIDC_VM_1280x720_60_P, XVIDC_CSF_RGB, XVIDC_BPC_8, NULL);
+		TmdsClock = XV_HdmiTxSs_SetStream(HdmiTxSsPtr, XVIDC_VM_1280x720_60_P, xvidc_colorfmt, XVIDC_BPC_8, NULL);
 		dev_info(hdmi->dev, "1280x720\n");
 	} else if (mode->vdisplay == 1080) {
-		TmdsClock = XV_HdmiTxSs_SetStream(HdmiTxSsPtr, XVIDC_VM_1920x1080_60_P, XVIDC_CSF_RGB, XVIDC_BPC_8, NULL);
+		TmdsClock = XV_HdmiTxSs_SetStream(HdmiTxSsPtr, XVIDC_VM_1920x1080_60_P, xvidc_colorfmt, XVIDC_BPC_8, NULL);
 		dev_info(hdmi->dev, "1920x1080\n");
 	} else if (mode->vdisplay == 2160) {
-		TmdsClock = XV_HdmiTxSs_SetStream(HdmiTxSsPtr, XVIDC_VM_3840x2160_60_P, XVIDC_CSF_RGB, XVIDC_BPC_8, NULL);
+		TmdsClock = XV_HdmiTxSs_SetStream(HdmiTxSsPtr, XVIDC_VM_3840x2160_60_P, xvidc_colorfmt, XVIDC_BPC_8, NULL);
 		dev_info(hdmi->dev, "3840x2160\n");
 		/* fallback, at least color space and color depth are set */
 	} else {
-		TmdsClock = XV_HdmiTxSs_SetStream(HdmiTxSsPtr, XVIDC_VM_1280x720_60_P, XVIDC_CSF_RGB, XVIDC_BPC_8, NULL);
+		TmdsClock = XV_HdmiTxSs_SetStream(HdmiTxSsPtr, XVIDC_VM_1280x720_60_P, xvidc_colorfmt, XVIDC_BPC_8, NULL);
 	}
 
 	// Set TX reference clock
 	VphyPtr->HdmiTxRefClkHz = mode->crtc_clock * 1000;
 	dev_info(hdmi->dev, "Setting VphyPtr->HdmiTxRefClkHz (from mode->crtc_clock) = %d\n", VphyPtr->HdmiTxRefClkHz);
 	dev_info(hdmi->dev, "(TmdsClock = %u, from XV_HdmiTxSs_SetStream())\n", TmdsClock);
+
+	dev_info(hdmi->dev, "XVphy_SetHdmiTxParam(PixPerClk = %d, ColorDepth = %d, ColorFormatId=%d)\n",
+		(int)HdmiTxSsVidStreamPtr->PixPerClk, (int)HdmiTxSsVidStreamPtr->ColorDepth,
+		(int)HdmiTxSsVidStreamPtr->ColorFormatId);
 
 	// Set GT TX parameters
 	Result = XVphy_SetHdmiTxParam(VphyPtr, 0, XVPHY_CHANNEL_ID_CHA,
@@ -834,7 +843,7 @@ static int xilinx_drm_hdmi_get_modes(struct drm_encoder *encoder,
 
 		return 0;
 	}
-#if 1 // @TODO remove, this is used during side-by-side testing of DP/HDMI on the same screen
+#if 0 // @TODO remove, this is used during side-by-side testing of DP/HDMI on the same screen
 	/* always add 1080p */
 	xilinx_drm_hdmi_hardcode(connector);
 #endif
