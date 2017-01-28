@@ -2,7 +2,7 @@
  * dp159 redriver and retimer
  * Copyright (C) 2016 Leon Woestenberg <leon@sidebranch.com>
  *
- * based on dp159.c
+ * based on code
  * Copyright (C) 2007 Hans Verkuil
  *
  * This program is free software; you can redistribute it and/or modify
@@ -65,6 +65,7 @@ static int dp159_program(struct i2c_client *client, unsigned long rate)
 {
 	int r;
 	printk(KERN_INFO "dp159_program(rate = %lu)\n", rate);
+	r = i2c_dp159_write(client, 0x09, 0x06);
 
 	if ((rate / (1000000)) > 3400) {
 		printk(KERN_INFO "dp159_program(rate = %lu) for HDMI 2.0\n", rate);
@@ -137,6 +138,8 @@ static int dp159_probe(struct i2c_client *client,
 
 	/* initialize to HDMI 1.4 */
 	(void)dp159_write(client, 0x0A, 0x35);			// Automatic redriver to retimer crossover at 1.0 Gbps
+	// @TODO this line was also commented-out in bare-metal
+	// is this setting clock rate dependend?
 	//r = dp159_write(client, 0x0A, 0x34);			// The redriver mode must be selected to support low video rates
 	(void)dp159_write(client, 0x0B, 0x01);
 	(void)dp159_write(client, 0x0C, 0xA0);				// Set VSWING data decrease by 24%
