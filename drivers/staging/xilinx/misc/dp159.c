@@ -65,7 +65,7 @@ static int dp159_program(struct i2c_client *client, unsigned long rate)
 {
 	int r;
 	printk(KERN_INFO "dp159_program(rate = %lu)\n", rate);
-	r = i2c_dp159_write(client, 0x09, 0x06);
+	r = dp159_write(client, 0x09, 0x06);
 
 	if ((rate / (1000000)) > 3400) {
 		printk(KERN_INFO "dp159_program(rate = %lu) for HDMI 2.0\n", rate);
