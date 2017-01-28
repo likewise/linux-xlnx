@@ -244,9 +244,15 @@ static void si5324_initialize(struct si5324_driver_data *drvdata)
 	// enable CKIN1 buffer (bit 0 PD_CK1=0)
 	// (bit 6 is reserved, write default value)
 	si5324_reg_write(drvdata, 11, 0x42);
+#if 1 // XPAR_VID_PHY_CONTROLLER_HDMI_FAST_SWITCH
+    // Set lock time to 13.3ms (bits 2:0 LOCKT=011)
+    // other bits are default
+	si5324_reg_write(drvdata, 19, 0x23);  // 0x29
+#else
 	// Set lock time to 53ms as recommended (bits 2:0 LOCKT=001)
 	// other bits are default
 	si5324_reg_write(drvdata, 19, 0x2f);  // 0x29
+#endif
 	/* ignore pin control  CS_CA pin is ignored, CS_CA output pin tristated */
 	si5324_reg_write(drvdata, 21, 0xfc);
 	// Enable fast locking (bit 0 FASTLOCK=1)
