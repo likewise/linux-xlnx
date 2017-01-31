@@ -140,8 +140,11 @@ void XVphy_CfgInitialize(XVphy *InstancePtr, XVphy_Config *ConfigPtr,
 	}
 	else
 #endif
-	{
+	if (InstancePtr->Config.XcvrType == XVPHY_GT_TYPE_GTHE4) {
 		InstancePtr->GtAdaptor = &Gthe4Config;
+	}
+	else {
+		return;
 	}
 
 	const XVphy_SysClkDataSelType SysClkCfg[7][2] = {

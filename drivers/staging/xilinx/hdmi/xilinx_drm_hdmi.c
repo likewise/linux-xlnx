@@ -1100,7 +1100,6 @@ static int xilinx_drm_hdmi_parse_of(struct xilinx_drm_hdmi *hdmi, XV_HdmiTxSs_Co
 		config->Vtc.IsPresent = 1;
 		config->Vtc.DeviceId = 0;
 		config->Vtc.AddrOffset = val;
-		dev_info(hdmi->dev, "Using an internal VTC at offset %lu.", config->Vtc.AddrOffset);
 	}
 	return 0;
 
@@ -1134,10 +1133,41 @@ static int xilinx_drm_hdmi_probe(struct platform_device *pdev)
 		return -ENOMEM;
 	}
 
+	dev_info(&pdev->dev, "xilinx_drm_hdmi DT parse start\n");
 	/* parse open firmware device tree data */
 	ret = xilinx_drm_hdmi_parse_of(hdmi, &config);
+	dev_info(&pdev->dev, "xilinx_drm_hdmi DT parse done\n");
 	if (ret < 0)
 		return ret;
+
+#if 1
+	/* @TODO spread phy[index] over RX/TX as */
+	index = 2;
+	{
+		char phy_name[32];
+		snprintf(phy_name, sizeof(phy_name), "hdmi-phy%d", index);
+
+		index = 0;
+		hdmi->phy[index] = devm_phy_get(hdmi->dev, phy_name);
+		if (IS_ERR(hdmi->phy[index])) {
+			ret = PTR_ERR(hdmi->phy[index]);
+			dev_err(hdmi->dev, "failed to get phy lane %s, error %d\n",
+				phy_name, ret);
+			goto error_phy;
+		}
+
+		ret = phy_init(hdmi->phy[index]);
+		if (ret) {
+			dev_err(hdmi->dev,
+				"failed to init phy lane %d\n", index);
+			goto error_phy;
+		}
+	}
+#endif
+
+	dev_info(hdmi->dev, "config.Vtc.AddrOffset =  %lx.", (int)config.Vtc.AddrOffset);
+	dev_info(hdmi->dev, "config->Ppc = %d\n", (int)config.Ppc);
+	dev_info(hdmi->dev, "config->MaxBitsPerPixel = %d\n", (int)config.MaxBitsPerPixel);
 
 	res = platform_get_resource(pdev, IORESOURCE_MEM, 0);
 	hdmi->iomem = devm_ioremap_resource(hdmi->dev, res);
@@ -1194,6 +1224,7 @@ static int xilinx_drm_hdmi_probe(struct platform_device *pdev)
 		dev_info(&pdev->dev, "no retimer-clk specified\n");
 	}
 
+#if 0
 	/* @TODO spread phy[index] over RX/TX as */
 	index = 2;
 	{
@@ -1216,6 +1247,7 @@ static int xilinx_drm_hdmi_probe(struct platform_device *pdev)
 			goto error_phy;
 		}
 	}
+#endif
 
 	printk(KERN_INFO "axi_clk_rate = %lu Hz\n", axi_clk_rate);
 

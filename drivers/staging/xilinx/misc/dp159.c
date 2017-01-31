@@ -48,11 +48,20 @@ struct clk_tx_linerate {
 
 static inline int dp159_write(struct i2c_client *client, u8 reg, u8 value)
 {
+	int rc;
+	u8 readback;
+	rc = i2c_smbus_write_byte_data(client, reg, value);
+	if (rc)
+		printk(KERN_INFO "dp159_write(reg=%d,value=%d) =  %d\n", (int)reg, (int)value, rc);
+
+	readback = i2c_smbus_read_byte_data(client, reg);
+//	if (readback != value)
+		printk(KERN_INFO "read back %d\n", (int)readback);
 
 #if 0
 	struct i2c_client *client = v4l2_get_subdevdata(client);
 #endif
-	return i2c_smbus_write_byte_data(client, reg, value);
+	return rc;
 }
 
 static inline int dp159_read(struct i2c_client *client, u8 reg)
@@ -78,7 +87,7 @@ static int dp159_program(struct i2c_client *client, unsigned long rate)
 		printk(KERN_INFO "dp159_program(rate = %lu) for HDMI 1.4\n", rate);
 		r = dp159_write(client, 0x0A, 0x35);			// Automatic redriver to retimer crossover at 1.0 Gbps
 		//r = dp159_write(client, 0x0A, 0x34);			// The redriver mode must be selected to support low video rates
-		r = dp159_write(client, 0x0B, 0x01);
+		r = dp159_write(client, 0x0B, 0x01/*was 1, 0* @TODO*/);
 		r = dp159_write(client, 0x0C, 0xA0);				// Set VSWING data decrease by 24%
 		r = dp159_write(client, 0x0D, 0x00);
 	}

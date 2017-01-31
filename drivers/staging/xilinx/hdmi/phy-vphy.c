@@ -450,7 +450,12 @@ static int vphy_parse_of(struct xvphy_dev *vphydev, XVphy_Config *c)
 	if (rc < 0)
 		goto error_dt;
 	c->HdmiFastSwitch = val;
-
+#if 0 /* @TODO property name/value unknown */
+	rc = of_property_read_u32(node, "xlnx,tx-buffer-bypass", &val);
+	if (rc < 0)
+		goto error_dt;
+	c->TxBufferBypass = val;
+#endif
 	return 0;
 #if 0
 	rc = of_property_read_u32(node, "xlnx,hdmi-fast-switch", (u32 *)c->HdmiFastSwitch);
@@ -502,7 +507,9 @@ static int xvphy_probe(struct platform_device *pdev)
 	platform_set_drvdata(pdev, vphydev);
 
 	BUG_ON(!np);
+	dev_info(&pdev->dev, "xvphy_probe DT parse start\n");
 	ret = vphy_parse_of(vphydev, &config);
+	dev_info(&pdev->dev, "xvphy_probe DT parse done\n");
 	if (ret) return ret;
 
 	for_each_child_of_node(np, child) {
@@ -583,6 +590,50 @@ static int xvphy_probe(struct platform_device *pdev)
 		dev_err(&pdev->dev, "registering provider failed\n");
 			return PTR_ERR(provider);
 	}
+
+	dev_info(&pdev->dev, "XcvrType = %d\n", (int)config.XcvrType);
+	dev_info(&pdev->dev, "TxChannels = %d\n", (int)config.TxChannels);
+	dev_info(&pdev->dev, "RxChannels = %d\n", (int)config.RxChannels);
+	dev_info(&pdev->dev, "TxProtocol = %d\n", (int)config.TxProtocol);
+	dev_info(&pdev->dev, "RxProtocol = %d\n", (int)config.RxProtocol);
+	dev_info(&pdev->dev, "TxRefClkSel = %d\n", (int)config.TxRefClkSel);
+	dev_info(&pdev->dev, "RxRefClkSel = %d\n", (int)config.RxRefClkSel);
+	dev_info(&pdev->dev, "TxSysPllClkSel = %d\n", (int)config.TxSysPllClkSel);
+	dev_info(&pdev->dev, "RxSysPllClkSel = %d\n", (int)config.RxSysPllClkSel);
+	dev_info(&pdev->dev, "DruIsPresent = %d\n", (int)config.DruIsPresent);
+	dev_info(&pdev->dev, "DruRefClkSel = %d\n", (int)config.DruRefClkSel);
+	dev_info(&pdev->dev, "Ppc = %d\n", (int)config.Ppc);
+	dev_info(&pdev->dev, "TxBufferBypass = %d\n", (int)config.TxBufferBypass);
+#if 0
+	.DeviceId = XPAR_VID_PHY_CONTROLLER_0_DEVICE_ID,
+	.BaseAddr = XPAR_VID_PHY_CONTROLLER_0_BASEADDR,
+	.XcvrType = XPAR_VID_PHY_CONTROLLER_0_TRANSCEIVER,
+	/* xlnx,tx-no-of-channels (u8) */
+	.TxChannels = XPAR_VID_PHY_CONTROLLER_0_TX_NO_OF_CHANNELS,
+	/* xlnx,rx-no-of-channels (u8) */
+	.RxChannels = XPAR_VID_PHY_CONTROLLER_0_RX_NO_OF_CHANNELS,
+	/* xlnx,tx-protocol */
+	.TxProtocol = XPAR_VID_PHY_CONTROLLER_0_TX_PROTOCOL,
+	/* xlnx,rx-protocol */
+	.RxProtocol = XPAR_VID_PHY_CONTROLLER_0_RX_PROTOCOL,
+	/* xlnx,tx-refclk-sel */
+	.TxRefClkSel = XPAR_VID_PHY_CONTROLLER_0_TX_REFCLK_SEL,
+	/* xlnx,rx-refclk-sel */
+	.RxRefClkSel = XPAR_VID_PHY_CONTROLLER_0_RX_REFCLK_SEL,
+	/* xlnx,tx-pll-selection */
+	.TxSysPllClkSel = XPAR_VID_PHY_CONTROLLER_0_TX_PLL_SELECTION,
+	/* xlnx,rx-pll-selection */
+	.RxSysPllClkSel = XPAR_VID_PHY_CONTROLLER_0_RX_PLL_SELECTION,
+	/* xlnx,nidru = <0x1>; */
+	.DruIsPresent = XPAR_VID_PHY_CONTROLLER_0_NIDRU,
+	/* xlnx,nidru-refclk-sel */
+	.DruRefClkSel = XPAR_VID_PHY_CONTROLLER_0_NIDRU_REFCLK_SEL,
+	/* xlnx,input-pixels-per-clock = <0x1>; */
+	.Ppc = XPAR_VID_PHY_CONTROLLER_0_INPUT_PIXELS_PER_CLOCK,
+	.TxBufferBypass = XPAR_VID_PHY_CONTROLLER_0_TX_BUFFER_BYPASS,
+	/* xlnx,hdmi-fast-switch = <0x1>; */
+	.HdmiFastSwitch = 1
+#endif
 
 	/* Initialize HDMI VPHY */
 	Status = XVphy_HdmiInitialize(&vphydev->xvphy, 0/*QuadID*/,
