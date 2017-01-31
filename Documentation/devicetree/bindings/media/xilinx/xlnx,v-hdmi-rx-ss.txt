@@ -1,0 +1,29 @@
+Xilinx HDMI RX Subsystem (Staging)
+
+The Xilinx HDMI RX Subsystem contains several subcores to implement
+a HDMI receiver. media/platform/xilinx/xilinx-hdmi-rx.c implements a
+V4L2 video-capture sub-device for the Xilinx Video IP Pipeline device
+(xilinx-vipp).
+
+Refer to xlnx,vphy.txt for the phy specifics.
+
+phy-names must be hdmi-phy0 etc.
+
+	hdmi_rxss: hdmi_rxss@a1000000 {
+		compatible = "xlnx,v-hdmi-rx-ss-2.0";
+		reg = <0x0 0xa1000000 0x10000>;
+		interrupts = <0 91 4>;
+		interrupt-parent = <&gic>;
+
+		clocks = <&vid_stream_clk>, <&si570_2>;
+		clock-names = "video", "dru-clk";
+
+		phy-names = "hdmi-phy0", "hdmi-phy1";
+		phys = <&vphy_lane0 0 1 1 125000000>, <&vphy_lane1 0 1 1 125000000>;
+
+		/* these are handled in the driver */
+		/* these are created by the device tree generator */
+		xlnx,input-pixels-per-clock = <0x2>;
+		xlnx,max-bits-per-component = <0x8>;
+	};
+

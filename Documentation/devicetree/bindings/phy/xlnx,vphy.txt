@@ -1,0 +1,61 @@
+Xilinx VPHY (Staging)
+
+The Xilinx Video PHY is a high-level video-specific wrapper around
+different versions of the GT PHY. Its driver is phy/phy-xilinx-vphy.c
+
+It offers the PHY driver interface as well as higher-level video
+specific support functions.
+
+Its current users are Xilinx HDMI RX/TX SS.
+(See xlnx,v-hdmi-rx-ss.txt and xlnx,v-hdmi-tx-ss.txt)
+
+At least one lane reference must be made (by each of HDMI RX and TX) to
+get a handle to the vphy driver. The (currently 4) arguments are not
+used and subject to change or removal. The vphy reference is subject to
+change.
+
+An example is, with comments for work-in-progress (TODO):
+
+	vphy: vphy@a0000000 {
+		compatible = "xlnx,vphy-1.1";
+		reg = <0x0 0xa0000000 0x10000>;
+		interrupts = <0 92 4>;
+		interrupt-parent = <&gic>;
+
+		clocks = <&vid_s_axi_clk>;
+		clock-names = "axi-lite";
+
+		/* these are created by the device tree generator */
+		/* these are required and handled in the driver */
+		xlnx,input-pixels-per-clock = <0x2>;
+		xlnx,nidru = <0x1>;
+		xlnx,nidru-refclk-sel = <0x4>;
+		xlnx,rx-no-of-channels = <0x3>;
+		xlnx,rx-pll-selection = <0x0>;
+		xlnx,rx-protocol = <0x1>;
+		xlnx,rx-refclk-sel = <0x1>;
+		xlnx,tx-no-of-channels = <0x3>;
+		xlnx,tx-pll-selection = <0x6>;
+		xlnx,tx-protocol = <0x1>;
+		xlnx,tx-refclk-sel = <0x0>;
+		xlnx,hdmi-fast-switch = <0x1>;
+
+		/* @TODO these are NOT yet created by the device tree generator */
+		/* these are not not required by the driver, but are used if present */
+		/* (!!) if not present here, they get a hard-coded value in the driver (!!) */
+		xlnx,transceiver-type = <0x5>;
+		xlnx,tx-buffer-bypass = <0x1>;
+
+		vphy_lane0: vphy_lane@0 {
+			#phy-cells = <4>;
+		};
+		vphy_lane1: vphy_lane@1 {
+			#phy-cells = <4>;
+		};
+		vphy_lane2: vphy_lane@2 {
+			#phy-cells = <4>;
+		};
+		vphy_lane3: vphy_lane@3 {
+			#phy-cells = <4>;
+		};
+	};
