@@ -705,6 +705,8 @@ static void xilinx_drm_hdmi_mode_set(struct drm_encoder *encoder,
 	/* Disable RX clock forwarding */
 	XVphy_Clkout1OBufTdsEnable(VphyPtr, XVPHY_DIR_RX, (FALSE));
 
+	/* @NOTE in bare-metal, here the Si5324 clock is changed */
+
 	xvphy_mutex_unlock(hdmi->phy[0]);
 }
 
