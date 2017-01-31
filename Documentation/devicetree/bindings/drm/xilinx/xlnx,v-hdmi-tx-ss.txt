@@ -1,0 +1,40 @@
+Xilinx HDMI TX Subsystem (Staging)
+
+The Xilinx HDMI TX Subsystem contains several subcores to implement
+a HDMI receiver. staging/xilinx/hdmi/xilinx_drm_hdmi.c implements a
+DRM/KMS driver that slaves to xilinx_drm_drv.c in the output pipeline.
+
+If xlnx,vtc-offset is given it specifies the offset of the built-in
+VTC IP block. This is required for stand-alone operation.
+
+Refer to xlnx,vphy.txt for the phy specifics.
+
+retimer-clk is optional. If specified, the corresponding driver
+should offer a CCF clock that supports .set_rate(). Through this,
+the device can retime/redrive the HDMI TX signal on the connector
+depending on the TX clock line rate.
+
+phy-names must be hdmi-phy0 etc.
+
+	hdmi_txss: hdmi_txss@a0060000 {
+		compatible = "xlnx,v-hdmi-tx-ss-2.0";
+		reg = <0x0 0xa0060000 0x0 0x20000>;
+		interrupts = <0 93 4>;
+		interrupt-parent = <&gic>;
+
+		clocks = <&vid_s_axi_clk>, <&vid_stream_clk>, <&dp159>;
+		clock-names = "axi-lite", "video", "retimer-clk";
+
+		phy-names = "hdmi-phy2";
+		phys = <&vphy_lane2 0 1 1 125000000>;
+
+		/* these are created by the device tree generator (DTG) */
+		/* these are handled in the driver */
+		xlnx,input-pixels-per-clock = <0x2>;
+		xlnx,max-bits-per-component = <0x8>;
+
+		/* not yet standardized or created by the DTG */
+		/* this one is optional, presence of internal VTC */
+		xlnx,vtc-offset = <0x10000>;
+	};
+
