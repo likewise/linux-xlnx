@@ -1048,8 +1048,11 @@ static int xhdmirx_probe(struct platform_device *pdev)
 	INIT_DELAYED_WORK(&xhdmirx->delayed_work_enable_hotplug,
 		xhdmirx_delayed_work_enable_hotplug);
 
+
+	dev_info(&pdev->dev, "xhdmirx_probe DT parse start\n");
 	/* parse open firmware device tree data */
 	ret = xhdmirx_parse_of(xhdmirx, &config);
+	dev_info(&pdev->dev, "xhdmirx_probe DT parse done\n");
 	if (ret < 0)
 		return ret;
 
