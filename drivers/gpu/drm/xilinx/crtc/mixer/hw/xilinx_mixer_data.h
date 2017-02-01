@@ -194,7 +194,10 @@ struct xv_mixer {
 	u32                 max_logo_layer_height;
 	u32                 max_layers;
 	u32                 bg_layer_bpc;
-	u32                 ppc; /* JPM TODO not supported yet */
+	/* JPM TODO ppc not supported yet */
+	u32                 ppc;
+
+	int		    irq;
 
 	xv_mixer_bkg_color_id      bg_color;
 
@@ -208,6 +211,9 @@ struct xv_mixer {
 	} logo_color_key;
 
 	struct gpio_desc *reset_gpio;
+
+	void (*intrpt_handler_fn)(void *);
+	void *intrpt_data;
 
 	void *private;
 };
@@ -297,6 +303,36 @@ xilinx_mixer_layer_enable(struct xv_mixer *mixer,
 void
 xilinx_mixer_layer_disable(struct xv_mixer *mixer,
 			xv_mixer_layer_id layer_id);
+
+
+static inline uint32_t
+xilinx_mixer_get_intr_status(struct xv_mixer *mixer)
+{
+	return reg_readl(mixer->reg_base_addr, XV_MIX_CTRL_ADDR_ISR);
+} 
+
+
+static inline void
+xilinx_mixer_clear_intr_status(struct xv_mixer *mixer, uint32_t intr)
+{
+	reg_writel(mixer->reg_base_addr, XV_MIX_CTRL_ADDR_ISR, intr);
+	return;
+}
+
+
+static inline bool
+xilinx_mixer_g_intrpt_enabled(struct xv_mixer *mixer)
+{
+	return (reg_readl(mixer->reg_base_addr, XV_MIX_CTRL_ADDR_GIE) & 0x1);
+}
+
+/**
+ * Enables interrupts in the mixer IP core
+ *
+ * @param[in] mixer instance in which to enable interrupts
+*/
+void
+xilinx_mixer_intrpt_enable(struct xv_mixer *mixer);
 
 /**
  * Disables all interrupts in the mixer IP core
@@ -416,5 +452,17 @@ xilinx_mixer_init(struct xv_mixer *mixer);
 int
 xilinx_mixer_logo_load(struct xv_mixer *mixer, u32 logo_w, u32 logo_h,
 			u8 *r_buf, u8 *g_buf, u8 *b_buf);
+
+
+int
+xilinx_mixer_set_layer_buff_addr(struct xv_mixer *mixer,
+				xv_mixer_layer_id layer_id,
+				u32 buff_addr);
+
+
+int
+xilinx_mixer_get_layer_buff_addr(struct xv_mixer *mixer,
+				xv_mixer_layer_id layer_id,
+				u32 *buff_addr);
 
 #endif /* __XV_VIDEO_MIXER_DATA__ */

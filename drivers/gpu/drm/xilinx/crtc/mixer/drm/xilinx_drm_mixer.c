@@ -33,6 +33,7 @@
 #include <linux/types.h>
 #include <linux/of.h>
 #include <linux/of_address.h>
+#include <linux/of_irq.h>
 #include <linux/gpio/consumer.h>
 
 #include <drm/drm_crtc.h>
@@ -84,6 +85,9 @@ static int
 xilinx_drm_mixer_parse_dt_bg_video_fmt(struct device_node *layer_node,
 				struct xv_mixer *mixer);
 
+static irqreturn_t
+xilinx_drm_mixer_intr_handler(int irq, void *data);
+
 
 /************************* IMPLEMENTATIONS ***********************************/
 struct xv_mixer *xilinx_drm_mixer_probe(struct device *dev,
@@ -100,6 +104,7 @@ struct xv_mixer *xilinx_drm_mixer_probe(struct device *dev,
 	int				layer_idx;
 	int				layer_cnt;
 	int				i;
+	bool				have_mem_layer = false;
 
 	match = of_match_node(xv_mixer_match, node);
 
@@ -170,7 +175,8 @@ struct xv_mixer *xilinx_drm_mixer_probe(struct device *dev,
 	/* Parse out logo data from device tree */
 	ret = xilinx_drm_mixer_parse_dt_logo_data(node, mixer);
 	if (ret) {
-		dev_err(dev, "Missing req'd logo layer props from dts for mixer\n ");
+		dev_err(dev,
+			"Missing req'd logo layer props from dts for mixer\n");
 		return ERR_PTR(-EINVAL);
 	}
 
@@ -186,12 +192,43 @@ struct xv_mixer *xilinx_drm_mixer_probe(struct device *dev,
 							mixer->max_layer_width);
 
 		if (ret) {
-			dev_err(dev, "Failed to obtain required parameter(s) for "
-				 "mixer layer %d and/or invalid parameter values"
-				 " supplied\n", i);
+			dev_err(dev, "Failed to obtain required parameter(s)"
+				" for mixer layer %d and/or invalid parameter"
+				" values supplied\n", i);
 		    return ERR_PTR(-EINVAL);
 		}
 
+		if (!mixer->layer_data[layer_idx].hw_config.is_streaming &&
+			!have_mem_layer)
+			have_mem_layer = true;
+
+	}
+
+	/* request irq and obtain pixels-per-clock (ppc) property */
+	if (have_mem_layer) {
+
+		mixer->irq = irq_of_parse_and_map(node, 0);
+
+		if (mixer->irq > 0) {
+			ret = devm_request_irq(dev, mixer->irq,
+					xilinx_drm_mixer_intr_handler,
+					IRQF_SHARED, "xilinx_mixer", mixer);
+
+			if (ret) {
+				dev_err(dev,
+					"Failed to request irq for mixer\n");
+				return ERR_PTR(ret);
+			}
+		}
+
+		ret = of_property_read_u32(node, "xlnx,ppc",
+				   &(mixer->ppc));
+
+		if (ret) {
+			dev_err(dev, "Failed to obtain xlnx,ppc property "
+				"from mixer dts\n");
+			return ret;
+		}
 	}
 
 	/*Pull device out of reset */
@@ -205,8 +242,12 @@ struct xv_mixer *xilinx_drm_mixer_probe(struct device *dev,
 
 	gpiod_set_raw_value(mixer->reset_gpio, 0x1);
 
-	/* init the hardware and establish default register values */
-	xilinx_mixer_init(mixer);
+	/* establish interrupt status */
+	xilinx_mixer_intrpt_disable(mixer);
+
+	if (have_mem_layer)
+		xilinx_mixer_intrpt_enable(mixer);
+
 
 	/* Init all layers to inactive state in software. An update_plane()
 	* call to our drm driver will change this to 'active' and permit the
@@ -216,6 +257,8 @@ struct xv_mixer *xilinx_drm_mixer_probe(struct device *dev,
 		layer_data = &(mixer->layer_data[i]);
 		mixer_layer_active(layer_data) = false;
 	}
+
+	xilinx_mixer_init(mixer);
 
 	return mixer;
 }
@@ -754,4 +797,31 @@ xilinx_drm_mixer_update_logo_img(struct xilinx_drm_plane *plane,
 				&(r_data[0]), &(g_data[0]), &(b_data[0]));
 
 	return ret;
+}
+
+
+static irqreturn_t xilinx_drm_mixer_intr_handler(int irq, void *data)
+{
+	struct xv_mixer *mixer = data;
+
+	u32 intr = xilinx_mixer_get_intr_status(mixer);
+
+	if (!intr)
+		return IRQ_NONE;
+	
+	else if (mixer->intrpt_handler_fn)
+		mixer->intrpt_handler_fn(mixer->intrpt_data);
+
+	xilinx_mixer_clear_intr_status(mixer, intr);
+
+	return IRQ_HANDLED;
+}
+
+
+void xilinx_drm_mixer_set_intr_handler(struct xv_mixer *mixer,
+				void (*intr_handler_fn)(void *),
+				void *data)
+{
+	mixer->intrpt_handler_fn = intr_handler_fn;
+	mixer->intrpt_data = data;
 }
