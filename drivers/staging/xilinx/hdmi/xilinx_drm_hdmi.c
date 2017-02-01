@@ -510,7 +510,7 @@ static void xilinx_drm_hdmi_restore(struct drm_encoder *encoder)
  *
  * if SI5324 is commented out, the SI5324 clock is changed before  xilinx_drm_hdmi_mode_set()
  * is run, THIS IS THE LINUX DEFAULT AND LINUX DOES NOT ALLOW OTHER SEQUENCES OFFICIALLY. */
-//#define SI5324_LAST
+#define SI5324_LAST
 
 #ifdef SI5324_LAST
 /* prototype */
