@@ -40,18 +40,20 @@ Layer Sub Node Properties:
     - xlnx,vformat [string]: Expected layer input data format ("rgb" | "yuv444"
 	| "yuv422" | "yuv420")
 
-    - xlnx,layer-width [number]: Maximum number of columns (before scaling) for
-	this layer (i.e. horizontal pixels)
-
     - xlnx,layer-height [number]: Only required for layer_0 node (master layer).
 	Indicates maximum vertical size of active screen display in pixels
 
     Optional Properties:
     - xlnx,layer-alpha: Indicates that this layer supports global alpha blending
 
-    - xlnx,layer-scale: Indicates that this layer supports mixer scaling
+    - xlnx,layer-scale: Indicates that this layer supports mixer scaling. Not
+	applicable to layer_0 (i.e. master) node.
 
-    - xlnx,streaming: Layer obtains data as video stream (if omitted, layer is
+    - xlnx,layer-width [number]: Required if xlnx,layer-scale property exists
+	for layer.  Indicates maximum number of columns (before scaling) for
+	this layer (i.e. horizontal pixels)
+
+    - xlnx,layer-streaming: Layer obtains data as video stream (if omitted, layer is
         presumed to be memory mapped)
 
 
