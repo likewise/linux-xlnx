@@ -32,6 +32,7 @@
 #include "xilinx_drm_dp_sub.h"
 #include "xilinx_drm_drv.h"
 #include "xilinx_drm_plane.h"
+#include "crtc/mixer/drm/xilinx_drm_mixer.h"
 
 #include "xilinx_cresample.h"
 #include "xilinx_rgb2yuv.h"
@@ -370,14 +371,28 @@ void xilinx_drm_crtc_enable_vblank(struct drm_crtc *base_crtc)
 {
 	struct xilinx_drm_crtc *crtc = to_xilinx_crtc(base_crtc);
 
-	if (crtc->vtc)
+	if (crtc->plane_manager->mixer) {
+		if(xilinx_mixer_g_intrpt_enabled)
+			xilinx_drm_mixer_set_intr_handler(
+						crtc->plane_manager->mixer,
+						xilinx_drm_crtc_vblank_handler,
+						base_crtc);
+		return;
+	}
+
+	if (crtc->vtc) {
 		xilinx_vtc_enable_vblank_intr(crtc->vtc,
 					      xilinx_drm_crtc_vblank_handler,
 					      base_crtc);
-	if (crtc->dp_sub)
+		return;
+	}
+		
+	if (crtc->dp_sub) {
 		xilinx_drm_dp_sub_enable_vblank(crtc->dp_sub,
 						xilinx_drm_crtc_vblank_handler,
 						base_crtc);
+		return;
+	}
 }
 
 /* disable vblank interrupt */

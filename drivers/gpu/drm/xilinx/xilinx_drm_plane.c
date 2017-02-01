@@ -270,6 +270,22 @@ int xilinx_drm_plane_mode_set(struct drm_plane *base_plane,
 							    src_w, src_h);
 		if (ret)
 			return ret;
+
+		/* if layer is memory based-compute physical address*/
+		if (!mixer_layer_is_streaming(plane->mixer_layer) &&
+			plane->mixer_layer->id < XVMIX_LAYER_LOGO &&
+			plane->mixer_layer->id > XVMIX_LAYER_MASTER) {
+
+			struct xv_mixer *mixer = plane->manager->mixer;
+
+			ret = xilinx_mixer_set_layer_buff_addr(mixer,
+						plane->mixer_layer->id,
+						obj->paddr + offset);
+
+			if (ret)
+				return ret;
+		}
+
 	}
 
 	if (plane->manager->dp_sub) {
@@ -801,7 +817,6 @@ xilinx_drm_plane_create(struct xilinx_drm_plane_manager *manager,
 	const char *fmt;
 	int i;
 	int ret;
-	bool dma_plane = true;
 	uint32_t *fmts = NULL;
 	unsigned int num_fmts = 0;
 
@@ -840,23 +855,9 @@ xilinx_drm_plane_create(struct xilinx_drm_plane_manager *manager,
 
 	DRM_DEBUG_KMS("plane->id: %d\n", plane->id);
 
-	/* Check for mixer layer.  Logo layer will not have dma so we
-	* need to check for this first and by-pass dma code
-	*/
-	layer_node = of_parse_phandle(plane_node, "xlnx,mixer-layer", 0);
-	if (layer_node) {
-		ret = xilinx_create_mixer_layer_plane(manager,
-						      plane, layer_node);
-		if (ret)
-			goto err_dma;
 
-		if (plane->mixer_layer->id == XVMIX_LAYER_LOGO) {
-			dma_plane = false;
-			type = DRM_PLANE_TYPE_CURSOR;
-		}
-	}
-
-	for (i = 0; dma_plane && i < MAX_NUM_SUB_PLANES; i++) {
+	/* JPM TODO remove dma_plane flag and test logo layer */
+	for (i = 0; i < MAX_NUM_SUB_PLANES; i++) {
 		snprintf(name, sizeof(name), "dma%d", i);
 		plane->dma[i].chan = of_dma_request_slave_channel(plane_node,
 								  name);
@@ -948,6 +949,22 @@ xilinx_drm_plane_create(struct xilinx_drm_plane_manager *manager,
 	}
 
 
+	/* Check for mixer layer.  Logo layer will not have dma so we
+	* need to check for this first and by-pass dma code
+	*/
+	if (manager->mixer) {
+		layer_node = 
+			of_parse_phandle(plane_node, "xlnx,mixer-layer", 0);
+
+		ret = xilinx_create_mixer_layer_plane(manager,
+						      plane, layer_node);
+		if (ret)
+			goto err_dma;
+
+		if (plane->mixer_layer->id == XVMIX_LAYER_LOGO) {
+			type = DRM_PLANE_TYPE_CURSOR;
+		}
+	}
 
 
 	if (manager->dp_sub) {
@@ -1219,46 +1236,42 @@ xilinx_create_mixer_layer_plane(struct xilinx_drm_plane_manager *manager,
 	int ret = 0;
 	uint32_t layer_id;
 
-	if (manager->mixer) {
-		/* Create a mixer layer */
+	/* Read device tree to see which mixer layer a drm plane is connected
+	 * to.  Master layer = 0.  Overlay layers 1-7 use indexing 1-7.
+	 * Logo layer is index 8. Error out if creating primary plane
+	 * that is not connected to layer 0 of mixer.
+	 * Layers 0-7 expected to have "plane" nodes but logo layer, as
+	 * an internal layer to the mixer, will not.
+	*/
 
-		/* Read device tree to see which mixer layer plane is connected
-		 * to.  Master layer = 0.  Overlay layers 1-7 use indexing 1-7.
-		 * Logo layer is index 8. Error out if creating primary plane
-		 * that is not connected to layer 0 of mixer.
-		 * Layers 0-7 expected to have "plane" nodes but logo layer, as
-		 * an internal layer to the mixer, will not.
-		*/
-
-		ret = of_property_read_u32(node, "xlnx,layer-id", &layer_id);
-		if (ret) {
-			DRM_ERROR("Missing xlnx,layer-id parameter in "
-				"mixer dts\n");
-			ret = -1;
-		}
-
-		if (plane->primary && layer_id != XVMIX_LAYER_MASTER) {
-			DRM_ERROR("Primary plane not connected to primary "
-				"mixer layer\n");
-			ret = -1;
-		}
-
-		of_node_put(node);
-
-		plane->mixer_layer = xilinx_drm_mixer_get_layer(manager->mixer,
-								layer_id);
-
-		ret = xilinx_drm_mixer_fmt_to_drm_fmt(
-				    mixer_layer_fmt(plane->mixer_layer),
-				    &(plane->format));
-
-		if (ret) {
-			DRM_ERROR("Missing video format data in device tree for"
-				" an %s plane\n", plane->primary ? "primary" :
-				"overlay or logo layer");
-		}
-
+	ret = of_property_read_u32(node, "xlnx,layer-id", &layer_id);
+	if (ret) {
+		DRM_ERROR("Missing xlnx,layer-id parameter in "
+			"mixer dts\n");
+		ret = -1;
 	}
+
+	if (plane->primary && layer_id != XVMIX_LAYER_MASTER) {
+		DRM_ERROR("Primary plane not connected to primary "
+			"mixer layer\n");
+		ret = -1;
+	}
+
+	of_node_put(node);
+
+	plane->mixer_layer = xilinx_drm_mixer_get_layer(manager->mixer,
+							layer_id);
+
+	ret = xilinx_drm_mixer_fmt_to_drm_fmt(
+			    mixer_layer_fmt(plane->mixer_layer),
+			    &(plane->format));
+
+	if (ret) {
+		DRM_ERROR("Missing video format data in device tree for"
+			" an %s plane\n", plane->primary ? "primary" :
+			"overlay or logo layer");
+	}
+
 	return ret;
 
 }

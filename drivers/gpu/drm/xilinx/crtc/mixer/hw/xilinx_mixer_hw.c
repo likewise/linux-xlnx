@@ -106,7 +106,9 @@ void xilinx_mixer_init(struct xv_mixer *mixer)
 
 }
 
+#if 0
 	xilinx_mixer_intrpt_disable(mixer);
+#endif
 
 	xilinx_mixer_start(mixer);
 
@@ -128,8 +130,12 @@ void xilinx_mixer_intrpt_enable(struct xv_mixer *mixer)
 
 	reg_writel(reg_base_addr, XV_MIX_CTRL_ADDR_GIE, 0x1);
 
+#if 0
+	/* JPM TODO if 0/endif as I believe this would not work if 
+	   some layers were streaming */
 	/* Disable autostart bit */
 	reg_writel(reg_base_addr, XV_MIX_CTRL_ADDR_AP_CTRL, 0x0);
+#endif
 }
 
 /******************************************************************************
@@ -146,8 +152,11 @@ void xilinx_mixer_intrpt_disable(struct xv_mixer *mixer)
 
 	reg_writel(reg_base_addr, XV_MIX_CTRL_ADDR_GIE, 0);
 
+#if 0
+	/* JPM TODO see comment for intrpt_enable*/
 	/* Set autostart bit */
 	reg_writel(reg_base_addr, XV_MIX_CTRL_ADDR_AP_CTRL, 0x80);
+#endif
 }
 
 /******************************************************************************
@@ -866,8 +875,8 @@ int xilinx_mixer_set_layer_buff_addr(struct xv_mixer *mixer,
 	u32 win_valid = 0;
 
 	if (layer_id < mixer->layer_cnt) {
-	/* Check if addr is aligned to aximm width (2*PPC*32-bits (4Bytes)) */
-		align = 2 * mixer->ppc * 4;
+	/* Check if addr is aligned to aximm width (PPC * 64-bits) */
+		align = mixer->ppc * 8;
 		if ((buff_addr % align) != 0) {
 			win_valid = 0;
 			status   = -EINVAL;
@@ -893,16 +902,17 @@ int xilinx_mixer_set_layer_buff_addr(struct xv_mixer *mixer,
 * Reads the buffer address of the specified layer
 ******************************************************************************/
 int xilinx_mixer_get_layer_buff_addr(struct xv_mixer *mixer,
-				xv_mixer_layer_id layer_id, u32 buff_addr)
+				xv_mixer_layer_id layer_id,
+				u32 *buff_addr)
 {
 	void __iomem *reg_base_addr = mixer->reg_base_addr;
-	int status = -EINVAL;
+	int status = -ENODEV;
 
 	if (layer_id < mixer->layer_cnt) {
 
 		u32 offset = (layer_id-1) * XVMIX_REG_OFFSET;
 
-		buff_addr = reg_readl(reg_base_addr,
+		*buff_addr = reg_readl(reg_base_addr,
 			(XV_MIX_CTRL_ADDR_HWREG_LAYER1_V_DATA + offset));
 		status = 0;
 	}
@@ -988,6 +998,7 @@ int xilinx_mixer_get_logo_color_key(struct xv_mixer *mixer)
 	}
 	return status;
 }
+
 
 /******************************************************************************
 * Loads the logo data into core BRAM

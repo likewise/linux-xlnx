@@ -221,6 +221,14 @@ xilinx_drm_mixer_set_layer_dimensions(struct xilinx_drm_plane *plane,
 struct xv_mixer_layer_data *
 xilinx_drm_mixer_get_layer(struct xv_mixer *mixer, xv_mixer_layer_id id);
 
+
+
+void
+xilinx_drm_mixer_set_intr_handler(struct xv_mixer *mixer,
+				void (*intr_handler_fn)(void *),
+				void *data);
+
+
 /**
  * Updates internal R, G and B buffer array of mixer from kernel framebuffer
  * which is expected to be arranged as RGB888 (fourcc 'RG24') packed 24 bit data
