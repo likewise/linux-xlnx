@@ -62,6 +62,7 @@ static struct color_fmt_tbl color_table[] = {
 	{"yuv444", XVIDC_CSF_YCRCB_444, DRM_FORMAT_YUV444},
 	{"yuv422", XVIDC_CSF_YCRCB_422, DRM_FORMAT_YUYV},
 	{"yuv420", XVIDC_CSF_YCRCB_420, DRM_FORMAT_YUV420},
+	{"yuyv8",  XVIDC_CSF_YCRCB_422, DRM_FORMAT_YUYV},
 };
 
 static const struct of_device_id xv_mixer_match[] = {
