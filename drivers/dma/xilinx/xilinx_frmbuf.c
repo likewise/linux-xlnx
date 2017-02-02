@@ -3,6 +3,9 @@
  *
  * Copyright (C) 2010-2016 Xilinx, Inc. All rights reserved.
  *
+ * Authors: Radhey Shyam Pandey <radheys@xilinx.com>
+ *          John Nichols <jnichol@xilinx.com>
+ *
  * Based on the Freescale DMA driver.
  *
  * Description:
