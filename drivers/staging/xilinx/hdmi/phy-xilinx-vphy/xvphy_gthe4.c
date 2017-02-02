@@ -293,10 +293,11 @@ u32 XVphy_Gthe4OutDivChReconfig(XVphy *InstancePtr, u8 QuadId,
 	if (Dir == XVPHY_DIR_RX) {
 		DrpVal = XVphy_DrpRead(InstancePtr, QuadId, ChId, 0x63);
 		/* Mask out RX_OUT_DIV. */
-		DrpVal &= ~0x07;
+		DrpVal &= ~0x7U;
 		/* Set RX_OUT_DIV. */
 		WriteVal = XVphy_DToDrpEncoding(InstancePtr, QuadId, ChId,
 				XVPHY_DIR_RX);
+		WriteVal &= 0x7U;
 		DrpVal |= WriteVal;
 		/* Write new DRP register value for RX dividers. */
 		XVphy_DrpWrite(InstancePtr, QuadId, ChId, 0x63, DrpVal);
@@ -304,10 +305,11 @@ u32 XVphy_Gthe4OutDivChReconfig(XVphy *InstancePtr, u8 QuadId,
 	else {
 		DrpVal = XVphy_DrpRead(InstancePtr, QuadId, ChId, 0x7C);
 		/* Mask out TX_OUT_DIV. */
-		DrpVal &= ~0x700;
+		DrpVal &= ~0x700U;
 		/* Set TX_OUT_DIV. */
 		WriteVal = XVphy_DToDrpEncoding(InstancePtr, QuadId, ChId,
 				XVPHY_DIR_TX);
+		WriteVal &= 0x7U;
 		DrpVal |= (WriteVal << 8);
 		/* Write new DRP register value for RX dividers. */
 		XVphy_DrpWrite(InstancePtr, QuadId, ChId, 0x7C, DrpVal);
@@ -1130,7 +1132,7 @@ static u8 XVphy_DrpEncodeCpllTxRxD(u8 AttrEncode)
 		DrpEncode = 4;
 		break;
 	default:
-		DrpEncode = 0xFF;
+		DrpEncode = 0;
 		break;
 	}
 
