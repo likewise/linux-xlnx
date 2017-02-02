@@ -404,8 +404,8 @@ xilinx_drm_mixer_set_layer_alpha(struct xilinx_drm_plane *plane,
 
 	if (layer && layer->hw_config.can_alpha) {
 		if (val > XVMIX_ALPHA_MAX || val < XVMIX_ALPHA_MIN) {
-			DRM_ERROR("Property setting for mixer layer alpha exceeds "
-				"legal values\n");
+			DRM_ERROR("Property setting for mixer layer alpha "
+				"exceeds legal values\n");
 			return -EINVAL;
 		}
 		ret = xilinx_mixer_set_layer_alpha(mixer, layer->id, val);
@@ -809,7 +809,7 @@ static irqreturn_t xilinx_drm_mixer_intr_handler(int irq, void *data)
 
 	if (!intr)
 		return IRQ_NONE;
-	
+
 	else if (mixer->intrpt_handler_fn)
 		mixer->intrpt_handler_fn(mixer->intrpt_data);
 

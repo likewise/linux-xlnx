@@ -105,11 +105,6 @@ void xilinx_mixer_init(struct xv_mixer *mixer)
 						XVMIX_ALPHA_MAX);
 
 }
-
-#if 0
-	xilinx_mixer_intrpt_disable(mixer);
-#endif
-
 	xilinx_mixer_start(mixer);
 
 }
@@ -130,12 +125,6 @@ void xilinx_mixer_intrpt_enable(struct xv_mixer *mixer)
 
 	reg_writel(reg_base_addr, XV_MIX_CTRL_ADDR_GIE, 0x1);
 
-#if 0
-	/* JPM TODO if 0/endif as I believe this would not work if 
-	   some layers were streaming */
-	/* Disable autostart bit */
-	reg_writel(reg_base_addr, XV_MIX_CTRL_ADDR_AP_CTRL, 0x0);
-#endif
 }
 
 /******************************************************************************
@@ -151,12 +140,6 @@ void xilinx_mixer_intrpt_disable(struct xv_mixer *mixer)
 	curr_val & (~XVMIX_IRQ_DONE_MASK));
 
 	reg_writel(reg_base_addr, XV_MIX_CTRL_ADDR_GIE, 0);
-
-#if 0
-	/* JPM TODO see comment for intrpt_enable*/
-	/* Set autostart bit */
-	reg_writel(reg_base_addr, XV_MIX_CTRL_ADDR_AP_CTRL, 0x80);
-#endif
 }
 
 /******************************************************************************

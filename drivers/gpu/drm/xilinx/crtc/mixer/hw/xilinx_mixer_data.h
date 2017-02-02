@@ -309,14 +309,13 @@ static inline uint32_t
 xilinx_mixer_get_intr_status(struct xv_mixer *mixer)
 {
 	return reg_readl(mixer->reg_base_addr, XV_MIX_CTRL_ADDR_ISR);
-} 
+}
 
 
 static inline void
 xilinx_mixer_clear_intr_status(struct xv_mixer *mixer, uint32_t intr)
 {
 	reg_writel(mixer->reg_base_addr, XV_MIX_CTRL_ADDR_ISR, intr);
-	return;
 }
 
 
