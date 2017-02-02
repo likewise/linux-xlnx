@@ -953,7 +953,7 @@ xilinx_drm_plane_create(struct xilinx_drm_plane_manager *manager,
 	* need to check for this first and by-pass dma code
 	*/
 	if (manager->mixer) {
-		layer_node = 
+		layer_node =
 			of_parse_phandle(plane_node, "xlnx,mixer-layer", 0);
 
 		ret = xilinx_create_mixer_layer_plane(manager,
@@ -961,9 +961,8 @@ xilinx_drm_plane_create(struct xilinx_drm_plane_manager *manager,
 		if (ret)
 			goto err_dma;
 
-		if (plane->mixer_layer->id == XVMIX_LAYER_LOGO) {
+		if (plane->mixer_layer->id == XVMIX_LAYER_LOGO)
 			type = DRM_PLANE_TYPE_CURSOR;
-		}
 	}
 
 
