@@ -1,5 +1,5 @@
 /*
- * Xilinx Video HDMI RX Subsystem driver
+ * Xilinx Video HDMI RX Subsystem driver implementing a V4L2 subdevice
  *
  * Copyright (C) 2016-2017 Leon Woestenberg <leon@sidebranch.com>
  * Copyright (C) 2016-2017 Xilinx, Inc.
@@ -11,6 +11,10 @@
  * it under the terms of the GNU General Public License version 2 as
  * published by the Free Software Foundation.
  */
+
+/* if both both DEBUG and DEBUG_TRACE are defined, trace_printk() is used */
+#define DEBUG
+//#define DEBUG_TRACE
 
 #include <linux/device.h>
 #include <linux/gpio/consumer.h>
@@ -37,6 +41,24 @@
 #include "xilinx-hdmi-rx/xv_hdmirxss.h"
 #include "xilinx-hdmi-rx/xil_printf.h"
 #include "xilinx-hdmi-rx/xstatus.h"
+
+/* select either trace or printk logging */
+#ifdef DEBUG_TRACE
+#define do_hdmi_dbg(format, ...) do { \
+  trace_printk("xlnx-hdmi-rxss: " format, ##__VA_ARGS__); \
+} while(0)
+#else
+#define do_hdmi_dbg(format, ...) do { \
+  printk(KERN_DEBUG "xlnx-hdmi-rxss: " format, ##__VA_ARGS__); \
+} while(0)
+#endif
+
+/* either enable or disable debugging */
+#ifdef DEBUG
+#  define hdmi_dbg(x...) do_hdmi_dbg(x)
+#else
+#  define hdmi_dbg(x...)
+#endif
 
 #define HDMI_MAX_LANES	4
 
@@ -148,11 +170,11 @@ __xhdmirx_get_pad_format_ptr(struct xhdmirx_device *xhdmirx,
 {
 	switch (which) {
 	case V4L2_SUBDEV_FORMAT_TRY:
-		printk(KERN_INFO "__xhdmirx_get_pad_format(): V4L2_SUBDEV_FORMAT_TRY\n");
+		hdmi_dbg("__xhdmirx_get_pad_format(): V4L2_SUBDEV_FORMAT_TRY\n");
 		return v4l2_subdev_get_try_format(&xhdmirx->subdev, cfg, pad);
 	case V4L2_SUBDEV_FORMAT_ACTIVE:
-		printk(KERN_INFO "__xhdmirx_get_pad_format(): V4L2_SUBDEV_FORMAT_ACTIVE\n");
-		printk(KERN_INFO "detected_format->width = %u\n", xhdmirx->detected_format.width);
+		hdmi_dbg("__xhdmirx_get_pad_format(): V4L2_SUBDEV_FORMAT_ACTIVE\n");
+		hdmi_dbg("detected_format->width = %u\n", xhdmirx->detected_format.width);
 		return &xhdmirx->detected_format;
 	default:
 		return NULL;
@@ -164,7 +186,7 @@ static int xhdmirx_get_format(struct v4l2_subdev *subdev,
 			   struct v4l2_subdev_format *fmt)
 {
 	struct xhdmirx_device *xhdmirx = to_xhdmirx(subdev);
-	printk(KERN_INFO "xhdmirx_get_format\n");
+	hdmi_dbg("xhdmirx_get_format\n");
 
 	if (fmt->pad > 0)
 		return -EINVAL;
@@ -172,7 +194,7 @@ static int xhdmirx_get_format(struct v4l2_subdev *subdev,
 	/* copy either try or currently-active (i.e. detected) format to caller */
 	fmt->format = *__xhdmirx_get_pad_format_ptr(xhdmirx, cfg, fmt->pad, fmt->which);
 
-	printk(KERN_INFO "xhdmirx_get_format, height = %u\n", fmt->format.height);
+	hdmi_dbg("xhdmirx_get_format, height = %u\n", fmt->format.height);
 
 	return 0;
 }
@@ -183,7 +205,7 @@ static int xhdmirx_set_format(struct v4l2_subdev *subdev,
 			   struct v4l2_subdev_format *fmt)
 {
 	struct xhdmirx_device *xhdmirx = to_xhdmirx(subdev);
-	printk(KERN_INFO "xhdmirx_set_format\n");
+	hdmi_dbg("xhdmirx_set_format\n");
 	if (fmt->pad > 0)
 		return -EINVAL;
 	/* there is nothing we can take from the format requested by the caller, we must return the active format */
@@ -371,7 +393,7 @@ static int xhdmirx_open(struct v4l2_subdev *subdev, struct v4l2_subdev_fh *fh)
 	struct v4l2_mbus_framefmt *format;
 	(void)xhdmirx;
 	(void)format;
-	printk(KERN_INFO "xhdmirx_open\n");
+	hdmi_dbg("xhdmirx_open\n");
 
 #if 0
 	format = v4l2_subdev_get_try_format(subdev, fh->pad, 0);
@@ -383,13 +405,13 @@ static int xhdmirx_open(struct v4l2_subdev *subdev, struct v4l2_subdev_fh *fh)
 /* struct v4l2_subdev_internal_ops.close */
 static int xhdmirx_close(struct v4l2_subdev *subdev, struct v4l2_subdev_fh *fh)
 {
-	printk(KERN_INFO "xhdmirx_close\n");
+	hdmi_dbg("xhdmirx_close\n");
 	return 0;
 }
 
 static int xhdmirx_s_ctrl(struct v4l2_ctrl *ctrl)
 {
-	printk(KERN_INFO "xhdmirx_s_ctrl\n");
+	hdmi_dbg("xhdmirx_s_ctrl\n");
 	return 0;
 }
 
@@ -609,8 +631,8 @@ static void RxConnectCallback(void *CallbackRef)
 	if (!xhdmirx || !HdmiRxSsPtr || !VphyPtr) return;
 
 	xhdmirx->cable_connected = !!HdmiRxSsPtr->IsStreamConnected;
-	dev_info(xhdmirx->dev, "RxConnectCallback()\n");
-	dev_info(xhdmirx->dev, "cable is %sconnected.\n", xhdmirx->cable_connected? "": "dis");
+	hdmi_dbg("RxConnectCallback()\n");
+	hdmi_dbg("cable is %sconnected.\n", xhdmirx->cable_connected? "": "dis");
 
 	xvphy_mutex_lock(xhdmirx->phy[0]);
 	/* RX cable is connected? */
@@ -646,7 +668,7 @@ static void RxAudCallback(void *CallbackRef)
 	BUG_ON(!xhdmirx);
 	BUG_ON(!HdmiRxSsPtr);
 	if (!xhdmirx || !HdmiRxSsPtr) return;
-	printk(KERN_INFO "RxAudCallback()\n");
+	hdmi_dbg("RxAudCallback()\n");
 	(void)HdmiRxSsPtr;
 }
 
@@ -668,8 +690,7 @@ static void RxStreamDownCallback(void *CallbackRef)
 	BUG_ON(!HdmiRxSsPtr);
 	if (!xhdmirx || !HdmiRxSsPtr) return;
 	(void)HdmiRxSsPtr;
-	//printk(KERN_INFO "RxStreamDownCallback()\n");
-	dev_info(xhdmirx->dev, "stream is down.\n");
+	hdmi_dbg("RxStreamDownCallback()\n");
 	xhdmirx->hdmi_stream = 0;
 }
 
@@ -684,7 +705,7 @@ static void RxStreamInitCallback(void *CallbackRef)
 	BUG_ON(!HdmiRxSsPtr);
 	BUG_ON(!VphyPtr);
 	if (!xhdmirx || !HdmiRxSsPtr || !VphyPtr) return;
-	xil_printf("RxStreamInitCallback\r\n");
+	hdmi_dbg("RxStreamInitCallback\r\n");
 	// Calculate RX MMCM parameters
 	// In the application the YUV422 colordepth is 12 bits
 	// However the HDMI transports YUV422 in 8 bits.
@@ -727,7 +748,7 @@ static void RxStreamUpCallback(void *CallbackRef)
 	BUG_ON(!HdmiRxSsPtr);
 	BUG_ON(!HdmiRxSsPtr->HdmiRxPtr);
 	if (!xhdmirx || !HdmiRxSsPtr || !HdmiRxSsPtr->HdmiRxPtr) return;
-	dev_info(xhdmirx->dev, "stream is up.\n");
+	hdmi_dbg("RxStreamUpCallback((; stream is up.\n");
 	Stream = &HdmiRxSsPtr->HdmiRxPtr->Stream.Video;
 #if 1
 	XVidC_ReportStreamInfo(Stream);
@@ -743,10 +764,10 @@ static void RxStreamUpCallback(void *CallbackRef)
 	xhdmirx->detected_format.field = Stream->IsInterlaced? V4L2_FIELD_INTERLACED: V4L2_FIELD_NONE;
 	/* https://linuxtv.org/downloads/v4l-dvb-apis/ch02s05.html#v4l2-colorspace */
 	if (Stream->ColorFormatId == XVIDC_CSF_RGB) {
-		dev_info(xhdmirx->dev, "xhdmirx->detected_format.colorspace = V4L2_COLORSPACE_SRGB\n");
+		hdmi_dbg("xhdmirx->detected_format.colorspace = V4L2_COLORSPACE_SRGB\n");
 		xhdmirx->detected_format.colorspace = V4L2_COLORSPACE_SRGB;
 	} else {
-		dev_info(xhdmirx->dev, "xhdmirx->detected_format.colorspace = V4L2_COLORSPACE_REC709\n");
+		hdmi_dbg("xhdmirx->detected_format.colorspace = V4L2_COLORSPACE_REC709\n");
 		xhdmirx->detected_format.colorspace = V4L2_COLORSPACE_REC709;
 	}
 
@@ -755,13 +776,17 @@ static void RxStreamUpCallback(void *CallbackRef)
 	if (Stream->ColorFormatId == XVIDC_CSF_RGB) {
 		/* red blue green */
 		xhdmirx->detected_format.code = MEDIA_BUS_FMT_RBG888_1X24;
+		hdmi_dbg("XVIDC_CSF_RGB -> MEDIA_BUS_FMT_RBG888_1X24\n");
 	} else if (Stream->ColorFormatId == XVIDC_CSF_YCRCB_444) {
 		xhdmirx->detected_format.code = MEDIA_BUS_FMT_VUY8_1X24;
+		hdmi_dbg("XVIDC_CSF_YCRCB_444 -> MEDIA_BUS_FMT_VUY8_1X24\n");
 	} else if (Stream->ColorFormatId == XVIDC_CSF_YCRCB_422) {
 		xhdmirx->detected_format.code = MEDIA_BUS_FMT_UYVY8_1X16;
+		hdmi_dbg("XVIDC_CSF_YCRCB_422 -> MEDIA_BUS_FMT_UYVY8_1X16\n");
 	} else if (Stream->ColorFormatId == XVIDC_CSF_YCRCB_420) {
 		/* similar mapping as 4:2:2 w/ omitted chroma every other line */
 		xhdmirx->detected_format.code = MEDIA_BUS_FMT_UYVY8_1X16;
+		hdmi_dbg("XVIDC_CSF_YCRCB_420 -> MEDIA_BUS_FMT_UYVY8_1X16\n");
 	}
 
 	xhdmirx->detected_format.xfer_func = V4L2_XFER_FUNC_DEFAULT;
@@ -791,7 +816,7 @@ static void RxStreamUpCallback(void *CallbackRef)
 #else
 		HdmiRxSsPtr->HdmiRxPtr->Stream.PixelClk;
 #endif
-	printk(KERN_INFO "HdmiRxSsPtr->HdmiRxPtr->Stream.PixelClk = %d\n", HdmiRxSsPtr->HdmiRxPtr->Stream.PixelClk);
+	hdmi_dbg("HdmiRxSsPtr->HdmiRxPtr->Stream.PixelClk = %d\n", HdmiRxSsPtr->HdmiRxPtr->Stream.PixelClk);
 	/* Read HFront Porch */
 	xhdmirx->detected_timings.bt.hfrontporch = Stream->Timing.HFrontPorch;
 	/* Read Hsync Width */
@@ -840,7 +865,7 @@ static void VphyHdmiRxInitCallback(void *CallbackRef)
 	BUG_ON(!VphyPtr);
 	BUG_ON(!xhdmirx->phy[0]);
 	if (!xhdmirx || !VphyPtr) return;
-	printk(KERN_INFO "VphyHdmiRxInitCallback()\n");
+	hdmi_dbg("VphyHdmiRxInitCallback()\n");
 
 	/* a pair of mutexes must be locked in fixed order to prevent deadlock,
 	 * and the order is RX SS then XVPHY, so first unlock XVPHY then lock both */
@@ -866,7 +891,7 @@ static void VphyHdmiRxReadyCallback(void *CallbackRef)
 	BUG_ON(!VphyPtr);
 	BUG_ON(!xhdmirx->phy[0]);
 	if (!xhdmirx || !VphyPtr) return;
-	printk(KERN_INFO "VphyHdmiRxReadyCallback()\n");
+	hdmi_dbg("VphyHdmiRxReadyCallback()\n");
 
 #if 0
 	// Enable pass-through
@@ -1049,10 +1074,10 @@ static int xhdmirx_probe(struct platform_device *pdev)
 		xhdmirx_delayed_work_enable_hotplug);
 
 
-	dev_info(&pdev->dev, "xhdmirx_probe DT parse start\n");
+	hdmi_dbg("xhdmirx_probe DT parse start\n");
 	/* parse open firmware device tree data */
 	ret = xhdmirx_parse_of(xhdmirx, &config);
-	dev_info(&pdev->dev, "xhdmirx_probe DT parse done\n");
+	hdmi_dbg("xhdmirx_probe DT parse done\n");
 	if (ret < 0)
 		return ret;
 
@@ -1088,11 +1113,8 @@ static int xhdmirx_probe(struct platform_device *pdev)
 		if (IS_ERR(xhdmirx->clkp)) {
 			ret = PTR_ERR(xhdmirx->clkp);
 			xhdmirx->clkp = NULL;
-			if (ret == -EPROBE_DEFER) {
-				dev_err(&pdev->dev, "defering initialization, dru-clk not yet found.\n");
-			} else {
+			if (ret != -EPROBE_DEFER)
 				dev_err(&pdev->dev, "failed to get the dru-clk.\n");
-			}
 			return ret;
 		}
 	}
@@ -1110,7 +1132,7 @@ static int xhdmirx_probe(struct platform_device *pdev)
 	dru_clk_rate = clk_set_rate(xhdmirx->clkp, 125*1000*1000);
 #endif
 	dru_clk_rate = clk_get_rate(xhdmirx->clkp);
-	dev_info(&pdev->dev, "dru-clk rate = %lu\n", dru_clk_rate);
+	hdmi_dbg("dru-clk rate = %lu\n", dru_clk_rate);
 
 	/* @TODO compiler issue, or am I just staring blind? if change to "index < 3", the case for index == 3 is also run.
 	 * Possibly a compiler issue with aggressive loop unrolling optimization.
@@ -1118,7 +1140,7 @@ static int xhdmirx_probe(struct platform_device *pdev)
 	 * -- Leon Woestenberg <leon@sidebranch.com>
 	 */
 	for (index = 0; index < 1; index++) {
-		printk(KERN_INFO "entering loop with index = %d\n",index);
+		hdmi_dbg("entering loop with index = %d\n",index);
 		char phy_name[32];
 
 		snprintf(phy_name, sizeof(phy_name), "hdmi-phy%d", index);
@@ -1127,7 +1149,8 @@ static int xhdmirx_probe(struct platform_device *pdev)
 		if (IS_ERR(xhdmirx->phy[index])) {
 			ret = PTR_ERR(xhdmirx->phy[index]);
 			xhdmirx->phy[index] = NULL;
-			dev_err(xhdmirx->dev, "failed to get phy lane %s, error %d\n", phy_name, ret);
+			if (ret != -EPROBE_DEFER)
+				dev_err(xhdmirx->dev, "failed to get phy lane %s, error %d\n", phy_name, ret);
 			goto error_phy;
 		}
 
@@ -1137,7 +1160,7 @@ static int xhdmirx_probe(struct platform_device *pdev)
 				"failed to init phy lane %d\n", index);
 			goto error_phy;
 		}
-		printk(KERN_INFO "exiting loop with index = %d\n",index);
+		hdmi_dbg("exiting loop with index = %d\n",index);
 	}
 
 	HdmiRxSsPtr = (XV_HdmiRxSs *)&xhdmirx->xv_hdmirxss;
@@ -1157,12 +1180,12 @@ static int xhdmirx_probe(struct platform_device *pdev)
 		dev_err(xhdmirx->dev, "initialization failed with error %d\r\n", Status);
 		return -EINVAL;
 	}
-#if 0 /* @TODO re-enable for EDID support */
+
 	/* retrieve EDID */
 	if (request_firmware(&fw_edid, fw_edid_name, xhdmirx->dev) == 0) {
 		int blocks = fw_edid->size / 128;
 		if ((blocks == 0) || (blocks > EDID_BLOCKS_MAX) || (fw_edid->size % 128)) {
-			dev_info(xhdmirx->dev, "%s must be n * 128 bytes, with 1 <= n <= %d, using Xilinx built-in EDID instead.\n",
+			dev_err(xhdmirx->dev, "%s must be n * 128 bytes, with 1 <= n <= %d, using Xilinx built-in EDID instead.\n",
 				fw_edid_name, EDID_BLOCKS_MAX);
 		} else {
 			memcpy(xhdmirx->edid_user, fw_edid->data, 128 * blocks);
@@ -1183,7 +1206,6 @@ static int xhdmirx_probe(struct platform_device *pdev)
 		dev_info(xhdmirx->dev, "Using Xilinx built-in EDID.\n");
 		XV_HdmiRxSs_LoadDefaultEdid(HdmiRxSsPtr);
 	}
-#endif
 
 	spin_lock_irqsave(&xhdmirx->irq_lock, flags);
 	XV_HdmiRxSs_IntrDisable(HdmiRxSsPtr);
@@ -1335,7 +1357,7 @@ static int xhdmirx_remove(struct platform_device *pdev)
 	v4l2_ctrl_handler_free(&xhdmirx->ctrl_handler);
 	media_entity_cleanup(&subdev->entity);
 	clk_disable_unprepare(xhdmirx->clk);
-	dev_info(&pdev->dev, "removed.\n");
+	hdmi_dbg("removed.\n");
 	return 0;
 }
 
