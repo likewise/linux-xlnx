@@ -698,7 +698,7 @@ static void xilinx_drm_hdmi_mode_set(struct drm_encoder *encoder,
 #endif
 
 	hdmi_dbg("mode->vrefresh = %d\n", mode->vrefresh);
-	VmId = XVidC_GetVideoModeId(mode->hdisplay, mode->vdisplay, mode->vrefresh, FALSE);
+	VmId = XVidC_GetVideoModeIdWBlanking(&vt, mode->vrefresh, FALSE);
 	hdmi_dbg("VmId = %d\n", VmId);
 	if (VmId == XVIDC_VM_NOT_SUPPORTED) { //no match found in timing table
 		hdmi_dbg("Tx Video Mode not supported. Using DRM TIming\n");
