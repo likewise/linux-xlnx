@@ -308,7 +308,8 @@ xilinx_mixer_layer_disable(struct xv_mixer *mixer,
 static inline uint32_t
 xilinx_mixer_get_intr_status(struct xv_mixer *mixer)
 {
-	return reg_readl(mixer->reg_base_addr, XV_MIX_CTRL_ADDR_ISR);
+	return (reg_readl(mixer->reg_base_addr, XV_MIX_CTRL_ADDR_ISR) &
+			XVMIX_IRQ_DONE_MASK);
 }
 
 
@@ -322,7 +323,8 @@ xilinx_mixer_clear_intr_status(struct xv_mixer *mixer, uint32_t intr)
 static inline bool
 xilinx_mixer_g_intrpt_enabled(struct xv_mixer *mixer)
 {
-	return (reg_readl(mixer->reg_base_addr, XV_MIX_CTRL_ADDR_GIE) & 0x1);
+	return (reg_readl(mixer->reg_base_addr, XV_MIX_CTRL_ADDR_GIE) &
+			XVMIX_IRQ_DONE_MASK);
 }
 
 /**
