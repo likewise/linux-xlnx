@@ -359,6 +359,8 @@ u32 XVphy_Gthe4ClkChReconfig(XVphy *InstancePtr, u8 QuadId,
 	DrpVal &= ~(0xF800);
 	/* Set CPLL_REFCLKDIV. */
 	WriteVal = XVphy_MToDrpEncoding(InstancePtr, QuadId, ChId);
+	/* Limit to 5 bits */
+	WriteVal &= 0x01FU;
 	DrpVal |= (WriteVal << 11);
 	/* Write new DRP register value for PLL dividers. */
 	XVphy_DrpWrite(InstancePtr, QuadId, ChId, 0x2A, DrpVal);
@@ -452,6 +454,8 @@ u32 XVphy_Gthe4ClkCmnReconfig(XVphy *InstancePtr, u8 QuadId,
 	DrpVal &= ~(0xF80);
 	/* Set QPLLx_REFCLK_DIV. */
 	WriteVal = XVphy_MToDrpEncoding(InstancePtr, QuadId, CmnId);
+	/* Limit to 5 bits */
+	WriteVal &= 0x01FU;
 	DrpVal |= (WriteVal << 7);
 	/* Write new DRP register value for QPLLx_REFCLK_DIV. */
 	XVphy_DrpWrite(InstancePtr, QuadId, XVPHY_CHANNEL_ID_CMN,
