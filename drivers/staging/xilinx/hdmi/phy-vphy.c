@@ -1,7 +1,30 @@
 /*
- * The Video Phy is basically a layer above the GT to configure the GT
- * and implement other logic common to many video connectivity protocols.
+ * Xilinx VPHY driver
+ *
+ * The Video Phy is a high-level wrapper around the GT to configure it
+ * for video applications. The driver also provides common functionality
+ * for its tightly-bound video protocol drivers such as HDMI RX/TX.
+ *
+ * Copyright (C) 2016, 2017 Leon Woestenberg <leon@sidebranch.com>
+ * Copyright (C) 2014, 2015, 2017 Xilinx, Inc.
+ *
+ * Authors: Leon Woestenberg <leon@sidebranch.com>
+ *          Rohit Consul <rohitco@xilinx.com>
+ *
+ * This software is licensed under the terms of the GNU General Public
+ * License version 2, as published by the Free Software Foundation, and
+ * may be copied, distributed, and modified under those terms.
+ *
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ * GNU General Public License for more details.
+ *
  */
+
+/* if both both DEBUG and DEBUG_TRACE are defined, trace_printk() is used */
+#define DEBUG
+//#define DEBUG_TRACE
 
 #include <linux/clk.h>
 #include <linux/delay.h>
@@ -35,19 +58,37 @@
 #include "phy-xilinx-vphy/xv_axi4s_remap.h"
 #include "phy-xilinx-vphy/xv_axi4s_remap_hw.h"
 
-#if 0 // WIP
+#if 0 /* WIP HDCP */
 #include "phy-xilinx-vphy/bigdigits.h"
 #include "phy-xilinx-vphy/xhdcp22_cipher.h"
 #include "phy-xilinx-vphy/xhdcp22_mmult.h"
 #include "phy-xilinx-vphy/xhdcp22_rng.h"
 #include "phy-xilinx-vphy/xhdcp22_common.h"
-
 #include "phy-xilinx-vphy/xtmrctr.h"
+#endif
+
+/* select either trace or printk logging */
+#ifdef DEBUG_TRACE
+#define do_hdmi_dbg(format, ...) do { \
+  trace_printk("xlnx-hdmi-vphy: " format, ##__VA_ARGS__); \
+} while(0)
+#else
+#define do_hdmi_dbg(format, ...) do { \
+  printk(KERN_DEBUG "xlnx-hdmi-vphy: " format, ##__VA_ARGS__); \
+} while(0)
+#endif
+
+/* either enable or disable debugging */
+#ifdef DEBUG
+#  define hdmi_dbg(x...) do_hdmi_dbg(x)
+#else
+#  define hdmi_dbg(x...)
 #endif
 
 /**
  * struct xvphy_lane - representation of a lane
  * @phy: pointer to the kernel PHY device
+ *
  * @type: controller which uses this lane
  * @lane: lane number
  * @protocol: protocol in which the lane operates
@@ -88,88 +129,36 @@ struct xvphy_dev {
 	struct clk *axi_lite_clk;
 };
 
-/* template function available to controller in dependent driver */
-int xvphy_do_something(struct phy *phy)
-{
-	struct xvphy_lane *vphy_lane = phy_get_drvdata(phy);
-	struct xvphy_dev *vphy_dev = vphy_lane->data;
-
-	dev_dbg(vphy_dev->dev, "xvphy_do_something()\n");
-	return 0;
-}
-EXPORT_SYMBOL_GPL(xvphy_do_something);
-
 /* given the (Linux) phy handle, return the xvphy */
 XVphy *xvphy_get_xvphy(struct phy *phy)
 {
 	struct xvphy_lane *vphy_lane = phy_get_drvdata(phy);
 	struct xvphy_dev *vphy_dev = vphy_lane->data;
-
-	//dev_dbg(vphy_dev->dev, "xvphy_get_xvphy() returns %p\n", &vphy_dev->xvphy);
 	return &vphy_dev->xvphy;
 }
 EXPORT_SYMBOL_GPL(xvphy_get_xvphy);
 
-/* given the (Linux) phy handle, enter critical section of xvphy baseline code */
+/* given the (Linux) phy handle, enter critical section of xvphy baseline code
+ * XVphy functions must be called with mutex acquired to prevent concurrent access
+ * by XVphy and upper-layer video protocol drivers */
 void xvphy_mutex_lock(struct phy *phy)
 {
 	struct xvphy_lane *vphy_lane = phy_get_drvdata(phy);
 	struct xvphy_dev *vphy_dev = vphy_lane->data;
-
 	mutex_lock(&vphy_dev->xvphy_mutex);
 }
 EXPORT_SYMBOL_GPL(xvphy_mutex_lock);
 
-/* given the (Linux) phy handle, exit critical section of xvphy baseline code */
 void xvphy_mutex_unlock(struct phy *phy)
 {
 	struct xvphy_lane *vphy_lane = phy_get_drvdata(phy);
 	struct xvphy_dev *vphy_dev = vphy_lane->data;
-
 	mutex_unlock(&vphy_dev->xvphy_mutex);
 }
 EXPORT_SYMBOL_GPL(xvphy_mutex_unlock);
 
-#if 0
-/* wrapper around XVphy_GetPllType
- *
- * XVphy_PllType XVphy_GetPllType(XVphy *InstancePtr, u8 QuadId,
- *		XVphy_DirectionType Dir, XVphy_ChannelId ChId)
- */
-XVphy_PllType xvphy_get_plltype(struct phy *phy, u8 QuadId,
-						 XVphy_DirectionType Dir, XVphy_ChannelId ChId)
-{
-	struct xvphy_lane *vphy_lane = phy_get_drvdata(phy);
-	struct xvphy_dev *vphy_dev = vphy_lane->data;
-
-	return XVphy_GetPllType(&vphy_dev->xvphy, QuadId, Dir, ChId);
-}
-EXPORT_SYMBOL_GPL(xvphy_get_plltype);
-#endif
-
-#if 0
-/* wrapper around XVphy_SetHdmiCallback
- *
- *void XVphy_SetHdmiCallback(XVphy *InstancePtr,
- *               XVphy_HdmiHandlerType HandlerType,
- *               void *CallbackFunc, void *CallbackRef);
- */
-int xvphy_set_hdmi_callback(struct phy *phy, XVphy_HdmiHandlerType HandlerType,
-					   void *CallbackFunc, void *CallbackRef)
-{
-	struct xvphy_lane *vphy_lane = phy_get_drvdata(phy);
-	struct xvphy_dev *vphy_dev = vphy_lane->data;
-
-	dev_dbg(vphy_dev->dev, "xvphy_set_callback()\n");
-
-	XVphy_SetHdmiCallback(&vphy_dev->xvphy, HandlerType, CallbackFunc, CallbackRef);
-	/* see header file. In case this module is disabled, it will return -ENODEV */
-	return 0;
-}
-EXPORT_SYMBOL_GPL(xvphy_set_hdmi_callback);
-#endif
-
-/* XVphy Functions must be called inbetween xvphy_mutex_lock/xvphy_mutex_unlock */
+/* XVphy functions must be called with mutex acquired to prevent concurrent access
+ * by XVphy and upper-layer video protocol drivers */
 EXPORT_SYMBOL_GPL(XVphy_GetPllType);
 EXPORT_SYMBOL_GPL(XVphy_IBufDsEnable);
 EXPORT_SYMBOL_GPL(XVphy_SetHdmiCallback);
@@ -292,7 +281,7 @@ static struct phy *xvphy_xlate(struct device *dev,
 	}
 	for (index = 0; index < of_get_child_count(dev->of_node); index++) {
 		if (phynode == vphydev->lanes[index]->phy->dev.of_node) {
-			dev_info(dev, "xvphy_xlate() matched with phy index %d\n", index);
+			//dev_info(dev, "xvphy_xlate() matched with phy index %d\n", index);
 			vphy_lane = vphydev->lanes[index];
 			break;
 		}
@@ -314,7 +303,7 @@ static struct phy *xvphy_xlate(struct device *dev,
 	/* get the required clk rate for controller from lanes */
 	vphy_lane->refclk_rate = args->args[3];
 
-	dev_info(dev, "xvphy_xlate() returns phy %p\n", vphy_lane->phy);
+	//dev_info(dev, "xvphy_xlate() returns phy %p\n", vphy_lane->phy);
 	BUG_ON(!vphy_lane->phy);
 	return vphy_lane->phy;
 }
@@ -343,23 +332,15 @@ static int vphy_parse_of(struct xvphy_dev *vphydev, XVphy_Config *c)
 
 	/* @TODO property name/value unknown, TODO xlnx,xcvrtype?? */
 	rc = of_property_read_u32(node, "xlnx,transceiver-type", &val);
-#if 0 /* Once TODO is done, hard-require this property */
 	if (rc < 0)
 		goto error_dt;
-#else /* as long as TODO is pending, only overwrite property if present in DT */
-	if (rc == 0)
-#endif
-		c->XcvrType = val;
+	c->XcvrType = val;
 
 	/* @TODO property name/value unknown, @TODO xlnx,tx-buffer-bypass?? */
 	rc = of_property_read_u32(node, "xlnx,tx-buffer-bypass", &val);
-#if 0 /* Once TODO is done, hard-require this property */
 	if (rc < 0)
 		goto error_dt;
-#else /* as long as TODO is pending, only overwrite property if present in DT */
-	if (rc == 0)
-#endif
-		c->TxBufferBypass = val;
+	c->TxBufferBypass = val;
 
 	rc = of_property_read_u32(node, "xlnx,input-pixels-per-clock", &val);
 	if (rc < 0)
@@ -451,8 +432,9 @@ static int xvphy_probe(struct platform_device *pdev)
 	int i;
 	u32 Status;
 	u32 Data;
+	u16 DrpVal;
 
-	dev_info(&pdev->dev, "xvphy_probe()\n");
+	hdmi_dbg("xvphy_probe()\n");
 
 	vphydev = devm_kzalloc(&pdev->dev, sizeof(*vphydev), GFP_KERNEL);
 	if (!vphydev)
@@ -466,9 +448,9 @@ static int xvphy_probe(struct platform_device *pdev)
 	platform_set_drvdata(pdev, vphydev);
 
 	BUG_ON(!np);
-	dev_info(&pdev->dev, "xvphy_probe DT parse start\n");
+	hdmi_dbg("xvphy_probe DT parse start\n");
 	ret = vphy_parse_of(vphydev, &config);
-	dev_info(&pdev->dev, "xvphy_probe DT parse done\n");
+	hdmi_dbg("xvphy_probe DT parse done\n");
 	if (ret) return ret;
 
 	for_each_child_of_node(np, child) {
@@ -492,8 +474,10 @@ static int xvphy_probe(struct platform_device *pdev)
 		/* create phy device for each lane */
 		phy = devm_phy_create(&pdev->dev, child, &xvphy_phyops);
 		if (IS_ERR(phy)) {
-			dev_err(&pdev->dev, "failed to create PHY\n");
-			return PTR_ERR(phy);
+			ret = PTR_ERR(phy);
+			if (ret != -EPROBE_DEFER)
+				dev_err(&pdev->dev, "failed to create PHY\n");
+			return ret;
 		}
 		/* array of pointer to phy */
 		vphydev->lanes[port]->phy = phy;
@@ -505,7 +489,7 @@ static int xvphy_probe(struct platform_device *pdev)
 		index++;
 	}
 
-	printk(KERN_INFO "xvphy_probe() found %d phy lanes from device-tree configuration.\n", index);
+	//printk(KERN_INFO "xvphy_probe() found %d phy lanes from device-tree configuration.\n", index);
 
 	res = platform_get_resource(pdev, IORESOURCE_MEM, 0);
 	vphydev->iomem = devm_ioremap_resource(&pdev->dev, res);
@@ -526,14 +510,10 @@ static int xvphy_probe(struct platform_device *pdev)
 	if (IS_ERR(vphydev->axi_lite_clk)) {
 		ret = PTR_ERR(vphydev->axi_lite_clk);
 		vphydev->axi_lite_clk = NULL;
-		if (ret == -EPROBE_DEFER) {
-			dev_err(&pdev->dev, "defering initialization; axi lite clk not (yet) available.\n");
-		} else {
+		if (ret != -EPROBE_DEFER)
 			dev_err(&pdev->dev, "failed to get the axi lite clk.\n");
-		}
 		return ret;
 	}
-	dev_info(&pdev->dev, "got axi-lite clk\n");
 
 	ret = clk_prepare_enable(vphydev->axi_lite_clk);
 	if (ret) {
@@ -541,8 +521,7 @@ static int xvphy_probe(struct platform_device *pdev)
 		return ret;
 	}
 	axi_lite_rate = clk_get_rate(vphydev->axi_lite_clk);
-
-	dev_info(&pdev->dev, "AXI Lite clock rate = %lu Hz\n", axi_lite_rate);
+	hdmi_dbg("AXI Lite clock rate = %lu Hz\n", axi_lite_rate);
 
 	provider = devm_of_phy_provider_register(&pdev->dev, xvphy_xlate);
 	if (IS_ERR(provider)) {
@@ -551,20 +530,20 @@ static int xvphy_probe(struct platform_device *pdev)
 	}
 
 	/* dump configuration for XVphy_HdmiInitialize() */
-	dev_info(&pdev->dev, "XcvrType = %d\n", (int)config.XcvrType);
-	dev_info(&pdev->dev, "TxChannels = %d\n", (int)config.TxChannels);
-	dev_info(&pdev->dev, "RxChannels = %d\n", (int)config.RxChannels);
-	dev_info(&pdev->dev, "TxProtocol = %d\n", (int)config.TxProtocol);
-	dev_info(&pdev->dev, "RxProtocol = %d\n", (int)config.RxProtocol);
-	dev_info(&pdev->dev, "TxRefClkSel = %d\n", (int)config.TxRefClkSel);
-	dev_info(&pdev->dev, "RxRefClkSel = %d\n", (int)config.RxRefClkSel);
-	dev_info(&pdev->dev, "TxSysPllClkSel = %d\n", (int)config.TxSysPllClkSel);
-	dev_info(&pdev->dev, "RxSysPllClkSel = %d\n", (int)config.RxSysPllClkSel);
-	dev_info(&pdev->dev, "DruIsPresent = %d\n", (int)config.DruIsPresent);
-	dev_info(&pdev->dev, "DruRefClkSel = %d\n", (int)config.DruRefClkSel);
-	dev_info(&pdev->dev, "Ppc = %d\n", (int)config.Ppc);
-	dev_info(&pdev->dev, "TxBufferBypass = %d\n", (int)config.TxBufferBypass);
-	dev_info(&pdev->dev, "HdmiFastSwitch = %d\n", (int)config.HdmiFastSwitch);
+	hdmi_dbg("XcvrType = %d\n", (int)config.XcvrType);
+	hdmi_dbg("TxChannels = %d\n", (int)config.TxChannels);
+	hdmi_dbg("RxChannels = %d\n", (int)config.RxChannels);
+	hdmi_dbg("TxProtocol = %d\n", (int)config.TxProtocol);
+	hdmi_dbg("RxProtocol = %d\n", (int)config.RxProtocol);
+	hdmi_dbg("TxRefClkSel = %d\n", (int)config.TxRefClkSel);
+	hdmi_dbg("RxRefClkSel = %d\n", (int)config.RxRefClkSel);
+	hdmi_dbg("TxSysPllClkSel = %d\n", (int)config.TxSysPllClkSel);
+	hdmi_dbg("RxSysPllClkSel = %d\n", (int)config.RxSysPllClkSel);
+	hdmi_dbg("DruIsPresent = %d\n", (int)config.DruIsPresent);
+	hdmi_dbg("DruRefClkSel = %d\n", (int)config.DruRefClkSel);
+	hdmi_dbg("Ppc = %d\n", (int)config.Ppc);
+	hdmi_dbg("TxBufferBypass = %d\n", (int)config.TxBufferBypass);
+	hdmi_dbg("HdmiFastSwitch = %d\n", (int)config.HdmiFastSwitch);
 
 	/* Initialize HDMI VPHY */
 	Status = XVphy_HdmiInitialize(&vphydev->xvphy, 0/*QuadID*/,
@@ -575,7 +554,10 @@ static int xvphy_probe(struct platform_device *pdev)
 	}
 
 	Data = XVphy_GetVersion(&vphydev->xvphy);
-	xil_printf("VPhy version : %02d.%02d (%04x)\n", ((Data >> 24) & 0xFF), ((Data >> 16) & 0xFF), (Data & 0xFFFF));
+	printk(KERN_INFO "VPhy version : %02d.%02d (%04x)\n", ((Data >> 24) & 0xFF), ((Data >> 16) & 0xFF), (Data & 0xFFFF));
+
+	DrpVal = XVphy_DrpRead(&vphydev->xvphy, 0/*QuadId*/, 1/*ChId*/, 0x7C);
+	hdmi_dbg("DrpVal @0x7C : 0x%08x%s\n", DrpVal, DrpVal & 0x2000?"GEARBOX ENABLED(?!)":"GEARBOX DISABLED");
 
 	ret = devm_request_threaded_irq(&pdev->dev, vphydev->irq, xvphy_irq_handler, xvphy_irq_thread,
 			IRQF_TRIGGER_HIGH /*IRQF_SHARED*/, "xilinx-vphy", vphydev/*dev_id*/);
@@ -585,12 +567,12 @@ static int xvphy_probe(struct platform_device *pdev)
 		return ret;
 	}
 
-	dev_info(&pdev->dev, "config.DruIsPresent = %d\n", config.DruIsPresent);
+	hdmi_dbg("config.DruIsPresent = %d\n", config.DruIsPresent);
 	if (vphydev->xvphy.Config.DruIsPresent == (TRUE)) {
-		dev_info(&pdev->dev, "DRU reference clock frequency %0d Hz\n\r",
+		hdmi_dbg("DRU reference clock frequency %0d Hz\n\r",
 						XVphy_DruGetRefClkFreqHz(&vphydev->xvphy));
 	}
-	printk(KERN_INFO "HDMI VPHY initialization completed\n");
+	hdmi_dbg(KERN_INFO "HDMI VPHY initialization completed\n");
 
 	return 0;
 }
@@ -640,7 +622,7 @@ EXPORT_SYMBOL_GPL(XV_axi4s_remap_EnableAutoRestart);
 EXPORT_SYMBOL_GPL(XV_axi4s_remap_Set_outPixClk);
 EXPORT_SYMBOL_GPL(XV_axi4s_remap_Set_outHDMI420);
 
-#if 0
+#if 0 /* WIP HDCP */
 EXPORT_SYMBOL_GPL(mpAdd);
 EXPORT_SYMBOL_GPL(mpConvFromOctets);
 EXPORT_SYMBOL_GPL(mpConvToOctets);
