@@ -536,8 +536,7 @@ static irqreturn_t hdmirx_irq_handler(int irq, void *dev_id)
 		printk(KERN_INFO "hdmirx_irq_handler(): HDMI RX SS is not initialized?!\n");
 	}
 
-#if 1
-	/* read status registers @TODO fix */
+	/* read status registers */
 	xhdmirx->IntrStatus[0] = XV_HdmiRx_ReadReg(HdmiRxSsPtr->Config.BaseAddress, (XV_HDMIRX_PIO_STA_OFFSET)) & (XV_HDMIRX_PIO_STA_IRQ_MASK);
 	xhdmirx->IntrStatus[1] = XV_HdmiRx_ReadReg(HdmiRxSsPtr->Config.BaseAddress, (XV_HDMIRX_TMR_STA_OFFSET)) & (XV_HDMIRX_TMR_STA_IRQ_MASK);
 	xhdmirx->IntrStatus[2] = XV_HdmiRx_ReadReg(HdmiRxSsPtr->Config.BaseAddress, (XV_HDMIRX_VTD_STA_OFFSET)) & (XV_HDMIRX_VTD_STA_IRQ_MASK);
@@ -545,7 +544,6 @@ static irqreturn_t hdmirx_irq_handler(int irq, void *dev_id)
 	xhdmirx->IntrStatus[4] = XV_HdmiRx_ReadReg(HdmiRxSsPtr->Config.BaseAddress, (XV_HDMIRX_AUX_STA_OFFSET)) & (XV_HDMIRX_AUX_STA_IRQ_MASK);
 	xhdmirx->IntrStatus[5] = XV_HdmiRx_ReadReg(HdmiRxSsPtr->Config.BaseAddress, (XV_HDMIRX_AUD_STA_OFFSET)) & (XV_HDMIRX_AUD_STA_IRQ_MASK);
 	xhdmirx->IntrStatus[6] = XV_HdmiRx_ReadReg(HdmiRxSsPtr->Config.BaseAddress, (XV_HDMIRX_LNKSTA_STA_OFFSET)) & (XV_HDMIRX_LNKSTA_STA_IRQ_MASK);
-#endif
 
 	spin_lock_irqsave(&xhdmirx->irq_lock, flags);
 	/* mask interrupt request */
@@ -1167,10 +1165,8 @@ static int xhdmirx_probe(struct platform_device *pdev)
 
 	mutex_lock(&xhdmirx->xhdmirx_mutex);
 
-#if 0 /* @TODO re-enable for EDID support */
 	/* sets pointer to the EDID used by XV_HdmiRxSs_LoadDefaultEdid() */
 	XV_HdmiRxSs_SetEdidParam(HdmiRxSsPtr, (u8 *)&xilinx_edid[0], sizeof(xilinx_edid));
-#endif
 
 	// Initialize top level and all included sub-cores
 	Status = XV_HdmiRxSs_CfgInitialize(HdmiRxSsPtr, &config,
