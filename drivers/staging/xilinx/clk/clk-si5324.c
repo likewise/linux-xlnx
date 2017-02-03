@@ -14,6 +14,11 @@
  * option) any later version.
  */
 
+
+/* if both both DEBUG and DEBUG_TRACE are defined, trace_printk() is used */
+#define DEBUG
+//#define DEBUG_TRACE
+
 #include <linux/module.h>
 #include <linux/kernel.h>
 #include <linux/clk.h>
@@ -33,7 +38,25 @@
 #include "clk-si5324.h"
 #include "si5324drv.h"
 
-/* bypass is a hardware debug function, but can be usefull in applications,
+/* select either trace or printk logging */
+#ifdef DEBUG_TRACE
+#define do_si5324_dbg(format, ...) do { \
+  trace_printk("si5324: " format, ##__VA_ARGS__); \
+} while(0)
+#else
+#define do_si5324_dbg(format, ...) do { \
+  printk(KERN_DEBUG "si5324: " format, ##__VA_ARGS__); \
+} while(0)
+#endif
+
+/* either enable or disable debugging */
+#ifdef DEBUG
+#  define si5324_dbg(x...) do_si5324_dbg(x)
+#else
+#  define si5324_dbg(x...)
+#endif
+
+/* bypass is a hardware debug function, but can be useful in applications,
  * @TODO consider support through device-tree option later */
 #define FORCE_BYPASS 0
 
@@ -165,7 +188,7 @@ static inline int si5324_reg_write(struct si5324_driver_data *drvdata,
 	u8 readback_val;
 	int ret = regmap_write(drvdata->regmap, reg, val);
 	dev_info(&drvdata->client->dev, "si5324_reg_write() 0x%02x @%02d\n", (int)val, (int)reg);
-#if 1
+#if 0
 	readback_val = si5324_reg_read(drvdata, reg);
 	if (readback_val != val) {
 		dev_err(&drvdata->client->dev, "readback 0x%02x @%02d, expected 0x%02x\n", (int)readback_val, (int)reg, (int)val);
@@ -199,6 +222,7 @@ static inline int si5324_bulk_scatter_write(struct si5324_driver_data *drvdata,
 	return result;
 }
 
+/* bare-metal: SI5324_DEFAULTS[] */
 static void si5324_initialize(struct si5324_driver_data *drvdata)
 {
 	/* keep RST_REG asserted for 10 ms */
@@ -211,6 +235,7 @@ static void si5324_initialize(struct si5324_driver_data *drvdata)
 	msleep(10);
 
 #if (defined(FORCE_BYPASS) && FORCE_BYPASS)
+#error FORCE_BYPASS not used/tested/supported.
 	dev_info(&drvdata->client->dev, "Configuring for bypass mode of CLKIN1 to CLKOUT1\n");
 	si5324_reg_write(drvdata,  0, 0x16 /* bypass */);
 #  if 0 /*@TODO pin-select by default, but considering support clock input selection */
@@ -225,7 +250,7 @@ static void si5324_initialize(struct si5324_driver_data *drvdata)
 	// other bits are default
 	si5324_reg_write(drvdata, 3, 0x15);
 
-#if 0
+#if 0 /* bare-metal setting */
 	// Auto select clock (automatic revertive) (bit 7:6 AUTOSEL_REG=10)
 	// History delay default
 	si5324_reg_write(drvdata, 4, 0x92);
@@ -253,8 +278,11 @@ static void si5324_initialize(struct si5324_driver_data *drvdata)
 	// other bits are default
 	si5324_reg_write(drvdata, 19, 0x2f);  // 0x29
 #endif
+#if 1
+	/* bare-metal does not set this */
 	/* ignore pin control  CS_CA pin is ignored, CS_CA output pin tristated */
 	si5324_reg_write(drvdata, 21, 0xfc);
+#endif
 	// Enable fast locking (bit 0 FASTLOCK=1)
 	si5324_reg_write(drvdata, 137, 0x01);   // FASTLOCK=1 (enable fast locking)
 #endif
@@ -293,31 +321,31 @@ static void si5324_read_parameters(struct si5324_driver_data *drvdata)
 	/* high-speed output divider */
 	drvdata->params.n1_hs = (buf[0] >> 5);
 	drvdata->params.n1_hs += 4;
-	printk(KERN_INFO "N1_HS = %u\n", drvdata->params.n1_hs);
+	si5324_dbg("N1_HS = %u\n", drvdata->params.n1_hs);
 	/* low-speed output divider for clkout1 */
 	drvdata->params.nc1_ls = ((buf[6] & 0x0f) << 16) | (buf[ 7] << 8) | buf[ 8];
 	drvdata->params.nc1_ls += 1;
-	printk(KERN_INFO "NC1_LS = %u\n", drvdata->params.nc1_ls);
+	si5324_dbg("NC1_LS = %u\n", drvdata->params.nc1_ls);
 	/* low-speed output divider for clkout2 */
 	drvdata->params.nc2_ls = ((buf[9] & 0x0f) << 16) | (buf[10] << 8) | buf[11];
 	drvdata->params.nc2_ls += 1;
-	printk(KERN_INFO "NC2_LS = %u\n", drvdata->params.nc2_ls);
+	si5324_dbg("NC2_LS = %u\n", drvdata->params.nc2_ls);
 	/* low-speed feedback divider (PLL multiplier) */
 	drvdata->params.n2_ls = ((buf[15] & 0x0f) << 16) | (buf[16] << 8) | buf[17];
 	drvdata->params.n2_ls += 1;
-	printk(KERN_INFO "N2_LS = %u\n", drvdata->params.n2_ls);
+	si5324_dbg("N2_LS = %u\n", drvdata->params.n2_ls);
 	/* high-speed feedback divider (PLL multiplier) */
 	drvdata->params.n2_hs = buf[15] >> 5;
 	drvdata->params.n2_hs += 4;
-	printk(KERN_INFO "N2_HS = %u\n", drvdata->params.n2_hs);
+	si5324_dbg("N2_HS = %u\n", drvdata->params.n2_hs);
 	/* input divider for clk1 */
 	drvdata->params.n31 = ((buf[18] & 0x0f) << 16) | (buf[19] << 8) | buf[20];
 	drvdata->params.n31 += 1;
-	printk(KERN_INFO "N31 = %u\n", drvdata->params.n31);
+	si5324_dbg("N31 = %u\n", drvdata->params.n31);
 	/* input divider for clk2 */
 	drvdata->params.n32 = ((buf[21] & 0x0f) << 16) | (buf[22] << 8) | buf[23];
 	drvdata->params.n32 += 1;
-	printk(KERN_INFO "N32 = %u\n", drvdata->params.n32);
+	si5324_dbg("N32 = %u\n", drvdata->params.n32);
 	drvdata->params.valid = 1;
 }
 
@@ -387,7 +415,7 @@ static bool si5324_regmap_is_readable(struct device *dev, unsigned int reg)
 	else if (reg >= 144)
 		result =  false;
 #if 0
-	printk(KERN_INFO "si5324_regmap_is_readable(reg0x%02x) = %u\n", reg, result);
+	si5324_dbg("si5324_regmap_is_readable(reg0x%02x) = %u\n", reg, result);
 #endif
 	return result;
 }
@@ -414,7 +442,7 @@ static bool si5324_regmap_is_writeable(struct device *dev, unsigned int reg)
 	else if (reg >= 134 && reg <= 135)
 		result =  false;
 #if 0
-	printk(KERN_INFO "si5324_regmap_is_writeable(reg0x%02x) = %u\n", reg, result);
+	si5324_dbg("si5324_regmap_is_writeable(reg0x%02x) = %u\n", reg, result);
 #endif
 	return result;
 }
@@ -437,7 +465,7 @@ static int si5324_xtal_prepare(struct clk_hw *hw)
 	struct si5324_driver_data *drvdata =
 		container_of(hw, struct si5324_driver_data, xtal);
 #if (!defined(FORCE_BYPASS) || !FORCE_BYPASS)
-	printk(KERN_INFO "si5324_xtal_prepare; enable free-running mode from crystal.\n");
+	si5324_dbg("si5324_xtal_prepare; enable free-running mode from crystal.\n");
 	/* enable free-run */
 	si5324_set_bits(drvdata, 0, 0x40, 0x40);
 	/* select CKIN_2 [7:6]=01 */
@@ -453,7 +481,7 @@ static void si5324_xtal_unprepare(struct clk_hw *hw)
 {
 	struct si5324_driver_data *drvdata =
 		container_of(hw, struct si5324_driver_data, xtal);
-	printk(KERN_INFO "si5324_xtal_unprepare\n");
+	si5324_dbg("si5324_xtal_unprepare\n");
 }
 
 static const struct clk_ops si5324_xtal_ops = {
@@ -469,7 +497,7 @@ static int si5324_clkin_prepare(struct clk_hw *hw)
 	struct si5324_driver_data *drvdata;
 	struct si5324_hw_data *hwdata =
 		container_of(hw, struct si5324_hw_data, hw);
-	printk(KERN_INFO "si5324_clkin_prepare() for hwdata->num = %d\n", hwdata->num);
+	si5324_dbg("si5324_clkin_prepare() for hwdata->num = %d\n", hwdata->num);
 
 	/* clkin1? */
 	if (hwdata->num == 0/*@TODO: verify if this should be 1*/) {
@@ -496,7 +524,7 @@ static void si5324_clkin_unprepare(struct clk_hw *hw)
 	struct si5324_driver_data *drvdata;
 	struct si5324_hw_data *hwdata =
 		container_of(hw, struct si5324_hw_data, hw);
-	printk(KERN_INFO "si5324_clkin_unprepare\n");
+	si5324_dbg("si5324_clkin_unprepare\n");
 	if (hwdata->num == 0/*@TODO:1?*/) {
 		drvdata = container_of(hw, struct si5324_driver_data, clkin1);
 	} else if (hwdata->num == 1/*@TODO:2?*/) {
@@ -514,24 +542,27 @@ static void si5324_clkin_unprepare(struct clk_hw *hw)
 static unsigned long si5324_clkin_recalc_rate(struct clk_hw *hw,
 					unsigned long parent_rate)
 {
-	struct si5324_driver_data *drvdata;
+	return 0;
+#if 0
+	struct si5324_driver_data *drvdata = NULL;
 	unsigned long rate;
 	unsigned char idiv;
 	struct si5324_hw_data *hwdata =
 		container_of(hw, struct si5324_hw_data, hw);
 	idiv = 1;
 
+	si5324_dbg("si5324_clkin_recalc_rate() hwdata->num = %d\n", hwdata->num);
 	if (hwdata->num == 0) {
 		drvdata = container_of(hw, struct si5324_driver_data, xtal);
-		printk(KERN_INFO "si5324_clkin_recalc_rate(parent_rate=%lu for xtal)\n", parent_rate);
+		si5324_dbg("si5324_clkin_recalc_rate(parent_rate=%lu for xtal)\n", parent_rate);
 	} else if (hwdata->num == 1) {
 		drvdata = container_of(hw, struct si5324_driver_data, clkin1);
-		printk(KERN_INFO "si5324_clkin_recalc_rate(parent_rate=%lu for clkin1)\n", parent_rate);
+		si5324_dbg("si5324_clkin_recalc_rate(parent_rate=%lu for clkin1)\n", parent_rate);
 	} else if (hwdata->num == 2) {
 		drvdata = container_of(hw, struct si5324_driver_data, clkin2);
-		printk(KERN_INFO "si5324_clkin_recalc_rate(parent_rate=%lu for clkin2)\n", parent_rate);
+		si5324_dbg("si5324_clkin_recalc_rate(parent_rate=%lu for clkin2)\n", parent_rate);
 	} else {
-		printk(KERN_INFO "si5324_clkin_recalc_rate() hwdata->num = %d\n", hwdata->num);
+		si5324_dbg("si5324_clkin_recalc_rate() hwdata->num = %d\n", hwdata->num);
 		return 0;
 	}
 
@@ -547,9 +578,11 @@ static unsigned long si5324_clkin_recalc_rate(struct clk_hw *hw,
 	si5324_set_bits(drvdata, SI5324_PLL_INPUT_SOURCE,
 			SI5324_CLKIN_DIV_MASK, idiv);
 */
+	if (drvdata)
 	dev_dbg(&drvdata->client->dev, "%s - clkin div = %d, rate = %lu\n",
 		__func__, (1 << (idiv >> 6)), rate);
 	return rate;
+#endif
 }
 
 static const struct clk_ops si5324_clkin_ops = {
@@ -563,7 +596,7 @@ static const struct clk_ops si5324_clkin_ops = {
 static int _si5324_pll_reparent(struct si5324_driver_data *drvdata,
 				int num, enum si5324_pll_src parent)
 {
-	printk(KERN_INFO "_si5324_pll_reparent() for parent = %d\n", (int)parent);
+	si5324_dbg("_si5324_pll_reparent() for parent = %d\n", (int)parent);
 
 	if (parent == SI5324_PLL_SRC_XTAL) {
 		/* enable free-run */
@@ -615,7 +648,7 @@ static int si5324_pll_set_parent(struct clk_hw *hw, u8 index)
 	struct si5324_hw_data *hwdata =
 		container_of(hw, struct si5324_hw_data, hw);
 	enum si5324_pll_src parent;
-	printk(KERN_INFO "si5324_pll_set_parent(index=%d)\n", index);
+	si5324_dbg("si5324_pll_set_parent(index=%d)\n", index);
 
 	if (index == 0)
 		parent = SI5324_PLL_SRC_XTAL;
@@ -635,7 +668,7 @@ static unsigned long si5324_pll_recalc_rate(struct clk_hw *hw,
 	unsigned long rate;
 	struct si5324_hw_data *hwdata =
 		container_of(hw, struct si5324_hw_data, hw);
-	printk(KERN_INFO "si5324_pll_recalc_rate(parent_rate=%lu)\n",
+	si5324_dbg("si5324_pll_recalc_rate(parent_rate=%lu)\n",
 		parent_rate);
 
 	if (!hwdata->drvdata->params.valid)
@@ -657,7 +690,7 @@ static long si5324_pll_round_rate(struct clk_hw *hw, unsigned long rate,
 {
 	struct si5324_hw_data *hwdata =
 		container_of(hw, struct si5324_hw_data, hw);
-	printk(KERN_INFO "si5324_pll_round_rate(rate=%lu, parent_rate=%lu)\n",
+	si5324_dbg("si5324_pll_round_rate(rate=%lu, parent_rate=%lu)\n",
 		rate, *parent_rate);
 
 #if 0
@@ -718,7 +751,7 @@ static int si5324_pll_set_rate(struct clk_hw *hw, unsigned long rate,
 {
 	struct si5324_hw_data *hwdata =
 		container_of(hw, struct si5324_hw_data, hw);
-	printk(KERN_INFO "si5324_pll_set_rate(rate=%lu, parent_rate=%lu)\n",
+	si5324_dbg("si5324_pll_set_rate(rate=%lu, parent_rate=%lu)\n",
 		rate, parent_rate);
 #if 0
 	u8 reg = (hwdata->num == 0) ? SI5324_PLLA_PARAMETERS :
@@ -849,10 +882,9 @@ static unsigned long si5324_clkout_recalc_rate(struct clk_hw *hw,
 		container_of(hw, struct si5324_hw_data, hw);
 	unsigned long rate = 0;
 
-	dev_info(&hwdata->drvdata->client->dev,
-		"si5324_clkout_recalc_rate(parent_rate=%lu)\n", parent_rate);
+	si5324_dbg("si5324_clkout_recalc_rate(parent_rate=%lu)\n", parent_rate);
 #if 0
-	printk(KERN_INFO "si5324_clkout_recalc_rate(parent_rate=%lu) clkout%d\n",
+	si5324_dbg("si5324_clkout_recalc_rate(parent_rate=%lu) clkout%d\n",
 		parent_rate, hwdata->num);
 
 	//if (!hwdata->drvdata->params.valid)
@@ -866,14 +898,13 @@ static unsigned long si5324_clkout_recalc_rate(struct clk_hw *hw,
 	else if (hwdata->num == 1)
 		rate = (parent_rate / hwdata->drvdata->params.n1_hs) / hwdata->drvdata->params.nc2_ls;
 
-	printk(KERN_INFO "si5324_clkout_recalc_rate(parent_rate=%lu) => clkout%d=%lu (invalid)\n",
+	si5324_dbg("si5324_clkout_recalc_rate(parent_rate=%lu) => clkout%d=%lu (invalid)\n",
 		parent_rate, hwdata->num, rate);
 #endif
 
 	rate = hwdata->drvdata->rate_clkout0;
 
-	dev_info(&hwdata->drvdata->client->dev,
-		"si5324_clkout_recalc_rate() = %lu\n", rate);
+	si5324_dbg("si5324_clkout_recalc_rate() = %lu\n", rate);
 	return rate;
 }
 
@@ -891,11 +922,10 @@ static long si5324_clkout_round_rate(struct clk_hw *hw, unsigned long rate,
 	u8  N1_hs, N2_hs, BwSel;
 	u32 actual_rate;
 	int result;
-	printk(KERN_INFO "si5324_clkout_round_rate(rate=%lu, parent_rate=%lu)\n",
+	si5324_dbg("si5324_clkout_round_rate(rate=%lu, parent_rate=%lu)\n",
 		rate, *parent_rate);
 
-	dev_info(&hwdata->drvdata->client->dev,
-		"%s - %s: parent_rate = %lu, rate = %lu\n",
+	si5324_dbg("%s - %s: parent_rate = %lu, rate = %lu\n",
 		__func__, clk_hw_get_name(hw), *parent_rate, rate);
 
 	// Calculate the frequency settings for the Si5324
@@ -942,8 +972,7 @@ static long si5324_clkout_round_rate(struct clk_hw *hw, unsigned long rate,
 		*parent_rate, rate);
 #endif
 
-	dev_info(&hwdata->drvdata->client->dev,
-		"si5324_clkout_round_rate() = %lu\n", actual_rate);
+	si5324_dbg("si5324_clkout_round_rate() = %lu\n", actual_rate);
 	return actual_rate;
 }
 
@@ -961,20 +990,19 @@ static int si5324_clkout_set_rate(struct clk_hw *hw, unsigned long rate,
 	int i;
 	int rc;
 
-	dev_info(&hwdata->drvdata->client->dev,
-		"si5324_clkout_set_rate(parent_rate=%lu, rate = %lu)\n",
+	si5324_dbg("si5324_clkout_set_rate(parent_rate=%lu, rate = %lu)\n",
 		parent_rate, rate);
 
 	// Calculate the frequency settings for the Si5324
 	result = Si5324_CalcFreqSettings(114285000, rate, &actual_rate,
 	                                 &N1_hs, &NCn_ls, &N2_hs, &N2_ls, &N3n,
 	                                 &BwSel);
-	printk(KERN_INFO "N1_HS = %u\n", (unsigned int)N1_hs + 4);
-	printk(KERN_INFO "NC1_LS = %u\n", (unsigned int)NCn_ls + 1);
-	printk(KERN_INFO "N2_HS = %u\n", (unsigned int)N2_hs + 4);
-	printk(KERN_INFO "N2_LS = %u\n", (unsigned int)N2_ls + 1);
-	printk(KERN_INFO "N3 = %u\n", (unsigned int)N3n + 1);
-	printk(KERN_INFO "actual rate = %u\n", actual_rate);
+	si5324_dbg("N1_HS = %u\n", (unsigned int)N1_hs + 4);
+	si5324_dbg("NC1_LS = %u\n", (unsigned int)NCn_ls + 1);
+	si5324_dbg("N2_HS = %u\n", (unsigned int)N2_hs + 4);
+	si5324_dbg("N2_LS = %u\n", (unsigned int)N2_ls + 1);
+	si5324_dbg("N3 = %u\n", (unsigned int)N3n + 1);
+	si5324_dbg("actual rate = %u\n", actual_rate);
 
 	/* remember actual clkout0 output rate */
 	hwdata->drvdata->rate_clkout0 = rate;
@@ -1050,6 +1078,12 @@ static int si5324_clkout_set_rate(struct clk_hw *hw, unsigned long rate,
 	//  enable CKOUT1 output (bit 2 DSBL1_REG=1)
 	// disable CKOUT2 output (bit 3 DSBL2_REG=1)
 	//si5324_reg_write(hwdata->drvdata, 10, 0x08);
+
+#if 0
+	/* dump all registers */
+	for (i = 0; i < 145; i++)
+		si5324_reg_read(hwdata->drvdata, i);
+#endif
 	return rc;
 }
 
@@ -1289,7 +1323,7 @@ static int si5324_i2c_probe(struct i2c_client *client,
 	}
 
 	if (!IS_ERR(drvdata->pxtal)) {
-		dev_info(&client->dev, "Enabling xtal clock\n");
+		si5324_dbg("Enabling xtal clock\n");
 		clk_prepare_enable(drvdata->pxtal);
 	}
 	if (!IS_ERR(drvdata->pclkin1))
@@ -1305,7 +1339,7 @@ static int si5324_i2c_probe(struct i2c_client *client,
 	if (!IS_ERR(drvdata->pxtal)) {
 		drvdata->pxtal_name = __clk_get_name(drvdata->pxtal);
 		init.parent_names = &drvdata->pxtal_name;
-		dev_info(&client->dev, "xtal parent name: %s\n", init.parent_names[0]);
+		si5324_dbg("xtal parent name: %s\n", init.parent_names[0]);
 		init.num_parents = 1;
 	}
 	drvdata->xtal.init = &init;
@@ -1417,7 +1451,7 @@ static int si5324_i2c_probe(struct i2c_client *client,
 		/* set initial clkout rate */
 		if (pdata->clkout[n].rate != 0) {
 			int ret;
-			dev_info(&client->dev, "Initializing clkout%d for DT specified frequency %d Hz.\n", n, pdata->clkout[n].rate);
+			si5324_dbg("Initializing clkout%d for DT specified frequency %d Hz.\n", n, pdata->clkout[n].rate);
 			ret = clk_set_rate(clk, pdata->clkout[n].rate);
 			if (ret != 0) {
 				dev_err(&client->dev, "Cannot set rate : %d\n",
@@ -1432,7 +1466,7 @@ static int si5324_i2c_probe(struct i2c_client *client,
 		dev_err(&client->dev, "unable to add clk provider\n");
 		goto err_clk;
 	}
-	dev_info(&client->dev, "Initialized Si5324.\n");
+	si5324_dbg("Initialized Si5324.\n");
 
 	return 0;
 
