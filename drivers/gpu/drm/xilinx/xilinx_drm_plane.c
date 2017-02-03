@@ -257,7 +257,7 @@ int xilinx_drm_plane_mode_set(struct drm_plane *base_plane,
 
 	if (plane->manager->mixer) {
 
-		uint32_t stride = 0; 
+		uint32_t stride = 0;
 
 		ret = xilinx_drm_mixer_mark_layer_active(plane);
 		if (ret)
@@ -271,8 +271,9 @@ int xilinx_drm_plane_mode_set(struct drm_plane *base_plane,
 		if (!mixer_layer_is_streaming(plane->mixer_layer))
 			stride = fb->pitches[0];
 
-		ret = xilinx_drm_mixer_set_layer_dimensions(plane, crtc_x, crtc_y,
-							    src_w, src_h, stride);
+		ret = xilinx_drm_mixer_set_layer_dimensions(plane, crtc_x,
+							crtc_y, src_w, src_h,
+							stride);
 		if (ret)
 			return ret;
 

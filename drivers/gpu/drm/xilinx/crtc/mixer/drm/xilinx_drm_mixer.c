@@ -584,8 +584,8 @@ static int xilinx_drm_mixer_parse_dt_logo_data(struct device_node *node,
 					&max_height);
 
 		if (ret) {
-		    DRM_ERROR("Failed to get logo height prop\n");
-		    return -EINVAL;
+			DRM_ERROR("Failed to get logo height prop\n");
+			return -EINVAL;
 		}
 
 		if (max_height > XVMIX_LOGO_LAYER_HEIGHT_MAX ||
