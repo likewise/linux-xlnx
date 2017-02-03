@@ -510,7 +510,7 @@ static void xilinx_drm_hdmi_restore(struct drm_encoder *encoder)
  *
  * if SI5324 is commented out, the SI5324 clock is changed before  xilinx_drm_hdmi_mode_set()
  * is run, THIS IS THE LINUX DEFAULT AND LINUX DOES NOT ALLOW OTHER SEQUENCES OFFICIALLY. */
-#define SI5324_LAST
+//#define SI5324_LAST
 
 #ifdef SI5324_LAST
 /* prototype */
@@ -580,7 +580,7 @@ static void xilinx_drm_hdmi_mode_set(struct drm_encoder *encoder,
 				   struct drm_display_mode *mode,
 				   struct drm_display_mode *adjusted_mode)
 {
-	//XVidC_VideoTiming vt;
+	XVidC_VideoTiming vt;
 	XVphy *VphyPtr;
 	XV_HdmiTxSs *HdmiTxSsPtr;
 	XVidC_VideoStream *HdmiTxSsVidStreamPtr;
@@ -588,6 +588,7 @@ static void xilinx_drm_hdmi_mode_set(struct drm_encoder *encoder,
 	u32 Result;
 	XVidC_ColorFormat xvidc_colorfmt;
 	//u32 PixelClock;
+	XVidC_VideoMode VmId;
 
 	struct xilinx_drm_hdmi *hdmi = to_hdmi(encoder);
 	dev_info(hdmi->dev, "xilinx_drm_hdmi_mode_set()\n");
@@ -633,12 +634,12 @@ static void xilinx_drm_hdmi_mode_set(struct drm_encoder *encoder,
 	xilinx_drm_hdmi_mode_set_stream(hdmi, adjusted_mode);
 	xilinx_drm_hdmi_mode_set_transfer_unit(hdmi, adjusted_mode);
 #endif
-#if 0
+#if 1
 	/* see slide 20 of http://events.linuxfoundation.org/sites/events/files/slides/brezillon-drm-kms.pdf */
 	vt.HActive = mode->hdisplay;
-	vt.HFrontPorch = mode->hstart - mode->hdisplay;
-	vt.HSyncWidth = mode->hend - mode->hstart;
-	vt.HBackPorch = mode->htotal - mode->hsyncend;
+	vt.HFrontPorch = mode->hsync_start - mode->hdisplay;
+	vt.HSyncWidth = mode->hsync_end - mode->hsync_start;
+	vt.HBackPorch = mode->htotal - mode->hsync_end;
 	vt.HTotal = mode->htotal;
 	vt.HSyncPolarity = !!(mode->flags & DRM_MODE_FLAG_PHSYNC);
 
@@ -685,22 +686,16 @@ static void xilinx_drm_hdmi_mode_set(struct drm_encoder *encoder,
 	*/
 	xvidc_colorfmt = XVIDC_CSF_YCRCB_422;
 	//xvidc_colorfmt = XVIDC_CSF_RGB;
-
-	/* @TODO incorrect, this is only called to set XVIDC_CSF_RGB and XVIDC_BPC_8, there is no other BSP API yet */
-	if (mode->vdisplay == 720) {
-		TmdsClock = XV_HdmiTxSs_SetStream(HdmiTxSsPtr, XVIDC_VM_1280x720_60_P, xvidc_colorfmt, XVIDC_BPC_8, NULL);
-		dev_info(hdmi->dev, "1280x720\n");
-	} else if (mode->vdisplay == 1080) {
-		TmdsClock = XV_HdmiTxSs_SetStream(HdmiTxSsPtr, XVIDC_VM_1920x1080_60_P, xvidc_colorfmt, XVIDC_BPC_8, NULL);
-		dev_info(hdmi->dev, "1920x1080\n");
-	} else if (mode->vdisplay == 2160) {
-		TmdsClock = XV_HdmiTxSs_SetStream(HdmiTxSsPtr, XVIDC_VM_3840x2160_60_P, xvidc_colorfmt, XVIDC_BPC_8, NULL);
-		dev_info(hdmi->dev, "3840x2160\n");
-		/* fallback, at least color space and color depth are set */
-	} else {
-		TmdsClock = XV_HdmiTxSs_SetStream(HdmiTxSsPtr, XVIDC_VM_1280x720_60_P, xvidc_colorfmt, XVIDC_BPC_8, NULL);
-	}
-
+	dev_info(hdmi->dev, "mode->vrefresh = %d\n", mode->vrefresh);
+    VmId = XVidC_GetVideoModeId(mode->hdisplay, mode->vdisplay, mode->vrefresh, FALSE);
+	dev_info(hdmi->dev, "VmId = %d\n", VmId);
+	if (VmId == XVIDC_VM_NOT_SUPPORTED) { //no match found in timing table
+	  dev_info(hdmi->dev, "Tx Video Mode not supported. Using DRM TIming\n");
+	  HdmiTxSsVidStreamPtr->VmId = XVIDC_VM_CUSTOM;
+	  HdmiTxSsVidStreamPtr->Timing = vt; //overwrite with drm detected timing
+	} 
+    TmdsClock = XV_HdmiTxSs_SetStream(HdmiTxSsPtr, VmId, xvidc_colorfmt, XVIDC_BPC_8, NULL);
+		
 	// Set TX reference clock
 	VphyPtr->HdmiTxRefClkHz = mode->crtc_clock * 1000;
 	dev_info(hdmi->dev, "Setting VphyPtr->HdmiTxRefClkHz (from mode->crtc_clock) = %d\n", VphyPtr->HdmiTxRefClkHz);
