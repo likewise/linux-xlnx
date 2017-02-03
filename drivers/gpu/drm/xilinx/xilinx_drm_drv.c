@@ -464,7 +464,6 @@ static struct drm_driver xilinx_drm_driver = {
 	.set_busid			= xilinx_drm_set_busid,
 
 	.get_vblank_counter		= drm_vblank_no_hw_counter,
-    /* JPM TODO update these vblank for possible mixer interrupts */
 	.enable_vblank			= xilinx_drm_enable_vblank,
 	.disable_vblank			= xilinx_drm_disable_vblank,
 

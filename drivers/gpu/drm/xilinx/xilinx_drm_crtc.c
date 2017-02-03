@@ -361,7 +361,6 @@ static void xilinx_drm_crtc_vblank_handler(void *data)
 		return;
 
 	drm = base_crtc->dev;
-
 	drm_handle_vblank(drm, 0);
 	xilinx_drm_crtc_finish_page_flip(base_crtc);
 }
@@ -372,12 +371,13 @@ void xilinx_drm_crtc_enable_vblank(struct drm_crtc *base_crtc)
 	struct xilinx_drm_crtc *crtc = to_xilinx_crtc(base_crtc);
 
 	if (crtc->plane_manager->mixer) {
-		if (xilinx_mixer_g_intrpt_enabled)
+		if (xilinx_mixer_g_intrpt_enabled(crtc->plane_manager->mixer)) {
 			xilinx_drm_mixer_set_intr_handler(
 						crtc->plane_manager->mixer,
 						xilinx_drm_crtc_vblank_handler,
 						base_crtc);
 		return;
+		}
 	}
 
 	if (crtc->vtc) {

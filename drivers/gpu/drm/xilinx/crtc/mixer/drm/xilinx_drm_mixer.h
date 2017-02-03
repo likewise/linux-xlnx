@@ -193,6 +193,8 @@ xilinx_drm_mixer_mark_layer_inactive(struct xilinx_drm_plane *plane);
  * @param[in] crtc_y New vertical anchor position from which to begin rendering
  * @param[in] width Width, in pixels, to render from stream or memory buffer
  * @param[in] height Height, in pixels, to render from stream or memory buffer
+ * @param[in] stride Width, in bytes, of a memory buffer.  Used only for
+ *		memory layers.  Use 0 for streaming layers.
  *
  * @returns 0 if successful; Either -EINVAL if coordindate data is invalid
  *	      or -ENODEV if layer data not present
@@ -203,7 +205,7 @@ xilinx_drm_mixer_mark_layer_inactive(struct xilinx_drm_plane *plane);
 int
 xilinx_drm_mixer_set_layer_dimensions(struct xilinx_drm_plane *plane,
 				u32 crtc_x, u32 crtc_y,
-				u32 width, u32 height);
+				u32 width, u32 height, u32 stride);
 
 /**
  * Obtains a pointer to a struct containing layer-specific data for the mixer IP

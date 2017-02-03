@@ -465,11 +465,8 @@ xilinx_drm_mixer_layer_enable(struct xilinx_drm_plane *plane)
 int
 xilinx_drm_mixer_set_layer_dimensions(struct xilinx_drm_plane *plane,
 				u32 crtc_x, u32 crtc_y,
-				u32 width, u32 height)
+				u32 width, u32 height, u32 stride)
 {
-	/* JPM TODO Need to update this call to compute stride which is needed
-	* for memory mapped layers
-	*/
 	int ret = 0;
 	struct xv_mixer *mixer = plane->manager->mixer;
 	struct xv_mixer_layer_data *layer_data;
@@ -487,7 +484,7 @@ xilinx_drm_mixer_set_layer_dimensions(struct xilinx_drm_plane *plane,
 
 		ret = xilinx_mixer_set_layer_window(mixer, layer_id,
 						 crtc_x, crtc_y,
-						 width, height, 0);
+						 width, height, stride);
 
 		if (ret)
 			return ret;
