@@ -18,6 +18,7 @@
 #include <linux/module.h>
 #include <linux/of.h>
 #include <linux/slab.h>
+#include <linux/dma/xilinx_dma.h>
 
 #include <media/v4l2-dev.h>
 #include <media/v4l2-fh.h>
@@ -383,6 +384,7 @@ static void xvip_dma_buffer_queue(struct vb2_buffer *vb)
 	struct xvip_dma *dma = vb2_get_drv_priv(vb->vb2_queue);
 	struct xvip_dma_buffer *buf = to_xvip_dma_buffer(vbuf);
 	struct dma_async_tx_descriptor *desc;
+	struct xilinx_xdma_config dma_config;
 	dma_addr_t addr = vb2_dma_contig_plane_dma_addr(vb, 0);
 	u32 flags;
 
@@ -399,6 +401,11 @@ static void xvip_dma_buffer_queue(struct vb2_buffer *vb)
 		dma->xt.dst_sgl = false;
 		dma->xt.src_start = addr;
 	}
+
+	/*Consumed by frmbuf dma driver, if present*/
+	dma_config.fourcc = dma->format.pixelformat;
+	dma_config.type = XDMA_V4L2;
+	dma->dma->private = &dma_config;
 
 	dma->xt.frame_size = 1;
 	dma->sgl[0].size = dma->format.width * dma->fmtinfo->bpp;
