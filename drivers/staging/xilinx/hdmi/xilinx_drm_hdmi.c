@@ -689,7 +689,6 @@ static void xilinx_drm_hdmi_mode_set(struct drm_encoder *encoder,
 
 	if (XVphy_IsBonded(VphyPtr, 0, XVPHY_CHANNEL_ID_CH1)) {
 		hdmi_dbg("Both the GT RX and GT TX are clocked by the RX reference clock.\n");
-		xvphy_mutex_unlock(hdmi->phy[0]);
 		return;
 	}
 
@@ -699,12 +698,10 @@ static void xilinx_drm_hdmi_mode_set(struct drm_encoder *encoder,
 	hdmi_dbg("mode->vrefresh = %d\n", mode->vrefresh);
 	VmId = XVidC_GetVideoModeIdWBlanking(&vt, mode->vrefresh, FALSE);
 	hdmi_dbg("VmId = %d\n", VmId);
-	//no match found in timing table
-	if (VmId == XVIDC_VM_NOT_SUPPORTED) {
+	if (VmId == XVIDC_VM_NOT_SUPPORTED) { //no match found in timing table
 		hdmi_dbg("Tx Video Mode not supported. Using DRM TIming\n");
 		HdmiTxSsVidStreamPtr->VmId = XVIDC_VM_CUSTOM;
-		//overwrite with drm detected timing
-		HdmiTxSsVidStreamPtr->Timing = vt;
+		HdmiTxSsVidStreamPtr->Timing = vt; //overwrite with drm detected timing
 	}
 	TmdsClock = XV_HdmiTxSs_SetStream(HdmiTxSsPtr, VmId, hdmi->xvidc_colorfmt, XVIDC_BPC_8, NULL);
 
@@ -749,8 +746,8 @@ xilinx_drm_hdmi_detect(struct drm_encoder *encoder,
 {
 	struct xilinx_drm_hdmi *hdmi = to_hdmi(encoder);
 	mutex_lock(&hdmi->hdmi_mutex);
-	/* cable connected and EDID retrieved? */
-	if (hdmi->cable_connected && hdmi->have_edid) {
+	/* cable connected and @TODO edid retrieved? */
+	if (hdmi->cable_connected /*&& have_edid*/) {
 		//hdmi_dbg("xilinx_drm_hdmi_detect() = connected\n");
 		mutex_unlock(&hdmi->hdmi_mutex);
 		return connector_status_connected;
