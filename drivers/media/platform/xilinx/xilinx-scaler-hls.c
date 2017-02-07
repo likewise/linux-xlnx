@@ -89,9 +89,14 @@
 #define XVIDC_CSF_YCRCB_422			(2)
 #define XVIDC_CSF_YCRCB_420			(3)
 
+/* Video IP PPC */
+#define XSCALER_PPC_1				(1)
+#define XSCALER_PPC_2				(2)
+
 /* Mask definitions for Low and high 16 bits in a 32 bit number */
 #define XHSC_MASK_LOW_16BITS			(0x0000FFFF)
 #define XHSC_MASK_HIGH_16BITS			(0xFFFF0000)
+#define XHSC_MASK_LOW_32BITS			(0xFFFFFFFF)
 #define STEP_PRECISION_SHIFT			(16)
 
 /**
@@ -672,6 +677,51 @@ static int xv_hscaler_setup_video_fmt
 	return 0;
 }
 
+static int
+xv_hscaler_set_phases(struct xscaler_device * xscaler)
+{
+	u32 loop_width;
+	u32 index, val;
+	u32 offset, i, lsb, msb;
+
+	loop_width = xscaler->max_pixels/xscaler->pix_per_clk;
+	offset = V_HSCALER_OFF + XV_HSCALER_CTRL_ADDR_HWREG_PHASESH_V_BASE;
+
+	switch(xscaler->pix_per_clk) {
+	case XSCALER_PPC_1:
+		/*
+		 * phaseH is 64bits but only lower 16b of each entry is valid
+		 * Form 32b word with 16bit LSB from 2 consecutive entries
+		 * Need 1 32b write to get 2 entries into IP registers
+		 * (i is array loc and index is address offset)
+		 */
+		index = 0;
+		for (i = 0; i < loop_width; i += 2) {
+			lsb = (u32)(xscaler->phasesH[i] & (u64)XHSC_MASK_LOW_16BITS);
+			msb = (u32)(xscaler->phasesH[i+1] & (u64)XHSC_MASK_LOW_16BITS);
+			val = (msb << 16 | lsb);
+			xvip_write(&xscaler->xvip, offset + (index*4), val);
+			++index;
+		}
+		dev_info(xscaler->xvip.dev,
+			"%s : Operating in 1 PPC design", __func__);
+		break;
+	case XSCALER_PPC_2:
+		/*
+		 * PhaseH is 64bits but only lower 32b of each entry is valid
+		 * Need 1 32b write to get each entry into IP registers
+		 */
+		for (i = 0; i < loop_width; i++) {
+			val = (u32)(xscaler->phasesH[i] & XHSC_MASK_LOW_32BITS);
+			xvip_write(&xscaler->xvip, offset + (i*4), val);
+		}
+		dev_info(xscaler->xvip.dev,
+			"%s : Operating in 2 PPC design", __func__);
+		break;
+	}
+	return 0;
+}
+
 static int xscaler_s_stream(struct v4l2_subdev *subdev, int enable)
 {
 	struct xscaler_device *xscaler = to_scaler(subdev);
@@ -680,9 +730,6 @@ static int xscaler_s_stream(struct v4l2_subdev *subdev, int enable)
 	u32 code_in, code_out;
 	u32 pixel_rate;
 	u32 line_rate;
-	u32 loop_width;
-	u32 offset;
-	u32 val, lsb, msb, index, i;
 	int rval;
 
 	if (!enable) {
@@ -741,31 +788,17 @@ static int xscaler_s_stream(struct v4l2_subdev *subdev, int enable)
 		return -EINVAL;
 	}
 
-	/* Set Polyphasse coeff */
+	/* Set Polyphase coeff */
 	xv_hscaler_select_coeff(xscaler, width_in, width_out);
 	/* Program generated coefficients into the IP register bank */
 	xv_hscaler_set_coeff(xscaler);
 
 
 	/* Set HPHASE coeff */
-	loop_width = xscaler->max_pixels/xscaler->pix_per_clk;
-	offset = V_HSCALER_OFF + XV_HSCALER_CTRL_ADDR_HWREG_PHASESH_V_BASE;
-
 	calculate_phases(xscaler, width_in, width_out, pixel_rate);
-
-	/* phaseH is 64bits but only lower 16b of each entry is valid
-	 * Form 32b word with 16bit LSB from 2 consecutive entries
-	 * Need 1 32b write to get 2 entries into IP registers
-	 * (i is array loc and index is address offset)
-	 */
-	index = 0;
-	for (i = 0; i < loop_width; i += 2) {
-		lsb = (u32)(xscaler->phasesH[i] & (u64)XHSC_MASK_LOW_16BITS);
-		msb = (u32)(xscaler->phasesH[i+1] & (u64)XHSC_MASK_LOW_16BITS);
-		val = (msb << 16 | lsb);
-		xvip_write(&xscaler->xvip, offset + (index*4), val);
-		++index;
-	}
+	rval = xv_hscaler_set_phases(xscaler);
+	if (rval < 0)
+		return rval;
 
 	/* Start Scaler sub-cores */
 	xvip_write(&xscaler->xvip, V_HSCALER_OFF +
@@ -935,7 +968,7 @@ static int xscaler_parse_of(struct xscaler_device *xscaler)
 	struct device_node *ports;
 	struct device_node *port;
 	int ret;
-	u32 port_id = 0;
+	u32 port_id = 0, dt_ppc = 0;
 
 	ports = of_get_child_by_name(node, "ports");
 	if (ports == NULL)
@@ -992,17 +1025,18 @@ static int xscaler_parse_of(struct xscaler_device *xscaler)
 	if (ret < 0)
 		return ret;
 
-	ret = of_property_read_u32(node, "xlnx,pix-per-clk",
-				   &xscaler->pix_per_clk);
+	ret = of_property_read_u32(node, "xlnx,pix-per-clk", &dt_ppc);
 	if (ret < 0)
 		return ret;
 
-	xscaler->separate_yc_coef =
-		of_property_read_bool(node, "xlnx,separate-yc-coef");
-
-	xscaler->separate_hv_coef =
-		of_property_read_bool(node, "xlnx,separate-hv-coef");
-
+	/* Driver only supports 1 PPC and 2PPC */
+	if (dt_ppc == 1 || dt_ppc == 2) {
+		xscaler->pix_per_clk = dt_ppc;
+	} else {
+		dev_err(xscaler->xvip.dev,
+		"Unsupported xlnx,pix-per-clk(%d) value in DT", dt_ppc);
+		return -EINVAL;
+	}
 	return 0;
 }
 
