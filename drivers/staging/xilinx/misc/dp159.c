@@ -78,11 +78,10 @@ static int dp159_program(struct i2c_client *client, unsigned long rate)
 
 	if ((rate / (1000000)) > 3400) {
 		printk(KERN_INFO "dp159_program(rate = %lu) for HDMI 2.0\n", rate);
-		r = dp159_write(client, 0x0A, 0x36);	// Automatic retimer for HDMI 2.0
 		r = dp159_write(client, 0x0B, 0x1a);
-
 		r = dp159_write(client, 0x0C, 0xa1);
 		r = dp159_write(client, 0x0D, 0x00);
+		r = dp159_write(client, 0x0A, 0x36);	// Automatic retimer for HDMI 2.0
 	} else {
 		printk(KERN_INFO "dp159_program(rate = %lu) for HDMI 1.4\n", rate);
 		/* verified to be the datasheet defaults */
