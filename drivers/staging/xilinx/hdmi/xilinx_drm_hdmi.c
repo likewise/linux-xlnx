@@ -534,7 +534,7 @@ static void xilinx_drm_hdmi_restore(struct drm_encoder *encoder)
  *
  * if SI5324 is commented out, the SI5324 clock is changed before  xilinx_drm_hdmi_mode_set()
  * is run, THIS IS THE LINUX DEFAULT AND LINUX DOES NOT ALLOW OTHER SEQUENCES OFFICIALLY. */
-#define SI5324_LAST
+//#define SI5324_LAST
 
 #ifdef SI5324_LAST
 /* prototype */
@@ -547,30 +547,18 @@ static bool xilinx_drm_hdmi_mode_fixup(struct drm_encoder *encoder,
 				     const struct drm_display_mode *mode,
 				     struct drm_display_mode *adjusted_mode)
 {
-	XVidC_VideoTiming vt;
-	XVphy *VphyPtr;
-	XV_HdmiTxSs *HdmiTxSsPtr;
-	XVidC_VideoStream *HdmiTxSsVidStreamPtr;
-	u32 pixel_clk_rate, tmds_clk_rate;
-	u32 Result;
-	//u32 PixelClock;
-	XVidC_VideoMode VmId;
-
 	struct xilinx_drm_hdmi *hdmi = to_hdmi(encoder);
-	BUG_ON(!hdmi);
-
-	HdmiTxSsPtr = &hdmi->xv_hdmitxss;
-	BUG_ON(!HdmiTxSsPtr);
-
+	XVphy *VphyPtr;
 	VphyPtr = hdmi->xvphy;
 	BUG_ON(!VphyPtr);
 
+	/* @NOTE LEON: we are calling mode_set here, just before the si5324 clock is changed */
+
 	hdmi_dbg("xilinx_drm_hdmi_mode_fixup()\n");
 #ifdef SI5324_LAST
-	/* @NOTE LEON: we are calling mode_set here, just before the si5324 clock is changed */
 	xilinx_drm_hdmi_mode_set(encoder, mode, adjusted_mode);
-#else
 #endif
+
 	return true;
 }
 
@@ -584,9 +572,7 @@ static bool xilinx_drm_hdmi_mode_fixup(struct drm_encoder *encoder,
  */
 static inline int xilinx_drm_hdmi_max_rate(int link_rate, u8 lane_num, u8 bpp)
 {
-	int max_rate = link_rate * lane_num * 8 / bpp;
-	hdmi_dbg("xilinx_drm_hdmi_max_rate() = %d\n", max_rate);
-	return max_rate;
+	return link_rate * lane_num * 8 / bpp;
 }
 
 static int xilinx_drm_hdmi_mode_valid(struct drm_encoder *encoder,
@@ -594,14 +580,14 @@ static int xilinx_drm_hdmi_mode_valid(struct drm_encoder *encoder,
 {
 	struct xilinx_drm_hdmi *hdmi = to_hdmi(encoder);
 	hdmi_dbg("xilinx_drm_hdmi_mode_valid()\n");
-
 	drm_mode_debug_printmodeline(mode);
-#if 0
 	mutex_lock(&hdmi->hdmi_mutex);
+
+#if 0
 	if (mode->clock > hdmi_max_rate)
 		return MODE_CLOCK_HIGH;
-	mutex_unlock(&hdmi->hdmi_mutex);
 #endif
+	mutex_unlock(&hdmi->hdmi_mutex);
 	return MODE_OK;
 }
 
@@ -642,7 +628,7 @@ static void xilinx_drm_hdmi_mode_set(struct drm_encoder *encoder,
 	xvphy_mutex_lock(hdmi->phy[0]);
 
 	drm_mode_debug_printmodeline(mode);
-#ifdef DEBUG
+
 	hdmi_dbg("mode->clock = %d\n", mode->clock * 1000);
 	hdmi_dbg("mode->crtc_clock = %d\n", mode->crtc_clock * 1000);
 
@@ -665,6 +651,11 @@ static void xilinx_drm_hdmi_mode_set(struct drm_encoder *encoder,
 
 	hdmi_dbg("mode->htotal = %d\n", mode->htotal);
 	hdmi_dbg("mode->vtotal = %d\n", mode->vtotal);
+
+#if 0
+	xilinx_drm_hdmi_mode_configure(hdmi, adjusted_mode->clock);
+	xilinx_drm_hdmi_mode_set_stream(hdmi, adjusted_mode);
+	xilinx_drm_hdmi_mode_set_transfer_unit(hdmi, adjusted_mode);
 #endif
 	/* see slide 20 of http://events.linuxfoundation.org/sites/events/files/slides/brezillon-drm-kms.pdf */
 	vt.HActive = mode->hdisplay;
@@ -695,6 +686,17 @@ static void xilinx_drm_hdmi_mode_set(struct drm_encoder *encoder,
 	/* Disable TX TDMS clock */
 	XVphy_Clkout1OBufTdsEnable(VphyPtr, XVPHY_DIR_TX, (FALSE));
 
+#if 0
+	// Get pixel clock
+	PixelClock = XVidC_GetPixelClockHzByVmId(VideoMode);
+
+	// In YUV420 the pixel clock is actually the half of the
+	// reported pixel clock
+	if (ColorFormat == XVIDC_CSF_YCRCB_420) {
+		PixelClock = PixelClock / 2;
+	}
+#endif
+
 	hdmi_dbg("mode->vrefresh = %d\n", mode->vrefresh);
 	VmId = XVidC_GetVideoModeIdWBlanking(&vt, mode->vrefresh, FALSE);
 	hdmi_dbg("VmId = %d\n", VmId);
@@ -706,23 +708,19 @@ static void xilinx_drm_hdmi_mode_set(struct drm_encoder *encoder,
 	TmdsClock = XV_HdmiTxSs_SetStream(HdmiTxSsPtr, VmId, hdmi->xvidc_colorfmt, XVIDC_BPC_8, NULL);
 
 	// Set TX reference clock
-	VphyPtr->HdmiTxRefClkHz = TmdsClock;
-
+	VphyPtr->HdmiTxRefClkHz = mode->crtc_clock * 1000;
+	hdmi_dbg("Setting VphyPtr->HdmiTxRefClkHz (from mode->crtc_clock) = %d\n", VphyPtr->HdmiTxRefClkHz);
 	hdmi_dbg("(TmdsClock = %u, from XV_HdmiTxSs_SetStream())\n", TmdsClock);
 
 	hdmi_dbg("XVphy_SetHdmiTxParam(PixPerClk = %d, ColorDepth = %d, ColorFormatId=%d)\n",
 		(int)HdmiTxSsVidStreamPtr->PixPerClk, (int)HdmiTxSsVidStreamPtr->ColorDepth,
 		(int)HdmiTxSsVidStreamPtr->ColorFormatId);
 
-	// Set GT TX parameters, this might change VphyPtr->HdmiTxRefClkHz!!
+	// Set GT TX parameters
 	Result = XVphy_SetHdmiTxParam(VphyPtr, 0, XVPHY_CHANNEL_ID_CHA,
 					HdmiTxSsVidStreamPtr->PixPerClk,
 					HdmiTxSsVidStreamPtr->ColorDepth,
 					HdmiTxSsVidStreamPtr->ColorFormatId);
-
-	/* the actual reference clock for the hardware */
-	adjusted_mode->clock = VphyPtr->HdmiTxRefClkHz / 1000;
-	hdmi_dbg("adjusted_mode->clock = %u\n", (unsigned int)adjusted_mode->clock);
 
 	if (Result == (XST_FAILURE)) {
 		hdmi_dbg("Unable to set requested TX video resolution.\n\r");
@@ -731,12 +729,12 @@ static void xilinx_drm_hdmi_mode_set(struct drm_encoder *encoder,
 	/* Disable RX clock forwarding */
 	XVphy_Clkout1OBufTdsEnable(VphyPtr, XVPHY_DIR_RX, (FALSE));
 
-	/* @NOTE in bare-metal, the Si5324 clock is changed last */
+	/* @NOTE in bare-metal, here the Si5324 clock is changed */
+
 	xvphy_mutex_unlock(hdmi->phy[0]);
-#ifdef DEBUG
+
 	//XVidC_ReportStreamInfo(HdmiTxSsVidStreamPtr);
 	XV_HdmiTx_DebugInfo(HdmiTxSsPtr->HdmiTxPtr);
-#endif
 	mutex_unlock(&hdmi->hdmi_mutex);
 }
 
