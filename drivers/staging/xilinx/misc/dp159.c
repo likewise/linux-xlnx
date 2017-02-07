@@ -1,6 +1,6 @@
 /*
  * dp159 redriver and retimer
- * Copyright (C) 2016 Leon Woestenberg <leon@sidebranch.com>
+ * Copyright (C) 2016, 2017 Leon Woestenberg <leon@sidebranch.com>
  *
  * based on code
  * Copyright (C) 2007 Hans Verkuil
@@ -51,15 +51,13 @@ static inline int dp159_write(struct i2c_client *client, u8 reg, u8 value)
 	int rc;
 	u8 readback;
 	rc = i2c_smbus_write_byte_data(client, reg, value);
-	//if (rc)
+#if 0
+	if (rc)
 		printk(KERN_INFO "dp159_write(reg=0x%02x,value=0x%02x) =  %02x\n", (int)reg, (int)value, rc);
 
 	readback = i2c_smbus_read_byte_data(client, reg);
 //	if (readback != value)
 		printk(KERN_INFO "read back 0x%02x\n", (int)readback);
-
-#if 0
-	struct i2c_client *client = v4l2_get_subdevdata(client);
 #endif
 	return rc;
 }
@@ -73,25 +71,26 @@ static inline int dp159_read(struct i2c_client *client, u8 reg)
 static int dp159_program(struct i2c_client *client, unsigned long rate)
 {
 	int r;
-	printk(KERN_INFO "dp159_program(rate = %lu)\n", rate);
 	r = dp159_write(client, 0x09, 0x06);
 
 	if ((rate / (1000000)) > 3400) {
 		printk(KERN_INFO "dp159_program(rate = %lu) for HDMI 2.0\n", rate);
-		r = dp159_write(client, 0x0B, 0x1a);
-		r = dp159_write(client, 0x0C, 0xa1);
-		r = dp159_write(client, 0x0D, 0x00);
-		r = dp159_write(client, 0x0A, 0x36);	// Automatic retimer for HDMI 2.0
+		// Automatic retimer for HDMI 2.0
+		r |= dp159_write(client, 0x0B, 0x1a);
+		r |= dp159_write(client, 0x0C, 0xa1);
+		r |= dp159_write(client, 0x0D, 0x00);
+		r |= dp159_write(client, 0x0A, 0x36);
 	} else {
 		printk(KERN_INFO "dp159_program(rate = %lu) for HDMI 1.4\n", rate);
-		/* verified to be the datasheet defaults */
 		//r = dp159_write(client, 0x0A, 0x34);			// The redriver mode must be selected to support low video rates
-
 		/*datasheet has 0 by default. 0x1 disables DDC training and only allows HDMI1.4b/DVI, which is OK*/
-		r = dp159_write(client, 0x0B, 0x01);
-		r = dp159_write(client, 0x0C, 0xA0);				// Set VSWING data decrease by 24%
-		r = dp159_write(client, 0x0D, 0x00);
-		r = dp159_write(client, 0x0A, 0x35);			// Automatic redriver to retimer crossover at 1.0 Gbps
+
+		// Automatic redriver to retimer crossover at 1.0 Gbps
+		r |= dp159_write(client, 0x0B, 0x01);
+		// Set VSWING data decrease by 24%
+		r |= dp159_write(client, 0x0C, 0xA0);
+		r |= dp159_write(client, 0x0D, 0x00);
+		r |= dp159_write(client, 0x0A, 0x35);
 	}
 	return r;
 }
@@ -102,7 +101,7 @@ int clk_tx_set_rate(struct clk_hw *hw, unsigned long rate, unsigned long parent_
 {
 	struct clk_tx_linerate *clk;
 	clk = to_clk_tx_linerate(hw);
-	printk(KERN_INFO "dp159: clk_tx_set_rate(): rate = %lu, parent_rate = %lu\n", rate, parent_rate);
+	//printk(KERN_INFO "dp159: clk_tx_set_rate(): rate = %lu, parent_rate = %lu\n", rate, parent_rate);
 	clk->rate = rate;
 	dp159_program(clk->client, rate);
 	return 0;
@@ -112,7 +111,7 @@ unsigned long clk_tx_recalc_rate(struct clk_hw *hw, unsigned long parent_rate)
 {
 	struct clk_tx_linerate *clk;
 	clk = to_clk_tx_linerate(hw);
-	printk(KERN_INFO "dp159: clk_tx_recalc_rate(): parent_rate = %lu\n", parent_rate);
+	//printk(KERN_INFO "dp159: clk_tx_recalc_rate(): parent_rate = %lu\n", parent_rate);
 	return clk->rate;
 };
 
@@ -180,7 +179,7 @@ static int dp159_probe(struct i2c_client *client,
 	clk_tx->clk = clk;
 	/* reference to clk_tx in client */
 	i2c_set_clientdata(client, (void *)clk_tx);
-	dev_info(&client->dev, "DP159 retimer.\n");
+	//dev_info(&client->dev, "DP159 retimer.\n");
 
 	ret = of_clk_add_provider(client->dev.of_node, of_clk_src_simple_get,
 		to_clk_tx_linerate(&clk_tx->hw));
