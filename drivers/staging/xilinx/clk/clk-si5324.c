@@ -16,7 +16,7 @@
 
 
 /* if both both DEBUG and DEBUG_TRACE are defined, trace_printk() is used */
-#define DEBUG
+//#define DEBUG
 //#define DEBUG_TRACE
 
 #include <linux/module.h>
@@ -169,7 +169,7 @@ static inline u8 si5324_reg_read(struct si5324_driver_data *drvdata, u8 reg)
 			"unable to read from reg%02x\n", reg);
 		return 0;
 	} else {
-		dev_info(&drvdata->client->dev, "Read value 0x%02x @%02d\n",
+		dev_dbg(&drvdata->client->dev, "Read value 0x%02x @%02d\n",
 			(int)val, (int)reg);
 	}
 
@@ -187,7 +187,7 @@ static inline int si5324_reg_write(struct si5324_driver_data *drvdata,
 {
 	u8 readback_val;
 	int ret = regmap_write(drvdata->regmap, reg, val);
-	dev_info(&drvdata->client->dev, "si5324_reg_write() 0x%02x @%02d\n", (int)val, (int)reg);
+	dev_dbg(&drvdata->client->dev, "si5324_reg_write() 0x%02x @%02d\n", (int)val, (int)reg);
 #if 0
 	readback_val = si5324_reg_read(drvdata, reg);
 	if (readback_val != val) {
@@ -236,7 +236,7 @@ static void si5324_initialize(struct si5324_driver_data *drvdata)
 
 #if (defined(FORCE_BYPASS) && FORCE_BYPASS)
 #error FORCE_BYPASS not used/tested/supported.
-	dev_info(&drvdata->client->dev, "Configuring for bypass mode of CLKIN1 to CLKOUT1\n");
+	dev_dbg(&drvdata->client->dev, "Configuring for bypass mode of CLKIN1 to CLKOUT1\n");
 	si5324_reg_write(drvdata,  0, 0x16 /* bypass */);
 #  if 0 /*@TODO pin-select by default, but considering support clock input selection */
 	si5324_reg_write(drvdata,  3, 0x15 /* sq_ical */);
@@ -990,8 +990,7 @@ static int si5324_clkout_set_rate(struct clk_hw *hw, unsigned long rate,
 	int i;
 	int rc;
 
-	si5324_dbg("si5324_clkout_set_rate(parent_rate=%lu, rate = %lu)\n",
-		parent_rate, rate);
+	si5324_dbg("si5324_clkout_set_rate(rate = %lu)\n", rate);
 
 	// Calculate the frequency settings for the Si5324
 	result = Si5324_CalcFreqSettings(114285000, rate, &actual_rate,
@@ -1141,15 +1140,15 @@ static int si5324_dt_parse(struct i2c_client *client)
 
 		switch (val) {
 		case 0:
-			dev_info(&client->dev, "using xtal as parent for pll\n");
+			dev_dbg(&client->dev, "using xtal as parent for pll\n");
 			pdata->pll_src = SI5324_PLL_SRC_XTAL;
 			break;
 		case 1:
-			dev_info(&client->dev, "using clkin1 as parent for pll\n");
+			dev_dbg(&client->dev, "using clkin1 as parent for pll\n");
 			pdata->pll_src = SI5324_PLL_SRC_CLKIN1;
 			break;
 		case 2:
-			dev_info(&client->dev, "using clkin2 as parent for pll\n");
+			dev_dbg(&client->dev, "using clkin2 as parent for pll\n");
 			pdata->pll_src = SI5324_PLL_SRC_CLKIN2;
 			break;
 		default:
@@ -1217,7 +1216,7 @@ static int si5324_dt_parse(struct i2c_client *client)
 		}
 
 		if (!of_property_read_u32(child, "clock-frequency", &val)) {
-			dev_info(&client->dev, "clock-frequency = %u\n", val);
+			dev_dbg(&client->dev, "clock-frequency = %u\n", val);
 			pdata->clkout[num].rate = val;
 		}
 
