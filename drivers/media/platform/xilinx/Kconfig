@@ -74,4 +74,10 @@ config VIDEO_XILINX_CSI2RXSS
 	---help---
 	Driver for Xilinx MIPI CSI2 Rx Subsystem
 
+config VIDEO_XILINX_HLS_DEMOSAIC
+	tristate "Xilinx Demosaic IP (HLS)"
+	depends on VIDEO_XILINX
+	---help---
+	Driver for Xilinx Video Demosaic IP(HLS)
+
 endif #VIDEO_XILINX
