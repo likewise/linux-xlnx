@@ -115,6 +115,7 @@ struct xilinx_drm_hdmi {
 	bool cable_connected;
 	bool hdmi_stream_up;
 	bool have_edid;
+	bool is_hdmi_20_sink;
 	int dpms;
 
 	XVidC_ColorFormat xvidc_colorfmt;
@@ -292,6 +293,7 @@ static void TxConnectCallback(void *CallbackRef)
 		xst_hdmi20 = XV_HdmiTxSs_DetectHdmi20(HdmiTxSsPtr);
 		hdmi_dbg("TxConnectCallback(): TX connected to HDMI %s Sink Device\n",
 			(xst_hdmi20 == XST_SUCCESS)? "2.0": "1.4");
+		hdmi->is_hdmi_20_sink = (xst_hdmi20 == XST_SUCCESS);
 		XVphy_IBufDsEnable(VphyPtr, 0, XVPHY_DIR_TX, (TRUE));
 	}
 	else {
@@ -299,6 +301,7 @@ static void TxConnectCallback(void *CallbackRef)
 		hdmi->cable_connected = 0;
 		hdmi->hdmi_stream_up = 0;
 		hdmi->have_edid = 0;
+		hdmi->is_hdmi_20_sink = 0;
 		XVphy_IBufDsEnable(VphyPtr, 0, XVPHY_DIR_TX, (FALSE));
 	}
 	xvphy_mutex_unlock(hdmi->phy[0]);
@@ -583,15 +586,20 @@ static int xilinx_drm_hdmi_mode_valid(struct drm_encoder *encoder,
 				    struct drm_display_mode *mode)
 {
 	struct xilinx_drm_hdmi *hdmi = to_hdmi(encoder);
+	int max_rate = 340 * 1000;
+	enum drm_mode_status status = MODE_OK;
+
 	hdmi_dbg("xilinx_drm_hdmi_mode_valid()\n");
 	drm_mode_debug_printmodeline(mode);
 	mutex_lock(&hdmi->hdmi_mutex);
-#if 0
-	if (mode->clock > hdmi_max_rate)
-		return MODE_CLOCK_HIGH;
-#endif
+	/* HDMI 2.0 sink connected? */
+	if (hdmi->is_hdmi_20_sink)
+		max_rate = 600 * 1000;
+	/* pixel clock too high for sink? */
+	if (mode->clock > max_rate)
+		status = MODE_CLOCK_HIGH;
 	mutex_unlock(&hdmi->hdmi_mutex);
-	return MODE_OK;
+	return status;
 }
 
 #ifdef SI5324_LAST
@@ -615,6 +623,7 @@ static void xilinx_drm_hdmi_mode_set(struct drm_encoder *encoder,
 	u32 Result;
 	//u32 PixelClock;
 	XVidC_VideoMode VmId;
+	static int nudge = 0;
 
 	struct xilinx_drm_hdmi *hdmi = to_hdmi(encoder);
 	hdmi_dbg("xilinx_drm_hdmi_mode_set()\n");
@@ -722,6 +731,15 @@ static void xilinx_drm_hdmi_mode_set(struct drm_encoder *encoder,
 	}
 
 	adjusted_mode->clock = VphyPtr->HdmiTxRefClkHz / 1000;
+	hdmi_dbg("adjusted_mode->clock = %u Hz\n", adjusted_mode->clock);
+
+	if (nudge)
+	{
+#if 0
+		adjusted_mode->clock += 1;
+#endif
+	}
+	nudge = !nudge;
 
 	/* Disable RX clock forwarding */
 	XVphy_Clkout1OBufTdsEnable(VphyPtr, XVPHY_DIR_RX, (FALSE));
@@ -731,6 +749,7 @@ static void xilinx_drm_hdmi_mode_set(struct drm_encoder *encoder,
 
 	//XVidC_ReportStreamInfo(HdmiTxSsVidStreamPtr);
 	XV_HdmiTx_DebugInfo(HdmiTxSsPtr->HdmiTxPtr);
+	XVphy_HdmiDebugInfo(VphyPtr, 0, XVPHY_CHANNEL_ID_CHA);
 	xvphy_mutex_unlock(hdmi->phy[0]);
 	mutex_unlock(&hdmi->hdmi_mutex);
 }
