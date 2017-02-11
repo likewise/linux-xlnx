@@ -80,4 +80,10 @@ config VIDEO_XILINX_HLS_DEMOSAIC
 	---help---
 	Driver for Xilinx Video Demosaic IP(HLS)
 
+config VIDEO_XILINX_HLS_GAMMA
+	tristate "Xilinx Gamma Correction LUT (HLS)"
+	depends on VIDEO_XILINX
+	---help---
+	Driver for Xilinx Gamma Correction LUT HLS IP
+
 endif #VIDEO_XILINX
