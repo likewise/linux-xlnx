@@ -127,6 +127,10 @@ typedef enum {
 	XVIDC_CSF_YCRCB_444,
 	XVIDC_CSF_YCRCB_422,
 	XVIDC_CSF_YCRCB_420,
+	XVIDC_CSF_YCRCB8,
+	XVIDC_CSF_Y_CRCB8_420,
+	XVIDC_CSF_Y_CRCB8,
+	XVIDC_CSF_RGBA8,
 	XVIDC_CSF_YONLY,
 	XVIDC_CSF_NUM_SUPPORTED,
 	XVIDC_CSF_UNKNOWN
@@ -188,13 +192,14 @@ struct xv_mixer {
 	void __iomem        *reg_base_addr;
 	bool                logo_layer_enabled;
 	bool                logo_color_key_enabled;
+	bool                logo_pixel_alpha_enabled;
+	bool                intrpts_enabled;
 	u32                 max_layer_width;
 	u32                 max_layer_height;
 	u32                 max_logo_layer_width;
 	u32                 max_logo_layer_height;
 	u32                 max_layers;
 	u32                 bg_layer_bpc;
-	/* JPM TODO ppc not supported yet */
 	u32                 ppc;
 
 	int		    irq;

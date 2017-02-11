@@ -58,15 +58,20 @@ struct color_fmt_tbl {
 
 /*************************** STATIC DATA  ************************************/
 static struct color_fmt_tbl color_table[] = {
-	{"rgb",    XVIDC_CSF_RGB,       DRM_FORMAT_RGB888},
-	{"yuv444", XVIDC_CSF_YCRCB_444, DRM_FORMAT_YUV444},
-	{"yuv422", XVIDC_CSF_YCRCB_422, DRM_FORMAT_YUYV},
-	{"yuv420", XVIDC_CSF_YCRCB_420, DRM_FORMAT_YUV420},
-	{"yuyv8",  XVIDC_CSF_YCRCB_422, DRM_FORMAT_YUYV},
+	/* Media Bus Formats */
+	{"rgb",        XVIDC_CSF_RGB,         DRM_FORMAT_RGB888},
+	{"yuv444",     XVIDC_CSF_YCRCB_444,   DRM_FORMAT_YUV444},
+	{"yuv422",     XVIDC_CSF_YCRCB_422,   DRM_FORMAT_YUYV},
+	{"yuv420",     XVIDC_CSF_YCRCB_420,   DRM_FORMAT_YUV420},
+	/* Memory Formats */
+	{"yuyv8",      XVIDC_CSF_YCRCB8,      DRM_FORMAT_YUYV},
+	{"y_uv8_420",  XVIDC_CSF_Y_CRCB8_420, DRM_FORMAT_NV12},
+	{"y_uv8",      XVIDC_CSF_Y_CRCB8,     DRM_FORMAT_NV16},
+	{"rgba8",      XVIDC_CSF_RGBA8,       DRM_FORMAT_RGBA8888},
 };
 
 static const struct of_device_id xv_mixer_match[] = {
-	{.compatible = "xlnx,v-mix-1.0"},
+	{.compatible = "xlnx,v-mix-1.00a"},
 	{/*end of table*/},
 };
 
@@ -105,7 +110,7 @@ struct xv_mixer *xilinx_drm_mixer_probe(struct device *dev,
 	int				layer_idx;
 	int				layer_cnt;
 	int				i;
-	bool				have_mem_layer = false;
+
 
 	match = of_match_node(xv_mixer_match, node);
 
@@ -143,6 +148,8 @@ struct xv_mixer *xilinx_drm_mixer_probe(struct device *dev,
 		return ERR_PTR(-EINVAL);
 
 	}
+
+	mixer->intrpts_enabled = false;
 
 	mixer->logo_layer_enabled = of_property_read_bool(node,
 							  "xlnx,logo-layer");
@@ -200,13 +207,13 @@ struct xv_mixer *xilinx_drm_mixer_probe(struct device *dev,
 		}
 
 		if (!mixer->layer_data[layer_idx].hw_config.is_streaming &&
-			!have_mem_layer)
-			have_mem_layer = true;
+			!mixer->intrpts_enabled)
+			 mixer->intrpts_enabled = true;
 
 	}
 
 	/* request irq and obtain pixels-per-clock (ppc) property */
-	if (have_mem_layer) {
+	if (mixer->intrpts_enabled) {
 
 		mixer->irq = irq_of_parse_and_map(node, 0);
 
@@ -234,7 +241,7 @@ struct xv_mixer *xilinx_drm_mixer_probe(struct device *dev,
 
 	/*Pull device out of reset */
 	mixer->reset_gpio = devm_gpiod_get_optional(dev,
-						"reset",
+						"xlnx,mixer-reset",
 						GPIOD_OUT_LOW);
 	if (IS_ERR(mixer->reset_gpio)) {
 		dev_err(dev, "No reset gpio info from dts for mixer\n");
@@ -243,11 +250,11 @@ struct xv_mixer *xilinx_drm_mixer_probe(struct device *dev,
 
 	gpiod_set_raw_value(mixer->reset_gpio, 0x1);
 
-	/* establish interrupt status */
-	xilinx_mixer_intrpt_disable(mixer);
 
-	if (have_mem_layer)
+	if (mixer->intrpts_enabled)
 		xilinx_mixer_intrpt_enable(mixer);
+	else
+		xilinx_mixer_intrpt_disable(mixer);
 
 
 	/* Init all layers to inactive state in software. An update_plane()
@@ -333,18 +340,14 @@ static int xilinx_drm_mixer_of_init_layer_data(struct device_node *node,
 
 int xilinx_drm_mixer_string_to_fmt(const char *color_fmt, u32 *output)
 {
-	int i, l;
-
-	l = strlen(color_fmt);
+	int i;
 
 	for (i = 0; i < ARRAY_SIZE(color_table); i++) {
-		if (strncmp(color_fmt,
-			(const char *)color_table[i].name, l) == 0)
+		if (strcmp(color_fmt, (const char *)color_table[i].name) == 0) {
 			*output = color_table[i].fmt_id;
+			return 0;
+		}
 	}
-
-	if (output)
-		return 0;
 
 	return -EINVAL;
 }
@@ -516,7 +519,7 @@ xilinx_drm_mixer_get_layer(struct xv_mixer *mixer, xv_mixer_layer_id layer_id)
 
 void xilinx_drm_mixer_reset(struct xv_mixer *mixer)
 {
-
+	int i, layer_idx;
 	struct xilinx_drm_plane_manager *manager =
 		(struct xilinx_drm_plane_manager *)mixer->private;
 
@@ -528,6 +531,9 @@ void xilinx_drm_mixer_reset(struct xv_mixer *mixer)
 
 	/* restore layer properties and bg color after reset */
 	xilinx_mixer_set_bkg_col(mixer, mixer->bg_color, mixer->bg_layer_bpc);
+
+	if (mixer->intrpts_enabled)
+		xilinx_mixer_intrpt_enable(mixer);
 
 	xilinx_drm_plane_restore(manager);
 }
@@ -557,6 +563,8 @@ static int xilinx_drm_mixer_parse_dt_logo_data(struct device_node *node,
 		layer_data->hw_config.min_width = XVMIX_LOGO_LAYER_WIDTH_MIN;
 		layer_data->hw_config.is_streaming = false;
 		layer_data->hw_config.vid_fmt = XVIDC_CSF_RGB;
+		layer_data->hw_config.can_alpha = true;
+		layer_data->hw_config.can_scale = true;
 		layer_data->layer_regs.buff_addr = 0;
 		layer_data->id = XVMIX_LAYER_LOGO;
 
@@ -602,13 +610,11 @@ static int xilinx_drm_mixer_parse_dt_logo_data(struct device_node *node,
 
 		mixer->logo_color_key_enabled =
 				of_property_read_bool(logo_node,
-						      "xlnx,logo-transparency");
+						      "xlnx,logo-transp");
 
-		layer_data->hw_config.can_alpha =
-			of_property_read_bool(logo_node, "xlnx,logo-alpha");
-
-		layer_data->hw_config.can_scale =
-			of_property_read_bool(logo_node, "xlnx,logo-scale");
+		mixer->logo_pixel_alpha_enabled =
+			of_property_read_bool(logo_node,
+				"xlnx,logo-pixel-alpha");
 
 	}
 	return ret;
@@ -694,7 +700,6 @@ xilinx_drm_mixer_mark_layer_active(struct xilinx_drm_plane *plane)
 	return 0;
 }
 
-/* TODO JPM:BUG this routine throws a segfault on module unload */
 int
 xilinx_drm_mixer_mark_layer_inactive(struct xilinx_drm_plane *plane)
 {
