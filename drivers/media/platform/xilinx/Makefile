@@ -13,3 +13,4 @@ obj-$(CONFIG_VIDEO_XILINX_TPG) += xilinx-tpg.o
 obj-$(CONFIG_VIDEO_XILINX_VTC) += xilinx-vtc.o
 obj-$(CONFIG_VIDEO_XILINX_CSI2RXSS) += xilinx-csi2rxss.o
 obj-$(CONFIG_VIDEO_XILINX_HLS_DEMOSAIC) += xilinx-hls-demosaic.o
+obj-$(CONFIG_VIDEO_XILINX_HLS_GAMMA) += xilinx-hls-gamma.o
