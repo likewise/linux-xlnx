@@ -831,7 +831,7 @@ static int xcsc_remove(struct platform_device *pdev)
 }
 
 static const struct of_device_id xcsc_of_id_table[] = {
-	{.compatible = "xlnx,vpss-csc-only"},
+	{.compatible = "xlnx,v-vpss-csc-only"},
 	{ }
 };
 
