@@ -81,6 +81,11 @@ int mpModulo(u32 r[], const u32 u[], size_t udigits, u32 v[], size_t vdigits);
 */
 int mpSquare(u32 w[], const u32 x[], size_t ndigits);
 
+/** Returns true if a is zero, else false, using constant-time algorithm
+ *  @remark Constant-time with respect to `ndigits`
+ */
+int mpIsZero(const u32 a[], size_t ndigits);
+
 /*************************/
 /* COMPARISON OPERATIONS */
 /*************************/

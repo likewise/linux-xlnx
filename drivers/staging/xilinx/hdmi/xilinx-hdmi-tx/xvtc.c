@@ -178,9 +178,9 @@
 /***************************** Include Files *********************************/
 
 #include "xvtc.h"
-#include <linux/string.h> // -- @NOTE Rohit Consul
-//#include "xenv.h" // -- @NOTE Rohit Consul
-#include "xil_printf.h" // -- @NOTE Leon Woestenberg <leon@sidebranch.com>
+#include <linux/string.h>
+//#include "xenv.h"
+#include "xil_printf.h"
 
 /************************** Constant Definitions *****************************/
 

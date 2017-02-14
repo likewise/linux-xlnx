@@ -50,6 +50,34 @@ volatile char *copyright_notice(void)
 " copyright (c) 2001-15 by D.I. Management Services Pty Limited <www.di-mgt.com.au>.";
 }
 
+#define IS_NONZERO_DIGIT(x) (((x)|(~(x)+1)) >> (BITS_PER_DIGIT-1))
+#define IS_ZER0_DIGIT(x) (1 ^ IS_NONZERO_DIGIT((x)))
+
+/** Returns 1 if a == b, else 0 (constant-time) */
+int mpEqual(const u32 a[], const u32 b[], size_t ndigits)
+{
+	u32 dif = 0;
+
+	while (ndigits--) {
+		dif |= a[ndigits] ^ b[ndigits];
+	}
+
+	return (IS_ZER0_DIGIT(dif));
+}
+
+/** Returns 1 if a == 0, else 0 (constant-time) */
+int mpIsZero(const u32 a[], size_t ndigits)
+{
+	u32 dif = 0;
+	const u32 ZERO = 0;
+
+	while (ndigits--) {
+		dif |= a[ndigits] ^ ZERO;
+	}
+
+	return (IS_ZER0_DIGIT(dif));
+}
+
 int spMultiply(u32 p[2], u32 x, u32 y)
 {
 	/* Use a 64-bit temp for product */
@@ -807,9 +835,9 @@ int mpModulo(u32 r[], const u32 u[], size_t udigits,
 	u32 *qq, *rr;
 
 	size_t nn = max(udigits, vdigits);
-	qq = kzalloc(udigits, GFP_KERNEL);
+	qq = kzalloc(udigits * sizeof(u32), GFP_KERNEL);
 	BUG_ON(!qq);
-	rr = kzalloc(nn, GFP_KERNEL);
+	rr = kzalloc(nn * sizeof(u32), GFP_KERNEL);
 	BUG_ON(!rr);
 
 	/* rr[nn] = u mod v */
@@ -830,7 +858,7 @@ int mpModMult(u32 a[], const u32 x[], const u32 y[],
 
 	/* Double-length temp variable p */
 	u32 *p;
-	p = kzalloc(ndigits * 2, GFP_KERNEL);
+	p = kzalloc(ndigits * 2 * sizeof(u32), GFP_KERNEL);
 	BUG_ON(!p);
 
 	/* Calc p[2n] = x * y */
@@ -856,16 +884,17 @@ int mpModInv(u32 inv[], const u32 u[], const u32 v[], size_t ndigits)
 
 	/* 1 * ndigits each, except w = 2 * ndigits */
 	u32 *u1, *u3, *v1, *v3, *t1, *t3, *q, *w;
-	u1 = kzalloc(9 * ndigits, GFP_KERNEL);
+	/* allocate 9 * ndigits */
+	u1 = kzalloc(9 * ndigits * sizeof(u32), GFP_KERNEL);
 	BUG_ON(!u1);
-	u3 = &u1[1];
-	v1 = &u1[2];
-	v3 = &u1[3];
-	t1 = &u1[4];
-	v3 = &u1[5];
-	q  = &u1[6];
+	u3 = &u1[1 * ndigits];
+	v1 = &u1[2 * ndigits];
+	v3 = &u1[3 * ndigits];
+	t1 = &u1[4 * ndigits];
+	t3 = &u1[5 * ndigits];
+	q  = &u1[6 * ndigits];
 	/* 2 * ndigits each */
-	w =  &u1[7];
+	w =  &u1[7 * ndigits];
 
 	/* Step X1. Initialise */
 	mpSetDigit(u1, 1, ndigits);		/* u1 = 1 */
@@ -985,7 +1014,7 @@ int mpModExp(u32 yout[], const u32 x[], const u32 e[], u32 m[], size_t ndigits)
 	/* Create some double-length temps */
 
 	u32 *t1, *t2, *y;
-	t1 = kzalloc(nn * 3, GFP_KERNEL);
+	t1 = kzalloc(nn * 3 * sizeof(u32), GFP_KERNEL);
 	t2 = &t1[nn * 1];
 	y  = &t1[nn * 2];
 

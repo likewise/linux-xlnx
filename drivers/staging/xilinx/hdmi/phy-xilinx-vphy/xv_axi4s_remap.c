@@ -9,7 +9,7 @@
 #include "xv_axi4s_remap.h"
 
 /************************** Function Implementation *************************/
-#if (defined(__KERNEL__) || (!defined(__linux__))) // -- @NOTE Leon Woestenberg <leon@sidebranch.com>
+#if (defined(__KERNEL__) || (!defined(__linux__)))
 int XV_axi4s_remap_CfgInitialize(XV_axi4s_remap *InstancePtr,
 		                 XV_axi4s_remap_Config *ConfigPtr,
 		                 UINTPTR EffectiveAddr) {

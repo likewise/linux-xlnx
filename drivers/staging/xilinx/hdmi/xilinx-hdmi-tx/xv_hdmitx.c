@@ -58,9 +58,9 @@
 /***************************** Include Files *********************************/
 
 #include "xv_hdmitx.h"
-#include "xil_printf.h" // -- @NOTE Leon Woestenberg <leon@sidebranch.com>
+#include "xil_printf.h"
 #include "xparameters.h"
-#include <linux/string.h> // -- @NOTE Leon Woestenberg <leon@sidebranch.com>
+#include <linux/string.h>
 
 /************************** Constant Definitions *****************************/
 

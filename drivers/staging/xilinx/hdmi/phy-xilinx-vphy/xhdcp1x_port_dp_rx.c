@@ -59,7 +59,7 @@
 #include "xparameters.h"
 #if defined(XPAR_XDP_NUM_INSTANCES) && (XPAR_XDP_NUM_INSTANCES > 0)
 #include <stdlib.h>
-#include <linux/string.h> // -- @NOTE Leon Woestenberg <leon@sidebranch.com>
+#include <linux/string.h>
 #include "xhdcp1x_port.h"
 #include "xhdcp1x_cipher.h"
 #include "xhdcp1x_port_dp.h"

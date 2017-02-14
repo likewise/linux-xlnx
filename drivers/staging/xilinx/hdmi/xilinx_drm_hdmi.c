@@ -46,6 +46,17 @@
 
 #include "linux/phy/phy-vphy.h"
 
+//#define USE_HDCP 1
+
+#if (defined(USE_HDCP) && USE_HDCP) /* WIP HDCP */
+#include "phy-xilinx-vphy/bigdigits.h"
+#include "phy-xilinx-vphy/xhdcp22_cipher.h"
+#include "phy-xilinx-vphy/xhdcp22_mmult.h"
+#include "phy-xilinx-vphy/xhdcp22_rng.h"
+#include "phy-xilinx-vphy/xhdcp22_common.h"
+#include "phy-xilinx-vphy/xtmrctr.h"
+#endif
+
 /* baseline driver includes */
 #include "xilinx-hdmi-tx/xv_hdmitxss.h"
 #include "xilinx-hdmi-tx/xil_printf.h"
@@ -564,7 +575,7 @@ static bool xilinx_drm_hdmi_mode_fixup(struct drm_encoder *encoder,
 
 	hdmi_dbg("xilinx_drm_hdmi_mode_fixup()\n");
 #ifdef SI5324_LAST
-	xilinx_drm_hdmi_mode_set(encoder, mode, adjusted_mode);
+	xilinx_drm_hdmi_mode_set(encoder, (struct drm_display_mode *)mode, adjusted_mode);
 #endif
 	return true;
 }
@@ -1080,6 +1091,12 @@ XV_axi4s_remap_Config* XV_axi4s_remap_LookupConfig_TX(u16 DeviceId) {
 	return NULL;
 }
 
+#if (defined(USE_HDCP) && USE_HDCP) /* WIP HDCP */
+extern XHdcp22_Cipher_Config XHdcp22_Cipher_ConfigTable[];
+extern XHdcp22_mmult_Config XHdcp22_mmult_ConfigTable[];
+extern XHdcp22_Rng_Config XHdcp22_Rng_ConfigTable[];
+#endif
+
 /* -----------------------------------------------------------------------------
  * Platform Device Driver
  */
@@ -1133,6 +1150,15 @@ static int xilinx_drm_hdmi_parse_of(struct xilinx_drm_hdmi *hdmi, XV_HdmiTxSs_Co
 		dev_err(hdmi->dev, "Unsupported xlnx,pixel-format\n");
 		goto error_dt;
 	}
+
+#if (defined(USE_HDCP) && USE_HDCP) /* WIP HDCP */
+	XHdcp22_Cipher_ConfigTable[1].DeviceId = 0;
+	XHdcp22_Cipher_ConfigTable[1].BaseAddress = 0;
+	XHdcp22_mmult_ConfigTable[0].DeviceId = 0;
+	XHdcp22_mmult_ConfigTable[0].BaseAddress = 0;
+	XHdcp22_Rng_ConfigTable[0].DeviceId = 0;
+	XHdcp22_Rng_ConfigTable[0].BaseAddress = 0;
+#endif
 
 	return 0;
 
@@ -1208,8 +1234,10 @@ static int xilinx_drm_hdmi_probe(struct platform_device *pdev)
 	config.BaseAddress = (uintptr_t)hdmi->iomem;
 	config.HighAddress = config.BaseAddress + resource_size(res) - 1;
 
+#if 0
 	hdmi_dbg("config.BaseAddress =  %p.", config.BaseAddress);
 	hdmi_dbg("config.HighAddress =  %p.", config.HighAddress);
+#endif
 
 	/* video streaming bus clock */
 	hdmi->clk = devm_clk_get(hdmi->dev, "video");

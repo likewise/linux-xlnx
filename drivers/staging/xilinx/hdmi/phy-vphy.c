@@ -58,7 +58,10 @@
 #include "phy-xilinx-vphy/xv_axi4s_remap.h"
 #include "phy-xilinx-vphy/xv_axi4s_remap_hw.h"
 
-#if 0 /* WIP HDCP */
+/* either comment-out, or define as 1. Adapt Makefile also, see HDCP section */
+//#define USE_HDCP 1
+
+#if (defined(USE_HDCP) && USE_HDCP) /* WIP HDCP */
 #include "phy-xilinx-vphy/bigdigits.h"
 #include "phy-xilinx-vphy/xhdcp22_cipher.h"
 #include "phy-xilinx-vphy/xhdcp22_mmult.h"
@@ -412,6 +415,12 @@ error_dt:
 	return -EINVAL;
 }
 
+#if (defined(USE_HDCP) && USE_HDCP) /* WIP HDCP */
+extern XHdcp22_Cipher_Config XHdcp22_Cipher_ConfigTable[];
+extern XHdcp22_mmult_Config XHdcp22_mmult_ConfigTable[];
+extern XHdcp22_Rng_Config XHdcp22_Rng_ConfigTable[];
+#endif
+
 /**
  * xvphy_probe - The device probe function for driver initialization.
  * @pdev: pointer to the platform device structure.
@@ -622,7 +631,7 @@ EXPORT_SYMBOL_GPL(XV_axi4s_remap_EnableAutoRestart);
 EXPORT_SYMBOL_GPL(XV_axi4s_remap_Set_outPixClk);
 EXPORT_SYMBOL_GPL(XV_axi4s_remap_Set_outHDMI420);
 
-#if 0 /* WIP HDCP */
+#if (defined(USE_HDCP) && USE_HDCP) /* WIP HDCP */
 EXPORT_SYMBOL_GPL(mpAdd);
 EXPORT_SYMBOL_GPL(mpConvFromOctets);
 EXPORT_SYMBOL_GPL(mpConvToOctets);
@@ -667,4 +676,9 @@ EXPORT_SYMBOL_GPL(XTmrCtr_SetOptions);
 EXPORT_SYMBOL_GPL(XTmrCtr_SetResetValue);
 EXPORT_SYMBOL_GPL(XTmrCtr_Start);
 EXPORT_SYMBOL_GPL(XTmrCtr_Stop);
+
+
+EXPORT_SYMBOL_GPL(XHdcp22_Cipher_ConfigTable);
+EXPORT_SYMBOL_GPL(XHdcp22_mmult_ConfigTable);
+EXPORT_SYMBOL_GPL(XHdcp22_Rng_ConfigTable);
 #endif

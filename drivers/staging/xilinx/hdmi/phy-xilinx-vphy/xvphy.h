@@ -70,9 +70,9 @@
 
 #include "xil_assert.h"
 #include "xvphy_hw.h"
-#include "xil_printf.h" // -- @NOTE Leon Woestenberg <leon@sidebranch.com>
+#include "xil_printf.h"
 #include "xvidc.h"
-//#include "xvphy_dp.h" // -- @NOTE Rohit Consul
+//#include "xvphy_dp.h"
 
 /****************************** Type Definitions ******************************/
 
