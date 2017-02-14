@@ -60,8 +60,8 @@
 /***************************** Include Files *********************************/
 
 #include "xv_hdmirx.h"
-#include "xil_printf.h" // -- @NOTE Leon Woestenberg <leon@sidebranch.com>
-#include <linux/string.h> // -- @NOTE Leon Woestenberg <leon@sidebranch.com>
+#include "xil_printf.h"
+#include <linux/string.h>
 
 /************************** Constant Definitions *****************************/
 

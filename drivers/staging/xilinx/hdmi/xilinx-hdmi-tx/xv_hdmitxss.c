@@ -98,9 +98,9 @@
 ******************************************************************************/
 
 /***************************** Include Files *********************************/
-//#include "xenv.h" // -- @NOTE Rohit Consul
-#include "xil_printf.h" // -- @NOTE Leon Woestenberg <leon@sidebranch.com>
-#include <linux/delay.h> // -- @NOTE Replace sleep.h with linux variant: Leon Woestenberg <leon@sidebranch.com>
+//#include "xenv.h"
+#include "xil_printf.h"
+#include <linux/delay.h>
 #include "xv_hdmitxss.h"
 #include "xv_hdmitxss_coreinit.h"
 

@@ -96,7 +96,7 @@ extern "C" {
 
 /***************************** Include Files *********************************/
 //#include <stdio.h> // -- @NOTE Remove stdio.h
-#include <linux/string.h> // -- @NOTE Leon Woestenberg <leon@sidebranch.com>
+#include <linux/string.h>
 #include "xparameters.h"
 
 #include "xil_assert.h"

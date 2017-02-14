@@ -50,7 +50,7 @@
 /******************************* Include Files ********************************/
 
 #include "xv_hdmitxss.h"
-#include "xil_printf.h" // -- @NOTE Leon Woestenberg <leon@sidebranch.com>
+#include "xil_printf.h"
 
 /**************************** Function Prototypes *****************************/
 

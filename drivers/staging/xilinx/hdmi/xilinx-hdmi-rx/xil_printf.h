@@ -5,7 +5,7 @@
 extern "C" {
 #endif
 
-#ifndef __KERNEL__ // @NOTE Only include when not building Linux kernel -- Leon Woestenberg <leon@sidebranch.com>
+#ifndef __KERNEL__
 #include <ctype.h>
 #include <string.h>
 #include <stdarg.h>

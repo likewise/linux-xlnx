@@ -77,7 +77,7 @@
 #include "sha1.h"
 //#include <stdio.h> // -- @NOTE Remove stdio.h
 #include <stdlib.h>
-#include <linux/string.h> // -- @NOTE Leon Woestenberg <leon@sidebranch.com>
+#include <linux/string.h>
 #include "xhdcp1x.h"
 #include "xhdcp1x_cipher.h"
 #include "xhdcp1x_debug.h"

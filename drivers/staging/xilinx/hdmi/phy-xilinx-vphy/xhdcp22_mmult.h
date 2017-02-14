@@ -59,7 +59,7 @@ extern "C" {
 #endif
 
 /***************************** Include Files *********************************/
-#if (defined(__KERNEL__) || (!defined(__linux__))) // -- @NOTE Leon Woestenberg <leon@sidebranch.com>
+#if (defined(__KERNEL__) || (!defined(__linux__)))
 #include "xil_types.h"
 #include "xil_assert.h"
 #include "xstatus.h"
@@ -71,7 +71,7 @@ extern "C" {
 #include <fcntl.h>
 //#include <stdio.h> // -- @NOTE Remove stdio.h
 #include <stdlib.h>
-#include <linux/string.h> // -- @NOTE Leon Woestenberg <leon@sidebranch.com>
+#include <linux/string.h>
 #include <sys/mman.h>
 #include <unistd.h>
 #include <stddef.h>
@@ -79,7 +79,7 @@ extern "C" {
 #include "xhdcp22_mmult_hw.h"
 
 /**************************** Type Definitions ******************************/
-#if (defined(__linux__) && (!defined(__KERNEL__))) // -- @NOTE Leon Woestenberg <leon@sidebranch.com>
+#if (defined(__linux__) && (!defined(__KERNEL__)))
 typedef uint8_t u8;
 typedef uint16_t u16;
 typedef uint32_t u32;
@@ -96,7 +96,7 @@ typedef struct {
 } XHdcp22_mmult;
 
 /***************** Macros (Inline Functions) Definitions *********************/
-#if (defined(__KERNEL__) || (!defined(__linux__))) // -- @NOTE Leon Woestenberg <leon@sidebranch.com>
+#if (defined(__KERNEL__) || (!defined(__linux__)))
 #define XHdcp22_mmult_WriteReg(BaseAddress, RegOffset, Data) \
     Xil_Out32((BaseAddress) + (RegOffset), (u32)(Data))
 #define XHdcp22_mmult_ReadReg(BaseAddress, RegOffset) \
@@ -117,7 +117,7 @@ typedef struct {
 #endif
 
 /************************** Function Prototypes *****************************/
-#if (defined(__KERNEL__) || (!defined(__linux__))) // -- @NOTE Leon Woestenberg <leon@sidebranch.com>
+#if (defined(__KERNEL__) || (!defined(__linux__)))
 int XHdcp22_mmult_Initialize(XHdcp22_mmult *InstancePtr, u16 DeviceId);
 XHdcp22_mmult_Config* XHdcp22_mmult_LookupConfig(u16 DeviceId);
 int XHdcp22_mmult_CfgInitialize(XHdcp22_mmult *InstancePtr, XHdcp22_mmult_Config *ConfigPtr, UINTPTR EffectiveAddr);

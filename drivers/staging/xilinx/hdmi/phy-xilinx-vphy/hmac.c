@@ -47,9 +47,14 @@
 *****************************************************************************/
 
 /***************************** Include Files *********************************/
+#include <linux/types.h>
+#include <linux/math64.h>
+#include <linux/kernel.h>
+#include <linux/slab.h>
+
 #include "xil_types.h"
 #include "xstatus.h"
-#include "string.h"
+
 #include "xhdcp22_common.h"
 
 /************************** Constant Definitions *****************************/
@@ -89,6 +94,7 @@
 ******************************************************************************/
 int XHdcp22Cmn_HmacSha256Hash(const u8 *Data, int DataSize, const u8 *Key, int KeySize, u8  *HashedData)
 {
+#if 0
 	u8 Ipad[65];   /* inner padding-key XORd with ipad */
 	u8 Opad[65];   /* outer padding-key XORd with opad */
 	u8 Ktemp[SHA256_SIZE];
@@ -99,6 +105,15 @@ int XHdcp22Cmn_HmacSha256Hash(const u8 *Data, int DataSize, const u8 *Key, int K
 
 	memset(BufferIn, 0x00, 256);
 	memset(BufferOut, 0x00, 256);
+#endif
+	u8 *Ipad, *Opad, *Ktemp, *Ktemp2, *BufferIn, *BufferOut;
+	Ipad = kzalloc(65, GFP_KERNEL);
+	Opad = kzalloc(65, GFP_KERNEL);
+	Ktemp = kzalloc(SHA256_SIZE, GFP_KERNEL);
+	Ktemp2 = kzalloc(SHA256_SIZE, GFP_KERNEL);
+	BufferIn = kzalloc(256, GFP_KERNEL);
+	BufferOut = kzalloc(256, GFP_KERNEL);
+	int i;
 
 	/* If the input size exceeds the local buffers, return an error */
 	if(DataSize + 64 >  256) {
@@ -113,8 +128,10 @@ int XHdcp22Cmn_HmacSha256Hash(const u8 *Data, int DataSize, const u8 *Key, int K
 	}
 
 	/* start out by storing Key in pads */
+#if 0
 	memset(Ipad, 0, sizeof Ipad );
 	memset(Opad, 0, sizeof Opad );
+#endif
 	memcpy(Ipad, Key, KeySize );
 	memcpy(Opad, Key, KeySize );
 
@@ -134,6 +151,13 @@ int XHdcp22Cmn_HmacSha256Hash(const u8 *Data, int DataSize, const u8 *Key, int K
 	memcpy(BufferOut + 64, Ktemp2, SHA256_SIZE );
 	XHdcp22Cmn_Sha256Hash(BufferOut, 64 + SHA256_SIZE,
 						(u8 *)HashedData );
+
+	kfree(BufferOut);
+	kfree(BufferIn);
+	kfree(Ktemp);
+	kfree(Ktemp2);
+	kfree(Opad);
+	kfree(Ipad);
 
 	return XST_SUCCESS;
 }
