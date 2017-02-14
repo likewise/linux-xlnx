@@ -144,6 +144,25 @@
 #define V4L2_CID_XILINX_MIPICSISS_RESET_COUNTERS (V4L2_CID_XILINX_MIPICSISS + 3)
 
 /*
+ * Xilinx Color Space Converter (CSC) VPSS
+ */
+
+/* Base ID */
+#define V4L2_CID_XILINX_CSC			(V4L2_CID_USER_BASE + 0xc0a0)
+/* Adjust Brightness */
+#define V4L2_CID_XILINX_CSC_BRIGHTNESS		(V4L2_CID_XILINX_CSC + 1)
+/* Adjust Saturation */
+#define V4L2_CID_XILINX_CSC_SATURATION		(V4L2_CID_XILINX_CSC + 2)
+/* Adjust Contrast */
+#define V4L2_CID_XILINX_CSC_CONTRAST		(V4L2_CID_XILINX_CSC + 3)
+/* Adjust Red Gain */
+#define V4L2_CID_XILINX_CSC_RED_GAIN		(V4L2_CID_XILINX_CSC + 4)
+/* Adjust Green Gain */
+#define V4L2_CID_XILINX_CSC_GREEN_GAIN		(V4L2_CID_XILINX_CSC + 5)
+/* Adjust Blue Gain */
+#define V4L2_CID_XILINX_CSC_BLUE_GAIN		(V4L2_CID_XILINX_CSC + 6)
+
+/*
  * Xilinx Gamma Correction HLS IP
  */
 

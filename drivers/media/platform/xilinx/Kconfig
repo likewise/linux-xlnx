@@ -86,4 +86,10 @@ config VIDEO_XILINX_HLS_GAMMA
 	---help---
 	Driver for Xilinx Gamma Correction LUT HLS IP
 
+config VIDEO_XILINX_VPSS_CSC
+	tristate "Xilinx VPSS CSC Only"
+	depends on VIDEO_XILINX
+	---help---
+	Driver for the Xilinx VPSS Color Space Conversion Only (HLS)
+
 endif #VIDEO_XILINX
