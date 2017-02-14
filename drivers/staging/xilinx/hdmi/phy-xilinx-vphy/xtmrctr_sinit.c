@@ -1,6 +1,6 @@
 /******************************************************************************
 *
-* Copyright (C) 2016 Xilinx, Inc. All rights reserved.
+* Copyright (C) 2015 Xilinx, Inc.  All rights reserved.
 *
 * Permission is hereby granted, free of charge, to any person obtaining a copy
 * of this software and associated documentation files (the "Software"), to deal
@@ -19,7 +19,7 @@
 * THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
 * IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
 * FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL
-* XILINX BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER LIABILITY,
+* XILINX  BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER LIABILITY,
 * WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM, OUT OF
 * OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 * SOFTWARE.
@@ -32,58 +32,71 @@
 /*****************************************************************************/
 /**
 *
-* @file xv_hdmirxss_coreinit.h
-* @addtogroup v_hdmirxss
+* @file xtmrctr_sinit.c
+* @addtogroup tmrctr_v4_0
 * @{
-* @details
 *
-* This header file contains the hdmi rx subsystem sub-cores
-* initialization routines and helper functions.
+* This file contains static initialization methods for the XTmrCtr driver.
+*
+* @note	None.
 *
 * <pre>
 * MODIFICATION HISTORY:
 *
-* Ver   Who    Date     Changes
-* ----- ---- -------- -------------------------------------------------------
-* 1.00         10/07/15 Initial release.
-* 1.1   yh     20/01/16 Added remapper support
-* 1.2   MG     03/02/16 Added HDCP support
-* 1.3   MH     08/08/16 Updates to optimize out HDCP when excluded.
+* Ver   Who  Date     Changes
+* ----- ---- -------- -----------------------------------------------
+* 4.0   als  09/30/15 Creation of this file. Moved LookupConfig from xtmrctr.c.
 * </pre>
 *
 ******************************************************************************/
-#ifndef XV_HDMIRXSS_COREINIT_H__  /* prevent circular inclusions */
-#define XV_HDMIRXSS_COREINIT_H__  /* by using protection macros */
 
-#ifdef __cplusplus
-extern "C" {
-#endif
-//#include <stdio.h> // -- @NOTE Remove stdio.h
-#include <linux/string.h>
-#include "xv_hdmirxss.h"
-#include "xv_hdmirx.h"
-#ifdef XPAR_XHDCP_NUM_INSTANCES
+/******************************* Include Files *******************************/
+
+#include "xparameters.h"
 #include "xtmrctr.h"
-#endif
-#include "xgpio.h"
-#include "xv_axi4s_remap.h"
+
 /************************** Constant Definitions *****************************/
 
-/************************** Function Prototypes ******************************/
-int XV_HdmiRxSs_SubcoreInitHdmiRx(XV_HdmiRxSs *HdmiRxSsPtr);
-#ifdef XPAR_XHDCP_NUM_INSTANCES
-int XV_HdmiRxSs_SubcoreInitHdcpTimer(XV_HdmiRxSs *HdmiRxSsPtr);
-int XV_HdmiRxSs_SubcoreInitHdcp14(XV_HdmiRxSs *HdmiRxSsPtr);
+#ifndef XPAR_XTMRCTR_NUM_INSTANCES
+#define XPAR_XTMRCTR_NUM_INSTANCES	0
 #endif
-#ifdef XPAR_XHDCP22_RX_NUM_INSTANCES
-int XV_HdmiRxSs_SubcoreInitHdcp22(XV_HdmiRxSs *HdmiRxSsPtr);
-#endif
-int XV_HdmiRxSs_SubcoreInitRemapperReset(XV_HdmiRxSs *HdmiRxSsPtr);
-int XV_HdmiRxSs_SubcoreInitRemapper(XV_HdmiRxSs *HdmiRxSsPtr);
 
-#ifdef __cplusplus
+/*************************** Variable Declarations ***************************/
+
+/* A table of configuration structures containing the configuration information
+ * for each timer core in the system. */
+extern XTmrCtr_Config XTmrCtr_ConfigTable[XPAR_XTMRCTR_NUM_INSTANCES];
+
+/**************************** Function Definitions ***************************/
+
+/*****************************************************************************/
+/**
+* Looks up the device configuration based on the unique device ID. The table
+* TmrCtr_ConfigTable contains the configuration info for each device in the
+* system.
+*
+* @param	DeviceId is the unique device ID to search for in the config
+*		table.
+*
+* @return	A pointer to the configuration that matches the given device
+* 		ID, or NULL if no match is found.
+*
+* @note		None.
+*
+******************************************************************************/
+XTmrCtr_Config *XTmrCtr_LookupConfig(u16 DeviceId)
+{
+	XTmrCtr_Config *CfgPtr = NULL;
+	int Index;
+
+	for (Index = 0; Index < XPAR_XTMRCTR_NUM_INSTANCES; Index++) {
+		if (XTmrCtr_ConfigTable[Index].DeviceId == DeviceId) {
+			CfgPtr = &XTmrCtr_ConfigTable[Index];
+			break;
+		}
+	}
+
+	return CfgPtr;
 }
-#endif
 
-#endif
 /** @} */

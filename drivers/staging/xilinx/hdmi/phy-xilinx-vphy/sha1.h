@@ -18,14 +18,14 @@
 #define _SHA1_H_
 
 #include <linux/types.h>
-#include <linux/string.h> // -- @NOTE Leon Woestenberg <leon@sidebranch.com>
+#include <linux/string.h>
 /*
  * If you do not have the ISO standard stdint.h header file, then you
  * must typdef the following:
  *    name              meaning
  *  uint32_t         unsigned 32 bit integer
  *  uint8_t          unsigned 8 bit integer (i.e., unsigned char)
- *  int_least16_t    integer of >= 16 bits
+ *  int    integer of >= 16 bits
  *
  */
 
@@ -52,7 +52,7 @@ typedef struct SHA1Context
     uint32_t Length_Low;               /**< Message length in bits           */
     uint32_t Length_High;              /**< Message length in bits           */
 
-    int_least16_t Message_Block_Index; /**< Index into message block array   */
+    int Message_Block_Index; /**< Index into message block array   */
     uint8_t Message_Block[64];         /**< 512-bit message blocks           */
 
     int Computed;                      /**< Is the digest computed?          */

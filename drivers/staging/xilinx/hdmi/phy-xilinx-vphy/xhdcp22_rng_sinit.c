@@ -1,6 +1,6 @@
 /******************************************************************************
 *
-* Copyright (C) 2002 - 2014 Xilinx, Inc.  All rights reserved.
+* Copyright (C) 2015 Xilinx, Inc.  All rights reserved.
 *
 * Permission is hereby granted, free of charge, to any person obtaining a copy
 * of this software and associated documentation files (the "Software"), to deal
@@ -32,49 +32,82 @@
 /*****************************************************************************/
 /**
 *
-* @file xtmrctr_i.h
-* @addtogroup tmrctr_v3_0
+* @file xhdcp22_rng_sinit.c
+* @addtogroup hdcp22_rng_v1_1
 * @{
+* @details
 *
-* This file contains data which is shared between files internal to the
-* XTmrCtr component. It is intended for internal use only.
+* This file contains the static initialization methods for the Xilinx HDCP
+* 2.2 RNG core.
 *
 * <pre>
 * MODIFICATION HISTORY:
 *
-* Ver   Who  Date     Changes
-* ----- ---- -------- -----------------------------------------------
-* 1.00b jhl  02/06/02 First release
-* 1.10b mta  03/21/07 Updated to new coding style
-* 2.00a ktn  10/30/09 _m is removed from all the macro definitions.
+* Ver   Who    Date     Changes
+* ----- ------ -------- --------------------------------------------------
+* 1.00  JO     10/01/15 Initial release.
 * </pre>
 *
 ******************************************************************************/
 
-#ifndef XTMRCTR_I_H		/* prevent circular inclusions */
-#define XTMRCTR_I_H		/* by using protection macros */
-
-#ifdef __cplusplus
-extern "C" {
-#endif
 
 /***************************** Include Files *********************************/
-
-#include "xil_types.h"
+#include "xhdcp22_rng.h"
+#include "xparameters.h"
 
 /************************** Constant Definitions *****************************/
+#ifndef XPAR_XHDCP22_RNG_NUM_INSTANCES
+#define XPAR_XHDCP22_RNG_NUM_INSTANCES 0
+#endif
+/***************** Macros (Inline Functions) Definitions *********************/
 
+/**************************** Type Definitions *******************************/
 
 /************************** Function Prototypes ******************************/
 
-
 /************************** Variable Definitions *****************************/
+extern XHdcp22_Rng_Config XHdcp22_Rng_ConfigTable[];
 
-extern u8 XTmrCtr_Offsets[];
+/************************** Function Definitions *****************************/
 
-#ifdef __cplusplus
+/*****************************************************************************/
+/**
+*
+* This function returns a reference to an XHdcp22_Rng_Config structure based
+* on the core id, <i>DeviceId</i>. The return value will refer to an entry in
+* the device configuration table defined in the xhdcp22_rng_g.c file.
+*
+* @param  DeviceId is the unique core ID of the XHDCP22 Rng core for the
+*         lookup operation.
+*
+* @return XHdcp22Rng_LookupConfig returns a reference to a config record
+*         in the configuration table (in xhdcp22_rng_g.c) corresponding
+*         to <i>DeviceId</i>, or NULL if no match is found.
+*
+* @note   None.
+*
+******************************************************************************/
+
+/* Definitions for driver XHDCP22 RNG */
+XHdcp22_Rng_Config *XHdcp22Rng_LookupConfig(u16 DeviceId)
+{
+	XHdcp22_Rng_Config *CfgPtr = NULL;
+	u32 Index;
+
+	/* Checking for device id for which instance it is matching */
+	for (Index = (u32)0x0; Index < (u32)(XPAR_XHDCP22_RNG_NUM_INSTANCES);
+		Index++) {
+
+		/* Assigning address of config table if both device ids
+		 * are matched
+		 */
+		if (XHdcp22_Rng_ConfigTable[Index].DeviceId == DeviceId) {
+			CfgPtr = &XHdcp22_Rng_ConfigTable[Index];
+			break;
+		}
+	}
+
+	return (XHdcp22_Rng_Config *)CfgPtr;
 }
-#endif
 
-#endif
 /** @} */

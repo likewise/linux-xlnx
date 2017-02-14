@@ -48,10 +48,10 @@
 ******************************************************************************/
 
 /***************************** Include Files *********************************/
-#include <linux/string.h> // -- @NOTE Leon Woestenberg <leon@sidebranch.com>
+#include <linux/string.h>
 #include "xv_hdmitx_vsif.h"
 #include "xv_hdmitx.h"
-#include "xil_printf.h" // -- @NOTE Leon Woestenberg <leon@sidebranch.com>
+#include "xil_printf.h"
 
 /************************** Constant Definitions *****************************/
 

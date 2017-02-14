@@ -55,7 +55,7 @@
 #include "xhdcp22_mmult.h"
 
 /************************** Function Implementation *************************/
-#if (defined(__KERNEL__) || (!defined(__linux__))) // -- @NOTE Leon Woestenberg <leon@sidebranch.com>
+#if (defined(__KERNEL__) || (!defined(__linux__)))
 int XHdcp22_mmult_CfgInitialize(XHdcp22_mmult *InstancePtr, XHdcp22_mmult_Config *ConfigPtr, UINTPTR EffectiveAddr) {
     Xil_AssertNonvoid(InstancePtr != NULL);
     Xil_AssertNonvoid(ConfigPtr != NULL);

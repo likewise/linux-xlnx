@@ -54,7 +54,7 @@
 /***************************** Include Files *********************************/
 
 //#include <stdlib.h> // -- @NOTE Remove stdlib.h
-#include <linux/string.h> // -- @NOTE Leon Woestenberg <leon@sidebranch.com>
+#include <linux/string.h>
 #include "xhdcp1x.h"
 #include "xhdcp1x_cipher.h"
 #include "xil_assert.h"

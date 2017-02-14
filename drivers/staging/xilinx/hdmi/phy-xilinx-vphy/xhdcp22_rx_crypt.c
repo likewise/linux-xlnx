@@ -54,10 +54,10 @@
 /***************************** Include Files ********************************/
 //#include "stdio.h" // -- @NOTE Remove stdio.h
 //#include "stdlib.h" // -- @NOTE Remove stdlib.h
-#include <linux/string.h> // -- @NOTE Leon Woestenberg <leon@sidebranch.com>
+#include <linux/string.h>
 #include "xil_assert.h"
 #include "xstatus.h"
-#include "xil_printf.h" // -- @NOTE Leon Woestenberg <leon@sidebranch.com>
+#include "xil_printf.h"
 #include "xhdcp22_rx_i.h"
 #include "xhdcp22_common.h"
 

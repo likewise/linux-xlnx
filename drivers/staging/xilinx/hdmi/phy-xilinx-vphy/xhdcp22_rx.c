@@ -61,13 +61,14 @@
 
 /***************************** Include Files ********************************/
 //#include "stdio.h" // -- @NOTE Remove stdio.h
-#include <linux/string.h> // -- @NOTE Leon Woestenberg <leon@sidebranch.com>
+#include <linux/string.h>
 #include "xstatus.h"
 #include "xdebug.h"
-#include "xil_printf.h" // -- @NOTE Leon Woestenberg <leon@sidebranch.com>
+#include "xil_printf.h"
 #include "xparameters.h"
 #include "xhdcp22_rx_i.h"
 #include "xhdcp22_rx.h"
+#include "xtmrctr.h"
 
 /************************** Constant Definitions ****************************/
 

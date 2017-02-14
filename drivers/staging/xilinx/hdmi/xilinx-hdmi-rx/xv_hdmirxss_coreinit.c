@@ -70,7 +70,7 @@
 
 /***************************** Include Files *********************************/
 #include "xv_hdmirxss_coreinit.h"
-#include "xil_printf.h" // -- @NOTE Leon Woestenberg <leon@sidebranch.com>
+#include "xil_printf.h"
 
 /************************** Constant Definitions *****************************/
 

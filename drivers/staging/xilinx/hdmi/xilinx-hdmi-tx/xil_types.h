@@ -54,7 +54,7 @@
 #ifndef XIL_TYPES_H	/* prevent circular inclusions */
 #define XIL_TYPES_H	/* by using protection macros */
 
-#ifndef __KERNEL__ // @NOTE Only include when not building Linux kernel -- Leon Woestenberg <leon@sidebranch.com>
+#ifndef __KERNEL__
 #include <stdint.h>
 #include <stddef.h>
 #endif
@@ -151,7 +151,7 @@ typedef unsigned long ULONG;
 
 #else
 #include <linux/types.h>
-// Used by xil_io.h -- Leon Woestenberg <leon@sidebranch.com>
+// Used by xil_io.h
 typedef char char8;
 typedef long INTPTR;
 typedef uintptr_t UINTPTR;

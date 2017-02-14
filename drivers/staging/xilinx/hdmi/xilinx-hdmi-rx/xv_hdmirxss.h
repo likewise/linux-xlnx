@@ -86,10 +86,10 @@ extern "C" {
 #include "xv_hdmirx.h"
 #ifdef XPAR_XHDCP_NUM_INSTANCES
 #include "xtmrctr.h"
-//#include "xhdcp1x.h" // -- @NOTE Leon Woestenberg <leon@sidebranch.com>
+//#include "xhdcp1x.h"
 #endif
 #ifdef XPAR_XHDCP22_RX_NUM_INSTANCES
-//#include "xhdcp22_rx.h" // -- @NOTE Leon Woestenberg <leon@sidebranch.com>
+//#include "xhdcp22_rx.h"
 #endif
 #include "xgpio.h"
 #include "xv_axi4s_remap.h"

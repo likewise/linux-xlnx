@@ -46,7 +46,7 @@
 *****************************************************************************/
 
 /***************************** Include Files ********************************/
-#include <linux/string.h> // -- @NOTE Leon Woestenberg <leon@sidebranch.com>
+#include <linux/string.h>
 #include "xil_types.h"
 
 /**************************** Type Definitions ******************************/

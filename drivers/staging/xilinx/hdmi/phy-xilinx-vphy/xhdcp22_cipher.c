@@ -54,7 +54,7 @@
 
 /***************************** Include Files *********************************/
 #include "xhdcp22_cipher.h"
-#include <linux/string.h> // -- @NOTE Leon Woestenberg <leon@sidebranch.com>
+#include <linux/string.h>
 
 /************************** Constant Definitions *****************************/
 
