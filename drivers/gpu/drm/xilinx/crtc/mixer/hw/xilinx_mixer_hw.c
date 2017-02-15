@@ -104,9 +104,7 @@ void xilinx_mixer_init(struct xv_mixer *mixer)
 						layer_id,
 						XVMIX_ALPHA_MAX);
 
-}
-	xilinx_mixer_start(mixer);
-
+	}
 }
 
 
