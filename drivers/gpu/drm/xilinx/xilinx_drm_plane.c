@@ -861,8 +861,6 @@ xilinx_drm_plane_create(struct xilinx_drm_plane_manager *manager,
 
 	DRM_DEBUG_KMS("plane->id: %d\n", plane->id);
 
-
-	/* JPM TODO remove dma_plane flag and test logo layer */
 	for (i = 0; i < MAX_NUM_SUB_PLANES; i++) {
 		snprintf(name, sizeof(name), "dma%d", i);
 		plane->dma[i].chan = of_dma_request_slave_channel(plane_node,
