@@ -124,6 +124,7 @@ typedef enum {
  */
 typedef enum {
 	XVIDC_CSF_RGB = 0,
+	XVIDC_CSF_BGR,
 	XVIDC_CSF_YCRCB_444,
 	XVIDC_CSF_YCRCB_422,
 	XVIDC_CSF_YCRCB_420,
