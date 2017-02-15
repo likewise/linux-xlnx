@@ -20,6 +20,7 @@
 
 #include <linux/device.h>
 #include <linux/fixp-arith.h>
+#include <linux/gpio/consumer.h>
 #include <linux/module.h>
 #include <linux/of.h>
 #include <linux/platform_device.h>
@@ -96,7 +97,7 @@
 /* Mask definitions for Low and high 16 bits in a 32 bit number */
 #define XHSC_MASK_LOW_16BITS			(0x0000FFFF)
 #define XHSC_MASK_HIGH_16BITS			(0xFFFF0000)
-#define XHSC_MASK_LOW_32BITS			(0xFFFFFFFF)
+#define XHSC_MASK_LOW_32BITS			(((u64)1 << 32) - 1)
 #define STEP_PRECISION_SHIFT			(16)
 
 /**
@@ -133,6 +134,8 @@ struct xscaler_device {
 	u64 phasesH[XV_HSCALER_MAX_LINE_WIDTH];
 	short hscaler_coeff[XV_HSCALER_MAX_H_PHASES][XV_HSCALER_MAX_H_TAPS];
 	short vscaler_coeff[XV_VSCALER_MAX_V_PHASES][XV_VSCALER_MAX_V_TAPS];
+
+	struct gpio_desc *rst_gpio;
 };
 
 static inline struct xscaler_device *to_scaler(struct v4l2_subdev *subdev)
@@ -184,12 +187,14 @@ static void calculate_phases(struct xscaler_device *xscaler, u32 width_in,
 				xwrite_pos++;
 			}
 
+			/*  Will work only for 1 or 2 PPC */
+			/* Needs updates for 4 PPC */
 			xscaler->phasesH[x] = xscaler->phasesH[x] |
 			  (phaseH << (s*9));
 			xscaler->phasesH[x] = xscaler->phasesH[x] |
-			  ((array_idx << 6) + (s*9));
+			  (array_idx << (6 + (s*9)));
 			xscaler->phasesH[x] = xscaler->phasesH[x] |
-			  ((output_write_en << 8) + (s*9));
+			  (output_write_en << (8 + (s*9)));
 
 			if (get_new_pix)
 				nr_rds_clck++;
@@ -557,6 +562,7 @@ inline void xv_procss_enable_block(struct xvip_device *xvip, u32 channel,
 
 static inline void xscaler_reset(struct xscaler_device *xscaler)
 {
+
 	/* Reset All IP Blocks on AXIS interface*/
 	xv_procss_reset_block(&xscaler->xvip, GPIO_CH_RESET_SEL,
 			    RESET_MASK_ALL_BLOCKS);
@@ -678,7 +684,7 @@ static int xv_hscaler_setup_video_fmt
 }
 
 static int
-xv_hscaler_set_phases(struct xscaler_device * xscaler)
+xv_hscaler_set_phases(struct xscaler_device *xscaler)
 {
 	u32 loop_width;
 	u32 index, val;
@@ -687,7 +693,7 @@ xv_hscaler_set_phases(struct xscaler_device * xscaler)
 	loop_width = xscaler->max_pixels/xscaler->pix_per_clk;
 	offset = V_HSCALER_OFF + XV_HSCALER_CTRL_ADDR_HWREG_PHASESH_V_BASE;
 
-	switch(xscaler->pix_per_clk) {
+	switch (xscaler->pix_per_clk) {
 	case XSCALER_PPC_1:
 		/*
 		 * phaseH is 64bits but only lower 16b of each entry is valid
@@ -697,8 +703,10 @@ xv_hscaler_set_phases(struct xscaler_device * xscaler)
 		 */
 		index = 0;
 		for (i = 0; i < loop_width; i += 2) {
-			lsb = (u32)(xscaler->phasesH[i] & (u64)XHSC_MASK_LOW_16BITS);
-			msb = (u32)(xscaler->phasesH[i+1] & (u64)XHSC_MASK_LOW_16BITS);
+			lsb = (u32)(xscaler->phasesH[i] &
+					(u64)XHSC_MASK_LOW_16BITS);
+			msb = (u32)(xscaler->phasesH[i+1] &
+					(u64)XHSC_MASK_LOW_16BITS);
 			val = (msb << 16 | lsb);
 			xvip_write(&xscaler->xvip, offset + (index*4), val);
 			++index;
@@ -712,7 +720,8 @@ xv_hscaler_set_phases(struct xscaler_device * xscaler)
 		 * Need 1 32b write to get each entry into IP registers
 		 */
 		for (i = 0; i < loop_width; i++) {
-			val = (u32)(xscaler->phasesH[i] & XHSC_MASK_LOW_32BITS);
+			val = (u32)(xscaler->phasesH[i] &
+					XHSC_MASK_LOW_32BITS);
 			xvip_write(&xscaler->xvip, offset + (i*4), val);
 		}
 		dev_info(xscaler->xvip.dev,
@@ -733,11 +742,17 @@ static int xscaler_s_stream(struct v4l2_subdev *subdev, int enable)
 	int rval;
 
 	if (!enable) {
+		dev_info(xscaler->xvip.dev, "%s: Stream Off", __func__);
+		/* Reset the Global IP Reset through PS GPIO */
+		gpiod_set_value_cansleep(xscaler->rst_gpio, 0x1);
+		udelay(100);
+		gpiod_set_value_cansleep(xscaler->rst_gpio, 0x0);
+		udelay(100);
 		xscaler_reset(xscaler);
 		return 0;
 	}
 
-	dev_info(xscaler->xvip.dev, "Stream On");
+	dev_info(xscaler->xvip.dev, "%s: Stream On", __func__);
 
 	/* Get input width / height / media pad format */
 	width_in = xscaler->formats[XVIP_PAD_SINK].width;
@@ -1037,6 +1052,14 @@ static int xscaler_parse_of(struct xscaler_device *xscaler)
 		"Unsupported xlnx,pix-per-clk(%d) value in DT", dt_ppc);
 		return -EINVAL;
 	}
+
+	/* Reset GPIO */
+	xscaler->rst_gpio = devm_gpiod_get(dev, "reset", GPIOD_OUT_HIGH);
+	if (IS_ERR(xscaler->rst_gpio)) {
+		dev_err(dev, "Reset GPIO not setup in DT");
+		return PTR_ERR(xscaler->rst_gpio);
+	}
+
 	return 0;
 }
 
@@ -1064,6 +1087,10 @@ static int xscaler_probe(struct platform_device *pdev)
 
 	/* Reset and initialize the core */
 	dev_info(xscaler->xvip.dev, "Reset VPSS Scalar\n");
+	/* Reset the Global IP Reset through a PS GPIO */
+	gpiod_set_value_cansleep(xscaler->rst_gpio, 0x0);
+	udelay(100);
+	/* Reset internal GPIO within the IP */
 	xscaler_reset(xscaler);
 
 	/* Initialize V4L2 subdevice and media entity */

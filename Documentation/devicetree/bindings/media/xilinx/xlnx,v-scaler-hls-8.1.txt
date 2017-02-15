@@ -22,7 +22,10 @@ Required properties:
  (For this IP the value is 3840)
  
 - xlnx,pix-per-clk : The pixels per clock property of the IP
- (Currently only 1 pixel per clock is supported)
+ (Currently only 1 pixel per clock and 2 pixel per clock is supported)
+
+- reset-gpios: Specifier for a GPIO that assert for VPSS Scaler reset.
+  This property is mandatory for the Scaler
 
 - ports: Video ports, using the DT bindings defined in ../video-interfaces.txt.
   The scaler has an input port (0) and an output port (1).
@@ -30,8 +33,8 @@ Required properties:
 
 Required port properties:
 
-- xlnx,video-format: Must be one of RBG, YUV_422, YUV_422 or YUV_420 for
-  both input port (0) and output port (1). The two formats must be identical.
+- xlnx,video-format: Must be one of RBG, YUV_444 or YUV_422 for
+  both input port (0) and YUV_422 for output port (1).
 
 - xlnx,video-width: Video width as defined in video.txt
 
@@ -41,12 +44,13 @@ Example:
 		compatible = "xlnx,v-scaler-hls-8.1";
 		reg = <0x0 0xa0000000 0x0 0x40000>;
 		clocks = <&vid_stream_clk>;
-		xlnx,num-hori-taps = <6>;
-                xlnx,num-vert-taps = <6>;
+		xlnx,num-hori-taps = <8>;
+                xlnx,num-vert-taps = <8>;
                 xlnx,max-num-phases = <64>;
                 xlnx,max-lines = <2160>;
                 xlnx,max-pixels = <3840>;
-                xlnx,pix-per-clk = <1>;
+                xlnx,pix-per-clk = <2>;
+		reset-gpios = <&gpio 87 1>;
 
 		ports {
                         #address-cells = <1>;
