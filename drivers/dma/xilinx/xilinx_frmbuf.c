@@ -840,29 +840,6 @@ static int xilinx_frmbuf_chan_probe(struct xilinx_frmbuf_device *xdev,
 		return -EINVAL;
 	}
 
-#if 0
-	ret = of_property_read_string(node, "xlnx,vid-fmt", &string);
-	if (ret < 0) {
-		dev_err(xdev->dev, "No video format in DT\n");
-		return ret;
-	}
-
-	for (i = 0; i < ARRAY_SIZE(xilinx_frmbuf_formats); i++) {
-		const struct xilinx_frmbuf_format_desc *fmt =
-					&xilinx_frmbuf_formats[i];
-
-		if (strcmp(string, fmt->name) == 0) {
-			chan->video_fmt = fmt->name;
-			break;
-		}
-	}
-
-	if (!chan->video_fmt) {
-		dev_err(xdev->dev, "Invalid vid-fmt in DT\n");
-		return -EINVAL;
-	}
-#endif
-
 	/* Request the interrupt */
 	chan->irq = irq_of_parse_and_map(node, 0);
 	err = request_irq(chan->irq, xilinx_frmbuf_irq_handler, IRQF_SHARED,
