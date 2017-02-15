@@ -59,7 +59,8 @@ struct color_fmt_tbl {
 /*************************** STATIC DATA  ************************************/
 static struct color_fmt_tbl color_table[] = {
 	/* Media Bus Formats */
-	{"rgb",        XVIDC_CSF_RGB,         DRM_FORMAT_BGR888},
+	{"bgr",        XVIDC_CSF_BGR,         DRM_FORMAT_BGR888},
+	{"rgb",        XVIDC_CSF_RGB,         DRM_FORMAT_RGB888},
 	{"yuv444",     XVIDC_CSF_YCRCB_444,   DRM_FORMAT_YUV444},
 	{"yuv422",     XVIDC_CSF_YCRCB_422,   DRM_FORMAT_YUYV},
 	{"yuv420",     XVIDC_CSF_YCRCB_420,   DRM_FORMAT_YUV420},
