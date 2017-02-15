@@ -3,7 +3,7 @@ Device Tree Bindings for Xilinx Video Mixer IP core
 Required properties for Core IP Node:
 
     Required General Properties:
-    - compatible: "xlnx,video_mixer-1.0"
+    - compatible: "xlnx,video_mixer-1.00a"
 
     - reg: MMIO base address and size of the Xilinx Video Mixer IP core address 
            space
@@ -37,8 +37,11 @@ Layer Sub Node Properties:
 	property exists, then a logo {}; node must be present).  Layer_0 will
 	be interpreted as the background layer and must use layer-id = <0>.
 
-    - xlnx,vformat [string]: Expected layer input data format ("rgb" | "yuv444"
-	| "yuv422" | "yuv420")
+    - xlnx,vformat [string]: Expected layer input data format. 
+	For streaming layers, the possible formats are: "rgb", "yuv444", 
+		"yuv422", "yuv420"
+	For memory layers, the possible formats are: "rgba8", "y_uv8", 
+		"y_uv8_420", "yuyv8"
 
     - xlnx,layer-height [number]: Only required for layer_0 node (master layer).
 	Indicates maximum vertical size of active screen display in pixels
@@ -53,8 +56,8 @@ Layer Sub Node Properties:
 	for layer.  Indicates maximum number of columns (before scaling) for
 	this layer (i.e. horizontal pixels)
 
-    - xlnx,layer-streaming: Layer obtains data as video stream (if omitted, layer is
-        presumed to be memory mapped)
+    - xlnx,layer-streaming: Layer obtains data as video stream (if omitted,
+	layer is presumed to be memory mapped)
 
 
 Logo Layer Sub Node Properties:
@@ -73,19 +76,44 @@ Logo Layer Sub Node Properties:
 
 
     Optional Properties:
-    - xlnx,logo-scale: Indicates that logo layer supports scaling in mixer
+    - xlnx,logo-transp: Logo support color key transparency feature
 
-    - xlnx,logo-alpha: Indicates that logo layer supports global alpha blending
+    - xlnx,logo-pixel-alpha: Logo supports per pixel alpha data (e.g. RGBA).
+
+
+Additional Nodes Requiring Modificaton
+
+There must exist a xilinx_drm node in the dts which much be updated as follows:
+
+    Required Properties for xilinx_drm Node:
+
+    - xlnx,mixer: Phandle reference to mixer IP node
+
+    - xlnx,mixer-reset-gpios: Should include a phandle reference to
+	the gpio controller with the proper gpio id and level (mixer reset
+	default should be set to "low")
+
+
+    Required Properties for each xilinx_drm plane# Node:
+
+    Each plane node served by a mixer layer should include the
+    the following property:
+
+    - xlnx,mixer-layer: A phandle reference to the mixer layer node serving
+	this plane. 
+
 
 
 Example:
 
 This sample is of a mixer IP core that has two overlay layers enabled in
-addition to the logo layer.  One overlay 1 is a streaming video input layer and
-the overlay 2 is memory-based (i.e. dma-driven) layer.
+addition to the logo layer.  One overlay 1 is a streaming video input layer
+which is served by a dma IP core and overlay 2 is memory-based
+(i.e. dma-driven) layer (no need for a separate dma IP core). Additionally, the 
+mixer's reset line is on gpio #79. 
 
 v_mix_0: v_mix@80040000 {
-	compatible = "xlnx,v-mix-1.0";
+	compatible = "xlnx,v-mix-1.00a";
 	interrupt-parent = <&gic>;
 	interrupts = <0 90 4>;
 	reg = <0x0 0x80040000 0x0 0x40000>;
@@ -106,21 +134,52 @@ v_mix_0: v_mix@80040000 {
 		xlnx,vformat = "yuv422";
 		xlnx,layer-streaming;
 		xlnx,layer-alpha;
-		xlnx,layer-width = <1920>;
 	};
 
 	mixer_overlay_2: layer_2 {
 		xlnx,layer-id = <2>;
-		xlnx,vformat = "yuv420";
+		xlnx,vformat = "y_uv8_420";
 		xlnx,layer-scale;
 		xlnx,layer-width = <1920>;
 	};
 
 	mixer_logo: logo {
 		xlnx,layer-id = <8>;
-		xlnx,logo-scale;
-		xlnx,logo-alpha;
 		xlnx,logo-width = <64>;	
 		xlnx,logo-height = <64>;	
+	};
+};
+
+
+
+xilinx_drm: xilinx_drm {
+	compatible = "xlnx,drm";
+	status = "okay";
+
+	/* mixer IP specific additions to this node */
+	xlnx,mixer = <&v_mix_0>;
+	xlnx,mixer-reset-gpios = <&gpio 79 1>;
+
+	xlnx,vtc = <&v_tc_0>;
+	xlnx,encoder-slave = <&adv7511>;
+	xlnx,connector-type = "HDMIA";
+	planes {
+		xlnx,pixel-format = "rgb888";
+		plane0 {
+			dmas = <&vdma_0 0>;
+			dma-names = "dma0";
+			xlnx,mixer-layer = <&mixer_master_layer>;
+		};
+		plane1 {
+			dmas = <&vdma_1 0>;
+			dma-names = "dma0";
+			xlnx,mixer-layer = <&mixer_overlay_1>;
+		};
+		plane2 {
+			xlnx,mixer-layer = <&mixer_overlay_2>;
+		};
+		plane3 {
+			xlnx,mixer-layer = <&mixer_logo>;
+		};
 	};
 };
