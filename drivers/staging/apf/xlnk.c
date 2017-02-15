@@ -1713,7 +1713,6 @@ static long xlnk_ioctl(struct file *filp,
 	case XLNK_IOCMEMOP:
 		return xlnk_memop_ioctl(filp, args);
 	default:
-		pr_err("%s:Unrecognized ioctl code%u\n", __func__, code);
 		return -EINVAL;
 	}
 }
