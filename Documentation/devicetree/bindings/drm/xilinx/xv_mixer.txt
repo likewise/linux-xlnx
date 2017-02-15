@@ -38,7 +38,7 @@ Layer Sub Node Properties:
 	be interpreted as the background layer and must use layer-id = <0>.
 
     - xlnx,vformat [string]: Expected layer input data format. 
-	For streaming layers, the possible formats are: "rgb", "yuv444", 
+	For streaming layers, the possible formats are: "bgr", "yuv444", 
 		"yuv422", "yuv420"
 	For memory layers, the possible formats are: "rgba8", "y_uv8", 
 		"y_uv8_420", "yuyv8"
