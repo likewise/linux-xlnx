@@ -52,8 +52,8 @@
 *****************************************************************************/
 
 /***************************** Include Files ********************************/
-//#include "stdio.h" // -- @NOTE Remove stdio.h
-//#include "stdlib.h" // -- @NOTE Remove stdlib.h
+//#include "stdio.h"
+//#include "stdlib.h"
 #include <linux/string.h>
 #include "xil_assert.h"
 #include "xstatus.h"

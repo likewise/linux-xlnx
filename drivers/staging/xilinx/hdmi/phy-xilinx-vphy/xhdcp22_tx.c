@@ -60,6 +60,7 @@
 /***************************** Include Files *********************************/
 #include "xhdcp22_tx.h"
 #include "xhdcp22_tx_i.h"
+#include "xil_printf.h"
 
 /************************** Constant Definitions *****************************/
 
@@ -572,6 +573,7 @@ int XHdcp22Tx_LoadRevocationTable(XHdcp22_Tx *InstancePtr, const u8 *SrmPtr)
 	u16 NumDevices;
 	const u8* ReceiverIdPtr;
 	XHdcp22_Tx_RevocationList* RevocationListPtr = NULL;
+	int i, j;
 
 	/* Verify arguments */
 	Xil_AssertNonvoid(InstancePtr != NULL);
@@ -621,7 +623,7 @@ int XHdcp22Tx_LoadRevocationTable(XHdcp22_Tx *InstancePtr, const u8 *SrmPtr)
 	/* Update the SRM Block pointer */
 	SrmBlockPtr += BlockSize;
 
-	for (int i = 1; i < SrmGenNr; i++) {
+	for (i = 1; i < SrmGenNr; i++) {
 		/* byte 1-2 contain the length of the next-generation SRM in bytes.
 		 * Value is in big endian format, Microblaze is little endian */
 		LengthField  = SrmBlockPtr[0] << 8; // MSB
@@ -669,7 +671,7 @@ int XHdcp22Tx_LoadRevocationTable(XHdcp22_Tx *InstancePtr, const u8 *SrmPtr)
 	/* byte 12 will contain the first byte of the first receiver ID */
 	ReceiverIdPtr = &SrmBlockPtr[12];
 
-	for (int i = 0; i < NumDevices; i++) {
+	for (i = 0; i < NumDevices; i++) {
 		/* Is the revocation list full? */
 		if (RevocationListPtr->NumDevices == XHDCP22_TX_REVOCATION_LIST_MAX_DEVICES) {
 			return XST_FAILURE;
@@ -683,7 +685,7 @@ int XHdcp22Tx_LoadRevocationTable(XHdcp22_Tx *InstancePtr, const u8 *SrmPtr)
 	/* Update the SRM Block pointer */
 	SrmBlockPtr += BlockSize;
 
-	for (int j = 1; j < SrmGenNr; j++) {
+	for (j = 1; j < SrmGenNr; j++) {
 		/* byte 1-2 contain the length of the next-generation SRM in bytes.
 		 * Value is in big endian format, Microblaze is little endian */
 		LengthField  = SrmBlockPtr[0] << 8; // MSB
@@ -700,7 +702,7 @@ int XHdcp22Tx_LoadRevocationTable(XHdcp22_Tx *InstancePtr, const u8 *SrmPtr)
 		/* byte 5 will contain the first byte of the first receiver ID */
 		ReceiverIdPtr = &SrmBlockPtr[4];
 
-		for (int i = 0; i < NumDevices; i++) {
+		for (i = 0; i < NumDevices; i++) {
 			/* Is the revocation list full? */
 			if (RevocationListPtr->NumDevices == XHDCP22_TX_REVOCATION_LIST_MAX_DEVICES) {
 				return XST_FAILURE;
@@ -2243,6 +2245,7 @@ static XHdcp22_Tx_StateType XHdcp22Tx_StateA6_A7_A8(XHdcp22_Tx *InstancePtr)
 	u8 DeviceCount;
 	u8 V[XHDCP22_TX_V_SIZE];
 	u32 SeqNum_V;
+	int i;
 
 	/* When we (re)-enter this state the topology info is not available
 	 * so clear the topology available flag */
@@ -2327,7 +2330,7 @@ static XHdcp22_Tx_StateType XHdcp22Tx_StateA6_A7_A8(XHdcp22_Tx *InstancePtr)
 	}
 
 	InstancePtr->Info.IsDeviceRevoked = FALSE;
-	for (int i = 0; i < DeviceCount; i++) {
+	for (i = 0; i < DeviceCount; i++) {
 		/* Add receiver ID to topology info. */
 		memcpy(&InstancePtr->Topology.ReceiverId[i + 1],
 			&MsgPtr->Message.RepeatAuthSendRecvIDList.ReceiverIDs[i],

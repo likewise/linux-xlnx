@@ -75,8 +75,8 @@
 
 #include "xparameters.h"
 #include "sha1.h"
-//#include <stdio.h> // -- @NOTE Remove stdio.h
-#include <stdlib.h>
+//#include <stdio.h>
+//#include <stdlib.h>
 #include <linux/string.h>
 #include "xhdcp1x.h"
 #include "xhdcp1x_cipher.h"

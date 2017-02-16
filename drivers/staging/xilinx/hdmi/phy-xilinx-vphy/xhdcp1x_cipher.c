@@ -53,7 +53,7 @@
 
 /***************************** Include Files *********************************/
 
-//#include <stdlib.h> // -- @NOTE Remove stdlib.h
+//#include <stdlib.h>
 #include <linux/string.h>
 #include "xhdcp1x.h"
 #include "xhdcp1x_cipher.h"
