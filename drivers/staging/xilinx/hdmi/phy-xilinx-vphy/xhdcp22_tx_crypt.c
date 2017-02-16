@@ -54,7 +54,7 @@
 /***************************** Include Files *********************************/
 #include "xhdcp22_tx_i.h"
 #include "xhdcp22_common.h"
-#include <stdlib.h>
+//#include <stdlib.h>
 
 /************************** Constant Definitions *****************************/
 
@@ -247,9 +247,9 @@ static int XHdcp22Tx_RsaEncryptMsg(const u8 *KeyPubNPtr, int KeyPubNSize,
 								   const u8 *KeyPubEPtr, int KeyPubESize,
 								   const u8 *MsgPtr, int MsgSize, u8 *EncryptedMsgPtr)
 {
-	DIGIT_T n[BD_MAX_MOD_SIZE], e[BD_MAX_MOD_SIZE],
+	u32 n[BD_MAX_MOD_SIZE], e[BD_MAX_MOD_SIZE],
 	        m[BD_MAX_MOD_SIZE], s[BD_MAX_MOD_SIZE];
-	unsigned int ModSize = KeyPubNSize / sizeof(DIGIT_T);
+	unsigned int ModSize = KeyPubNSize / sizeof(u32);
 
 
 	/* Check if the length of the data is not equal to the key length. */

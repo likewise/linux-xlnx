@@ -1,6 +1,12 @@
 # mainlining: remove CFLAGS<...> += -I$(src)/include
 # see below for further mainlining hints
 
+# only used to check against presence, i.e. >0, actual number is not used
+#ccflags-y := -DXPAR_XV_HDMIRX_NUM_INSTANCES=1 -DXPAR_XV_HDMITX_NUM_INSTANCES=1
+#ccflags-y += -DXPAR_XHDCP_NUM_INSTANCES=1
+#ccflags-y += -DXPAR_XHDCP22_RX_NUM_INSTANCES=1
+#ccflags-y += -DXPAR_XHDCP22_TX_NUM_INSTANCES=1
+
 # V4L2 (HDMI RX)
 # mainlining: drivers/media/platform/xilinx/Makefile
 obj-$(CONFIG_VIDEO_XILINX_HDMI_RX) += xilinx-hdmi-rx.o
@@ -53,7 +59,7 @@ KBUILD_EXTRA_SYMBOLS += ../../../phy/Modules.symvers
 # mainlining: drivers/phy/Makefile
 
 obj-$(CONFIG_PHY_XILINX_VPHY)		+= phy-xilinx-vphy.o
-//obj-$(CONFIG_PHY_XILINX_VPHY)		+= phy-xilinx-vphy-hdcp.o
+#obj-$(CONFIG_PHY_XILINX_VPHY)		+= phy-xilinx-vphy-hdcp.o
 
 # top-level Linux driver source
 phy-xilinx-vphy-objs := phy-vphy.o
@@ -77,18 +83,19 @@ phy-xilinx-vphy-objs += phy-xilinx-vphy/xvidc_edid.o
 phy-xilinx-vphy-objs += phy-xilinx-vphy/xvidc_timings_table.o
 
 # WIP HDCP (USE_HDCP)
+phy-xilinx-vphy-hdcp-objs += phy-xilinx-vphy/xhdcp1x_platform.c
+phy-xilinx-vphy-hdcp-objs += phy-xilinx-vphy/xhdcp1x_port.c
+phy-xilinx-vphy-hdcp-objs += phy-xilinx-vphy/xhdcp1x_port_hdmi_rx.c
+phy-xilinx-vphy-hdcp-objs += phy-xilinx-vphy/xhdcp1x_port_hdmi_tx.c
 phy-xilinx-vphy-hdcp-objs := phy-xilinx-vphy/xhdcp1x.o
 phy-xilinx-vphy-hdcp-objs += phy-xilinx-vphy/xhdcp1x_cipher.o
 phy-xilinx-vphy-hdcp-objs += phy-xilinx-vphy/xhdcp1x_cipher_intr.o
 phy-xilinx-vphy-hdcp-objs += phy-xilinx-vphy/xhdcp1x_rx.o
 phy-xilinx-vphy-hdcp-objs += phy-xilinx-vphy/xhdcp1x_tx.o
-#baseline/xhdcp1x_platform.c \
-#baseline/xhdcp1x_port.c \
+phy-xilinx-vphy-hdcp-objs += phy-xilinx-vphy/xhdcp1x_intr.c
+
 #baseline/xhdcp1x_port_dp_rx.c \
 #baseline/xhdcp1x_port_dp_tx.c \
-#baseline/xhdcp1x_port_hdmi_rx.c \
-#baseline/xhdcp1x_port_hdmi_tx.c \
-#baseline/xhdcp1x_port_intr.c \
 
 phy-xilinx-vphy-hdcp-objs += phy-xilinx-vphy/xhdcp22_cipher.o
 phy-xilinx-vphy-hdcp-objs += phy-xilinx-vphy/xhdcp22_cipher_sinit.o
@@ -111,8 +118,9 @@ phy-xilinx-vphy-hdcp-objs += phy-xilinx-vphy/hmac.o
 phy-xilinx-vphy-hdcp-objs += phy-xilinx-vphy/sha1.o
 phy-xilinx-vphy-hdcp-objs += phy-xilinx-vphy/sha2.o
 
-phy-xilinx-vphy-hdcp-objs := phy-xilinx-vphy/xhdcp22_tx.o
+#CFLAGS_xhdcp22_tx.o += -std=c99
+phy-xilinx-vphy-hdcp-objs += phy-xilinx-vphy/xhdcp22_tx.o
 phy-xilinx-vphy-hdcp-objs += phy-xilinx-vphy/xhdcp22_tx_crypt.o
 
-phy-xilinx-vphy-hdcp-objs := phy-xilinx-vphy/xhdcp22_rx.o
+phy-xilinx-vphy-hdcp-objs += phy-xilinx-vphy/xhdcp22_rx.o
 phy-xilinx-vphy-hdcp-objs += phy-xilinx-vphy/xhdcp22_rx_crypt.o

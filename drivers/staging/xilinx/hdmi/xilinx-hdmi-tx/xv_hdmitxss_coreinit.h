@@ -58,7 +58,7 @@
 #ifdef __cplusplus
 extern "C" {
 #endif
-//#include <stdio.h> // -- @NOTE Remove stdio.h
+//#include <stdio.h>
 #include <linux/string.h>
 #include "xv_hdmitxss.h"
 #include "xv_hdmitx.h"

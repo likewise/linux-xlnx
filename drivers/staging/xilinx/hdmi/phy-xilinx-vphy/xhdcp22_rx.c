@@ -60,7 +60,7 @@
 *****************************************************************************/
 
 /***************************** Include Files ********************************/
-//#include "stdio.h" // -- @NOTE Remove stdio.h
+//#include "stdio.h"
 #include <linux/string.h>
 #include "xstatus.h"
 #include "xdebug.h"

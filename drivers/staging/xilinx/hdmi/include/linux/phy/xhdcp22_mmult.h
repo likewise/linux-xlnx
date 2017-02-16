@@ -69,7 +69,7 @@ extern "C" {
 #include <assert.h>
 #include <dirent.h>
 #include <fcntl.h>
-//#include <stdio.h> // -- @NOTE Remove stdio.h
+//#include <stdio.h>
 #include <stdlib.h>
 #include <linux/string.h>
 #include <sys/mman.h>
