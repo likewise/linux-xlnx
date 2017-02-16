@@ -674,9 +674,8 @@ EXPORT_SYMBOL_GPL(XTmrCtr_Reset);
 EXPORT_SYMBOL_GPL(XTmrCtr_SetHandler);
 EXPORT_SYMBOL_GPL(XTmrCtr_SetOptions);
 EXPORT_SYMBOL_GPL(XTmrCtr_SetResetValue);
-EXPORT_SYMBOL_GPL(XTmrCtr_Start);
 EXPORT_SYMBOL_GPL(XTmrCtr_Stop);
-
+EXPORT_SYMBOL_GPL(XTmrCtr_Start);
 
 EXPORT_SYMBOL_GPL(XHdcp22_Cipher_ConfigTable);
 EXPORT_SYMBOL_GPL(XHdcp22_mmult_ConfigTable);

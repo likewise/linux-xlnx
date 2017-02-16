@@ -71,7 +71,7 @@
 
 /***************************** Include Files *********************************/
 
-//#include <stdlib.h> // -- @NOTE Remove stdlib.h
+//#include <stdlib.h>
 #include <linux/string.h>
 #include "xhdcp1x.h"
 #include "xhdcp1x_cipher.h"
@@ -95,6 +95,9 @@
 #define INCLUDE_RX
 #define INCLUDE_TX
 #endif
+
+#define INCLUDE_RX
+#define INCLUDE_TX
 
 /**
  * This defines the version of the software driver
