@@ -92,6 +92,7 @@ static unsigned int xlnk_bufpool_size = XLNK_BUF_POOL_SIZE;
 static void *xlnk_bufpool[XLNK_BUF_POOL_SIZE];
 static void *xlnk_bufpool_alloc_point[XLNK_BUF_POOL_SIZE];
 static xlnk_intptr_type xlnk_userbuf[XLNK_BUF_POOL_SIZE];
+static int xlnk_buf_process[XLNK_BUF_POOL_SIZE];
 static dma_addr_t xlnk_phyaddr[XLNK_BUF_POOL_SIZE];
 static size_t xlnk_buflen[XLNK_BUF_POOL_SIZE];
 static unsigned int xlnk_bufcacheable[XLNK_BUF_POOL_SIZE];
@@ -362,6 +363,21 @@ static int xlnk_buf_find_by_phys_addr(xlnk_intptr_type addr)
 		if (xlnk_bufpool[i] &&
 		    xlnk_phyaddr[i] <= addr &&
 		    xlnk_phyaddr[i] + xlnk_buflen[i] > addr)
+			return i;
+	}
+
+	return 0;
+}
+
+static int xlnk_buf_find_by_user_addr(xlnk_intptr_type addr, int pid)
+{
+	int i;
+
+	for (i = 1; i < xlnk_bufpool_size; i++) {
+		if (xlnk_bufpool[i] &&
+		    xlnk_buf_process[i] == pid &&
+		    xlnk_userbuf[i] <= addr &&
+		    xlnk_userbuf[i] + xlnk_buflen[i] > addr)
 			return i;
 	}
 
@@ -1511,13 +1527,150 @@ static int xlnk_config_ioctl(struct file *filp, unsigned long args)
 	return status;
 }
 
-/* This function provides IO interface to the bridge driver. */
-static long xlnk_ioctl(struct file *filp, unsigned int code,
-			 unsigned long args)
+static int xlnk_memop_ioctl(struct file *filp, unsigned long arg_addr)
 {
+	union xlnk_args args;
+	xlnk_intptr_type p_addr;
 	int status = 0;
+	int buf_id;
+	struct xlnk_dmabuf_reg *cp;
+	int cacheable;
+	void *k_addr;
+	enum dma_data_direction dmadir;
+	xlnk_intptr_type page_id;
+	unsigned int page_offset;
+	struct scatterlist sg;
+	DEFINE_DMA_ATTRS(attrs);
 
+	status = copy_from_user(&args,
+				(void __user *)arg_addr,
+				sizeof(union xlnk_args));
 
+	if (status) {
+		pr_err("Error in copy_from_user.  status = %d\n", status);
+		return status;
+	}
+
+	if (!(args.memop.flags & XLNK_FLAG_MEM_ACQUIRE) &&
+	    !(args.memop.flags & XLNK_FLAG_MEM_RELEASE)) {
+		pr_err("memop lacks acquire or release flag\n");
+		return -EINVAL;
+	}
+
+	if (args.memop.flags & XLNK_FLAG_MEM_ACQUIRE &&
+	    args.memop.flags & XLNK_FLAG_MEM_RELEASE) {
+		pr_err("memop has both acquire and release defined\n");
+		return -EINVAL;
+	}
+
+	spin_lock(&xlnk_buf_lock);
+	buf_id = xlnk_buf_find_by_user_addr(args.memop.virt_addr,
+					    current->pid);
+	if (buf_id > 0) {
+		cacheable = xlnk_bufcacheable[buf_id];
+		k_addr = xlnk_bufpool[buf_id] +
+			(args.memop.virt_addr - xlnk_userbuf[buf_id]);
+		p_addr = xlnk_phyaddr[buf_id] +
+			(args.memop.virt_addr - xlnk_userbuf[buf_id]);
+	} else {
+		struct xlnk_dmabuf_reg *dp;
+
+		list_for_each_entry(dp, &xlnk_dmabuf_list, list) {
+			if (dp->user_vaddr == args.memop.virt_addr) {
+				cp = dp;
+				break;
+			}
+		}
+	}
+	spin_unlock(&xlnk_buf_lock);
+
+	if (buf_id <= 0 && !cp) {
+		pr_err("Error, buffer not found\n");
+		return -EINVAL;
+	}
+
+	dmadir = (enum dma_data_direction)args.memop.dir;
+
+	if (args.memop.flags & XLNK_FLAG_COHERENT || !cacheable) {
+		dma_set_attr(DMA_ATTR_SKIP_CPU_SYNC, &attrs);
+	}
+
+	if (buf_id > 0) {
+		page_id = p_addr >> PAGE_SHIFT;
+		page_offset = p_addr - (page_id << PAGE_SHIFT);
+		sg_init_table(&sg, 1);
+		sg_set_page(&sg,
+			    pfn_to_page(page_id),
+			    args.memop.size,
+			    page_offset);
+		sg_dma_len(&sg) = args.memop.size;
+	}
+
+	if (args.memop.flags & XLNK_FLAG_MEM_ACQUIRE) {
+		if (buf_id > 0) {
+			status = get_dma_ops(xlnk_dev)->map_sg(xlnk_dev,
+							       &sg,
+							       1,
+							       dmadir,
+							       &attrs);
+			if (!status) {
+				pr_err("Failed to map address\n");
+				return -EINVAL;
+			}
+			args.memop.phys_addr = (xlnk_intptr_type)
+				sg_dma_address(&sg);
+			args.memop.token = (xlnk_intptr_type)
+				sg_dma_address(&sg);
+			status = copy_to_user((void __user *)arg_addr,
+					      &args,
+					      sizeof(union xlnk_args));
+			if (status)
+				pr_err("Error in copy_to_user.  status = %d\n",
+				       status);
+		} else {
+			cp->dbuf_attach = dma_buf_attach(cp->dbuf,
+							 xlnk_dev);
+			cp->dbuf_sg_table =
+				dma_buf_map_attachment(cp->dbuf_attach,
+						       dmadir);
+			if (cp->dbuf_sg_table->nents != 1) {
+				pr_err("Non-SG-DMA datamovers require physically contiguous DMABUFs.  DMABUF is not physically contiguous\n");
+				dma_buf_unmap_attachment(cp->dbuf_attach,
+							 cp->dbuf_sg_table,
+							 dmadir);
+				dma_buf_detach(cp->dbuf,
+					       cp->dbuf_attach);
+				return -EINVAL;
+			}
+			args.memop.phys_addr = (xlnk_intptr_type)
+				sg_dma_address(cp->dbuf_sg_table->sgl);
+			args.memop.token = 0;
+		}
+	} else {
+		if (buf_id > 0) {
+			sg_dma_address(&sg) = (dma_addr_t)args.memop.token;
+			sg_dma_len(&sg) = args.memop.size;
+			get_dma_ops(xlnk_dev)->unmap_sg(xlnk_dev,
+							&sg,
+							1,
+							dmadir,
+							&attrs);
+		} else {
+			dma_buf_unmap_attachment(cp->dbuf_attach,
+						 cp->dbuf_sg_table,
+						 dmadir);
+			dma_buf_detach(cp->dbuf, cp->dbuf_attach);
+		}
+	}
+
+	return status;
+}
+
+/* This function provides IO interface to the bridge driver. */
+static long xlnk_ioctl(struct file *filp,
+		       unsigned int code,
+		       unsigned long args)
+{
 	if (_IOC_TYPE(code) != XLNK_IOC_MAGIC)
 		return -ENOTTY;
 	if (_IOC_NR(code) > XLNK_IOC_MAXNR)
@@ -1526,58 +1679,42 @@ static long xlnk_ioctl(struct file *filp, unsigned int code,
 	/* some sanity check */
 	switch (code) {
 	case XLNK_IOCALLOCBUF:
-		status = xlnk_allocbuf_ioctl(filp, code, args);
-		break;
+		return xlnk_allocbuf_ioctl(filp, code, args);
 	case XLNK_IOCFREEBUF:
-		status = xlnk_freebuf_ioctl(filp, code, args);
-		break;
+		return xlnk_freebuf_ioctl(filp, code, args);
 	case XLNK_IOCADDDMABUF:
-		status = xlnk_adddmabuf_ioctl(filp, code, args);
-		break;
+		return xlnk_adddmabuf_ioctl(filp, code, args);
 	case XLNK_IOCCLEARDMABUF:
-		status = xlnk_cleardmabuf_ioctl(filp, code, args);
-		break;
+		return xlnk_cleardmabuf_ioctl(filp, code, args);
 	case XLNK_IOCDMAREQUEST:
-		status = xlnk_dmarequest_ioctl(filp, code, args);
-		break;
+		return xlnk_dmarequest_ioctl(filp, code, args);
 	case XLNK_IOCDMASUBMIT:
-		status = xlnk_dmasubmit_ioctl(filp, code, args);
-		break;
+		return xlnk_dmasubmit_ioctl(filp, code, args);
 	case XLNK_IOCDMAWAIT:
-		status = xlnk_dmawait_ioctl(filp, code, args);
-		break;
+		return xlnk_dmawait_ioctl(filp, code, args);
 	case XLNK_IOCDMARELEASE:
-		status = xlnk_dmarelease_ioctl(filp, code, args);
-		break;
+		return xlnk_dmarelease_ioctl(filp, code, args);
 	case XLNK_IOCDEVREGISTER:
-		status = xlnk_devregister_ioctl(filp, code, args);
-		break;
+		return xlnk_devregister_ioctl(filp, code, args);
 	case XLNK_IOCDMAREGISTER:
-		status = xlnk_dmaregister_ioctl(filp, code, args);
-		break;
+		return xlnk_dmaregister_ioctl(filp, code, args);
 	case XLNK_IOCMCDMAREGISTER:
-		status = xlnk_mcdmaregister_ioctl(filp, code, args);
-		break;
+		return xlnk_mcdmaregister_ioctl(filp, code, args);
 	case XLNK_IOCDEVUNREGISTER:
-		status = xlnk_devunregister_ioctl(filp, code, args);
-		break;
+		return xlnk_devunregister_ioctl(filp, code, args);
 	case XLNK_IOCCACHECTRL:
-		status = xlnk_cachecontrol_ioctl(filp, code, args);
-		break;
+		return xlnk_cachecontrol_ioctl(filp, code, args);
 	case XLNK_IOCSHUTDOWN:
-		status = xlnk_shutdown(args);
-		break;
-	case XLNK_IOCRECRES: /* recover resource */
-		status = xlnk_recover_resource(args);
-		break;
+		return xlnk_shutdown(args);
+	case XLNK_IOCRECRES:
+		return xlnk_recover_resource(args);
 	case XLNK_IOCCONFIG:
-		status = xlnk_config_ioctl(filp, args);
-		break;
+		return xlnk_config_ioctl(filp, args);
+	case XLNK_IOCMEMOP:
+		return xlnk_memop_ioctl(filp, args);
 	default:
-		status = -EINVAL;
+		return -EINVAL;
 	}
-
-	return status;
 }
 
 static struct vm_operations_struct xlnk_vm_ops = {
@@ -1625,8 +1762,9 @@ static int xlnk_mmap(struct file *filp, struct vm_area_struct *vma)
 						 >> PAGE_SHIFT,
 						 vma->vm_end - vma->vm_start,
 						 vma->vm_page_prot);
+			xlnk_userbuf[bufid] = vma->vm_start;
+			xlnk_buf_process[bufid] = current->pid;
 		}
-
 	}
 	if (status) {
 		pr_err("xlnk_mmap failed with code %d\n", EAGAIN);

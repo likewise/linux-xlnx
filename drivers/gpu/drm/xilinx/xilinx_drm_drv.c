@@ -194,7 +194,21 @@ static void xilinx_drm_mode_config_init(struct drm_device *drm)
 
 	drm->mode_config.max_width =
 		xilinx_drm_crtc_get_max_width(private->crtc);
-	drm->mode_config.max_height = 4096;
+		
+	drm->mode_config.max_height =
+		xilinx_drm_crtc_get_max_height(private->crtc);
+
+	if (drm->mode_config.max_height <= 0)
+		drm->mode_config.max_height = 4096;
+
+	if (drm->mode_config.max_width <= 0)
+		drm->mode_config.max_width = 4096;
+
+	drm->mode_config.cursor_width =
+		xilinx_drm_crtc_get_max_cursor_width(private->crtc);
+
+	drm->mode_config.cursor_height =
+		xilinx_drm_crtc_get_max_cursor_height(private->crtc);
 
 	drm->mode_config.funcs = &xilinx_drm_mode_config_funcs;
 }
@@ -312,6 +326,7 @@ static int xilinx_drm_load(struct drm_device *drm, unsigned long flags)
 		i++;
 	}
 
+
 	if (i == 0) {
 		DRM_ERROR("failed to get an encoder slave node\n");
 		return -ENODEV;
@@ -335,8 +350,10 @@ static int xilinx_drm_load(struct drm_device *drm, unsigned long flags)
 	/* initialize xilinx framebuffer */
 	bpp = xilinx_drm_format_bpp(xilinx_drm_crtc_get_format(private->crtc));
 	align = xilinx_drm_crtc_get_align(private->crtc);
+
 	private->fb = xilinx_drm_fb_init(drm, bpp, 1, 1, align,
 					 xilinx_drm_fbdev_vres);
+
 	if (IS_ERR(private->fb)) {
 		DRM_ERROR("failed to initialize drm cma fb\n");
 		ret = PTR_ERR(private->fb);
@@ -416,7 +433,8 @@ static void xilinx_drm_lastclose(struct drm_device *drm)
 	xilinx_drm_fb_restore_mode(private->fb);
 }
 
-static int xilinx_drm_set_busid(struct drm_device *dev, struct drm_master *master)
+static int
+xilinx_drm_set_busid(struct drm_device *dev, struct drm_master *master)
 {
 	return 0;
 }
@@ -473,7 +491,7 @@ static struct drm_driver xilinx_drm_driver = {
 	.minor				= DRIVER_MINOR,
 };
 
-#if defined(CONFIG_PM_SLEEP)
+#if defined(CONFIG_PM_SLEEP) || defined(CONFIG_PM_RUNTIME)
 /* suspend xilinx drm */
 static int xilinx_drm_pm_suspend(struct device *dev)
 {
@@ -522,6 +540,7 @@ static int xilinx_drm_pm_resume(struct device *dev)
 
 static const struct dev_pm_ops xilinx_drm_pm_ops = {
 	SET_SYSTEM_SLEEP_PM_OPS(xilinx_drm_pm_suspend, xilinx_drm_pm_resume)
+	SET_RUNTIME_PM_OPS(xilinx_drm_pm_suspend, xilinx_drm_pm_resume, NULL)
 };
 
 /* init xilinx drm platform */

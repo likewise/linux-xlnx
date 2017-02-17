@@ -1,0 +1,64 @@
+Xilinx HLS Video Demosaic IP
+------------------------------------------------
+The Xilinx HLS Video Demosaic IP is used to interface to a Bayer source.
+It can convert 8-bit Bayer formats to 24 bit RGB format. Currently, the 
+driver supports only the following configurations :
+	- 8 bit, High Quality Interpolation
+	- No zipper
+All other configurations are not supported. Has been tested with kernel 4.6
+and 1PPC designs.
+
+The driver does not look at individual GPIO resets from the device tree.
+It will be updated in a future update to this driver.
+
+Required properties:
+
+- compatible: Must be "xlnx,v-demosaic-v1.0".
+
+- reg: Physical base address and length of the registers set for the device.
+
+- clocks: Reference to the video core clock.
+ 
+- ports: Video ports, using the DT bindings defined in ../video-interfaces.txt.
+  The scaler has an input port (0) and an output port (1).
+
+
+Required port properties:
+
+- xlnx,video-format: Must be one of RBG, YUV_422, YUV_422 or YUV_420 for
+  both input port (0) and output port (1).
+
+- xlnx,video-width: Video width as defined in video.txt
+
+
+Example :
+
+demosaic_1: demosaic@0xA00B0000 {
+		compatible = "xlnx,v-demosaic-v1.0";
+		reg = <0x0 0xa00b0000 0x0 0x10000>;
+		clocks = <&vid_stream_clk>;
+		ports {
+			#address-cells = <1>;
+			#size-cells = <0>;
+
+			port@0 {
+				reg = <0>;
+				xlnx,video-format = <XVIP_VF_MONO_SENSOR>;
+				xlnx,video-width = <8>;
+				
+				demosaic_in: endpoint {
+					remote-endpoint = <&tpg_out>;
+				};
+			};
+
+			port@1 {
+				reg = <1>;
+				xlnx,video-format = <XVIP_VF_RBG>;
+				xlnx,video-width = <8>;
+
+				demosaic_out: endpoint {
+					remote-endpoint = <&gamma_in>;
+				};
+			};
+		};
+	};
