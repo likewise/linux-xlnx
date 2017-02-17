@@ -446,6 +446,7 @@ static void TxConnectCallback(void *CallbackRef)
 		XVphy_IBufDsEnable(VphyPtr, 0, XVPHY_DIR_TX, (FALSE));
 	}
 	xvphy_mutex_unlock(hdmi->phy[0]);
+	drm_helper_hpd_irq_event(hdmi->drm_dev);
 #if 0
 	drm_helper_hpd_irq_event(hdmi->drm_dev);
 #endif
