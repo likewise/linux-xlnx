@@ -316,6 +316,7 @@ static void TxConnectCallback(void *CallbackRef)
 		XVphy_IBufDsEnable(VphyPtr, 0, XVPHY_DIR_TX, (FALSE));
 	}
 	xvphy_mutex_unlock(hdmi->phy[0]);
+	drm_helper_hpd_irq_event(hdmi->drm_dev);
 #if 0
 	if (hdmi->drm_dev) {
 		/* release the mutex so that our drm ops can re-acquire it */
@@ -769,7 +770,16 @@ static enum drm_connector_status
 xilinx_drm_hdmi_detect(struct drm_encoder *encoder,
 		     struct drm_connector *connector)
 {
+	/* it takes HDMI 50 ms to detect connection on init */
+	static int first_time_ms = 50;
 	struct xilinx_drm_hdmi *hdmi = to_hdmi(encoder);
+	/* first time; wait 50 ms max until cable connected */
+	while (first_time_ms && !hdmi->cable_connected) {
+		msleep(1);
+		first_time_ms--;
+	}
+	/* after first time, report immediately */
+	first_time_ms = 0;
 	mutex_lock(&hdmi->hdmi_mutex);
 	/* cable connected  */
 	if (hdmi->cable_connected) {
