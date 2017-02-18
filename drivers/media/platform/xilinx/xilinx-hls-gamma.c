@@ -8,7 +8,9 @@
  * published by the Free Software Foundation.
  */
 
+#include <linux/delay.h>
 #include <linux/device.h>
+#include <linux/gpio/consumer.h>
 #include <linux/module.h>
 #include <linux/of.h>
 #include <linux/platform_device.h>
@@ -47,6 +49,8 @@ struct xgamma_dev {
 	const uint8_t *green_lut;
 	const uint8_t *blue_lut;
 	bool  probe_done;
+
+	struct gpio_desc *rst_gpio;
 };
 
 static inline u32 xg_read(struct xgamma_dev *xg, u32 reg)
@@ -125,7 +129,11 @@ static int xg_s_stream(struct v4l2_subdev *subdev, int enable)
 
 	if (!enable) {
 		dev_info(xg->xvip.dev, "%s : Off", __func__);
-		xg_write(xg, XGAMMA_AP_CTRL, 0);
+		/* Reset the Global IP Reset through PS GPIO */
+		gpiod_set_value_cansleep(xg->rst_gpio, 0x1);
+		udelay(100);
+		gpiod_set_value_cansleep(xg->rst_gpio, 0x0);
+		udelay(100);
 		return 0;
 	}
 	dev_info(xg->xvip.dev, "%s : Started", __func__);
@@ -366,6 +374,13 @@ static int xg_parse_of(struct xgamma_dev *xg)
 			xg->vip_formats[port_id] = vip_format;
 		}
 	}
+
+	/* Reset GPIO */
+	xg->rst_gpio = devm_gpiod_get(dev, "reset", GPIOD_OUT_HIGH);
+	if (IS_ERR(xg->rst_gpio)) {
+		dev_err(dev, "Reset GPIO not setup in DT");
+		return PTR_ERR(xg->rst_gpio);
+	}
 	return 0;
 }
 
@@ -384,6 +399,12 @@ static int xg_probe(struct platform_device *pdev)
 	rval = xg_parse_of(xg);
 	if (rval < 0)
 		return rval;
+
+	/* Reset and initialize the core */
+	dev_info(xg->xvip.dev, "Reset Gamma\n");
+	/* Reset the Global IP Reset through a PS GPIO */
+	gpiod_set_value_cansleep(xg->rst_gpio, 0x0);
+	udelay(100);
 	rval = xvip_init_resources(&xg->xvip);
 
 	/* Init V4L2 subdev */

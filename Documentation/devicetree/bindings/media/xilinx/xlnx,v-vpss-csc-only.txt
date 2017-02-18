@@ -4,6 +4,9 @@ The Xilinx VPSS Color Space Converter (CSC) is a Video IP that currently support
 color space conversion from RGB input to RGB or YUV 444 output. No other input or
 output formats are supported.
 
+It does not support the Demo Window option of the IP and it does not support YUV 422
+as an output/input color space format.
+
 The V4L2 subdevice driver exposes a control interface to manipulate user controls
 like brightness, saturation, contrast, red gain, blue gain and green gain. Currently,
 only BT 709 standard is supported on the output side.
@@ -15,6 +18,9 @@ Required properties:
 - reg: Physical base address and length of the registers set for the device.
 
 - clocks: Reference to the video core clock.
+
+- reset-gpios: Specifier for a GPIO that asserts for VPSS CSC Only  reset.
+  This property is mandatory for the VPSS IP with CSC Only mode setting.
 
 - ports: Video ports, using the DT bindings defined in ../video-interfaces.txt.
   The scaler has an input port (0) and an output port (1).

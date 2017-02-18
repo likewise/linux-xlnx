@@ -18,6 +18,9 @@ Required properties:
 - reg: Physical base address and length of the registers set for the device.
 
 - clocks: Reference to the video core clock.
+
+- reset-gpios: Specifier for a GPIO that asserts for Video Demosaic reset.
+  This property is mandatory for the Demosaic.
  
 - ports: Video ports, using the DT bindings defined in ../video-interfaces.txt.
   The scaler has an input port (0) and an output port (1).
@@ -25,8 +28,8 @@ Required properties:
 
 Required port properties:
 
-- xlnx,video-format: Must be one of RBG, YUV_422, YUV_422 or YUV_420 for
-  both input port (0) and output port (1).
+- xlnx,video-format: Must be one of the supported Bayer formats for 
+  the input port (0) and RBG for the output port (1).
 
 - xlnx,video-width: Video width as defined in video.txt
 
@@ -37,6 +40,7 @@ demosaic_1: demosaic@0xA00B0000 {
 		compatible = "xlnx,v-demosaic-v1.0";
 		reg = <0x0 0xa00b0000 0x0 0x10000>;
 		clocks = <&vid_stream_clk>;
+		reset-gpios = <&gpio 80 1>
 		ports {
 			#address-cells = <1>;
 			#size-cells = <0>;

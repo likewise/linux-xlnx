@@ -29,6 +29,9 @@ Required properties:
 
 - clocks: Reference to the video core clock.
  
+- reset-gpios: Specifier for a GPIO that asserts for Video Gamma Correction IP reset.
+  This property is mandatory for the Gamma IP.
+
 - ports: Video ports, using the DT bindings defined in ../video-interfaces.txt.
   The scaler has an input port (0) and an output port (1).
 
@@ -47,6 +50,7 @@ Example :
 		compatible = "xlnx,v-gamma-lut-v1.0";
 		reg = <0x0 0xa0080000 0x0 0x10000>;
 		clocks = <&vid_stream_clk>;
+		reset-gpios = <&gpio 81 1>
 		ports {
 			#address-cells = <1>;
 			#size-cells = <0>;

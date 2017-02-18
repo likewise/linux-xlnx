@@ -18,6 +18,7 @@
  * GNU General Public License for more details.
  */
 
+#include <linux/delay.h>
 #include <linux/device.h>
 #include <linux/fixp-arith.h>
 #include <linux/gpio/consumer.h>
@@ -28,7 +29,6 @@
 
 #include <media/v4l2-async.h>
 #include <media/v4l2-subdev.h>
-#include <linux/delay.h>
 #include "xilinx-vip.h"
 #include "xilinx-hscaler-hw.h"
 #include "xilinx-vscaler-hw.h"

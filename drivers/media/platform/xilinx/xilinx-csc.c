@@ -8,7 +8,9 @@
  * published by the Free Software Foundation.
  */
 
+#include <linux/delay.h>
 #include <linux/device.h>
+#include <linux/gpio/consumer.h>
 #include <linux/module.h>
 #include <linux/of.h>
 #include <linux/platform_device.h>
@@ -70,6 +72,8 @@ struct xcsc_dev {
 	s32 blue_gain_active;
 	s32 k_hw[3][4];
 	bool probe_done;
+
+	struct gpio_desc *rst_gpio;
 };
 
 static u32 xcsc_read(struct xcsc_dev *xcsc, u32 reg)
@@ -455,7 +459,11 @@ static int xcsc_s_stream(struct v4l2_subdev *subdev, int enable)
 
 	if (!enable) {
 		dev_info(xcsc->xvip.dev, "%s : Off", __func__);
-		xcsc_write(xcsc, XV_CSC_AP_CTRL, 0x0);
+		/* Reset the Global IP Reset through PS GPIO */
+		gpiod_set_value_cansleep(xcsc->rst_gpio, 0x1);
+		udelay(100);
+		gpiod_set_value_cansleep(xcsc->rst_gpio, 0x0);
+		udelay(100);
 		return 0;
 	}
 	xcsc_set_coeff(xcsc);
@@ -720,6 +728,12 @@ static int xcsc_parse_of(struct xcsc_dev *xcsc)
 			xcsc->vip_formats[port_id] = vip_format;
 		}
 	}
+	/* Reset GPIO */
+	xcsc->rst_gpio = devm_gpiod_get(dev, "reset", GPIOD_OUT_HIGH);
+	if (IS_ERR(xcsc->rst_gpio)) {
+		dev_err(dev, "Reset GPIO not setup in DT");
+		return PTR_ERR(xcsc->rst_gpio);
+	}
 	return 0;
 }
 
@@ -741,7 +755,14 @@ static int xcsc_probe(struct platform_device *pdev)
 	if (rval < 0)
 		return rval;
 
+	/* Reset and initialize the core */
+	dev_info(xcsc->xvip.dev, "Reset VPSS CSC Only\n");
+	/* Reset the Global IP Reset through a PS GPIO */
+	gpiod_set_value_cansleep(xcsc->rst_gpio, 0x0);
+	udelay(100);
+
 	rval = xvip_init_resources(&xcsc->xvip);
+
 	if (rval < 0)
 		return rval;
 
