@@ -687,7 +687,13 @@ XVidC_3DInfo *Info3D)
     XV_HdmiTx_SetColorDepth(InstancePtr);
 
     /* Calculate reference clock. First calculate the pixel clock */
-    TmdsClock = XVidC_GetPixelClockHzByVmId(InstancePtr->Stream.Video.VmId);
+    if (InstancePtr->Stream.Video.VmId != XVIDC_VM_CUSTOM) {
+      TmdsClock = XVidC_GetPixelClockHzByVmId(InstancePtr->Stream.Video.VmId);
+    } else {
+      TmdsClock = XVidC_GetPixelClockHzByHVFr(InstancePtr->Stream.Video.Timing.HTotal,
+                                              InstancePtr->Stream.Video.Timing.F0PVTotal,
+                                              InstancePtr->Stream.Video.FrameRate);
+    }
 
     /* Store the pixel clock in the structure */
     InstancePtr->Stream.PixelClk = TmdsClock;

@@ -749,14 +749,20 @@ u32 XVidC_SetVideoStream(XVidC_VideoStream *VidStrmPtr, XVidC_VideoMode VmId,
 			  (Ppc == XVIDC_PPC_4));
 
 	/* Get the timing from the video timing table. */
-	TimingPtr = XVidC_GetTimingInfo(VmId);
-	if (!TimingPtr) {
+	if (VmId != XVIDC_VM_CUSTOM) {
+	  TimingPtr = XVidC_GetTimingInfo(VmId);
+	  if (!TimingPtr) {
 		return XST_FAILURE;
+	  }
+
+	  VidStrmPtr->Timing		= *TimingPtr;
+	  VidStrmPtr->FrameRate		= XVidC_GetFrameRate(VmId);
+	  VidStrmPtr->IsInterlaced	= XVidC_IsInterlaced(VmId);
+	  
+	} else { //Custom Timing - use as-is
+	  VidStrmPtr->IsInterlaced	= FALSE;
 	}
 	VidStrmPtr->VmId		= VmId;
-	VidStrmPtr->Timing		= *TimingPtr;
-	VidStrmPtr->FrameRate		= XVidC_GetFrameRate(VmId);
-	VidStrmPtr->IsInterlaced	= XVidC_IsInterlaced(VmId);
 	VidStrmPtr->ColorFormatId	= ColorFormat;
 	VidStrmPtr->ColorDepth		= Bpc;
 	VidStrmPtr->PixPerClk		= Ppc;
