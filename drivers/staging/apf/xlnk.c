@@ -130,7 +130,7 @@ static const struct file_operations xlnk_fops = {
 	.mmap = xlnk_mmap,
 };
 
-#define MAX_XLNK_DMAS 16
+#define MAX_XLNK_DMAS 64
 
 struct xlnk_device_pack {
 	char name[64];
