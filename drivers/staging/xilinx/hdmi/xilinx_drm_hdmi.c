@@ -883,14 +883,16 @@ static void xilinx_drm_hdmi_mode_set(struct drm_encoder *encoder,
 	vt.HSyncPolarity = !!(mode->flags & DRM_MODE_FLAG_PHSYNC);
 
 	vt.VActive = mode->vdisplay;
+	/* Progressive timing data is stored in field 0 */
 	vt.F0PVFrontPorch = mode->vsync_start - mode->vdisplay;
 	vt.F0PVSyncWidth = mode->vsync_end - mode->vsync_start;
 	vt.F0PVBackPorch = mode->vtotal - mode->vsync_end;
 	vt.F0PVTotal = mode->vtotal;
-	vt.F1VFrontPorch = mode->vsync_start - mode->vdisplay;
-	vt.F1VSyncWidth = mode->vsync_end - mode->vsync_start;
-	vt.F1VBackPorch = mode->vtotal - mode->vsync_end;
-	vt.F1VTotal = mode->vtotal;
+	/* Interlaced output is not support - set field 1 to 0 */
+	vt.F1VFrontPorch = 0;
+	vt.F1VSyncWidth = 0;
+	vt.F1VBackPorch = 0;
+	vt.F1VTotal = 0;
 	vt.VSyncPolarity = !!(mode->flags & DRM_MODE_FLAG_PVSYNC);
 
 	HdmiTxSsVidStreamPtr = XV_HdmiTxSs_GetVideoStream(HdmiTxSsPtr);
