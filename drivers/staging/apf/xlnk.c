@@ -1799,9 +1799,11 @@ static int xlnk_shutdown(unsigned long buf)
 
 static int xlnk_recover_resource(unsigned long buf)
 {
+#if 0
 	xlnk_free_all_buf();
 #ifdef CONFIG_XILINX_DMA_APF
 	xdma_release_all_channels();
+#endif
 #endif
 	return 0;
 }
