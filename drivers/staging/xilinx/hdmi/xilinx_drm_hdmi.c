@@ -852,6 +852,10 @@ static void xilinx_drm_hdmi_mode_set(struct drm_encoder *encoder,
 
 	drm_mode_debug_printmodeline(mode);
 
+	/* Disable VPhy Clock buffer to force a frequency change event */
+	hdmi_dbg("VPhy Clock Buffer - Disabled\n");
+	XVphy_IBufDsEnable(VphyPtr, 0, XVPHY_DIR_TX, 0);
+	
 #ifdef DEBUG
 	hdmi_dbg("mode->clock = %d\n", mode->clock * 1000);
 	hdmi_dbg("mode->crtc_clock = %d\n", mode->crtc_clock * 1000);
@@ -942,6 +946,10 @@ static void xilinx_drm_hdmi_mode_set(struct drm_encoder *encoder,
 		return;
 	}
 
+	/* Enable VPhy Clock buffer - Reacquire Tx Ref Clock and triggers frequency change */
+	hdmi_dbg("VPhy Clock Buffer - Enabled\n");
+	XVphy_IBufDsEnable(VphyPtr, 0, XVPHY_DIR_TX, 1);
+	
 	adjusted_mode->clock = VphyPtr->HdmiTxRefClkHz / 1000;
 	hdmi_dbg("adjusted_mode->clock = %u Hz\n", adjusted_mode->clock);
 
