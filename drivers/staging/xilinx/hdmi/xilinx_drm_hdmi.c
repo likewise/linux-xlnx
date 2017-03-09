@@ -46,6 +46,17 @@
 
 #include "linux/phy/phy-vphy.h"
 
+//#define USE_HDCP 1
+
+#if (defined(USE_HDCP) && USE_HDCP) /* WIP HDCP */
+#include "phy-xilinx-vphy/bigdigits.h"
+#include "phy-xilinx-vphy/xhdcp22_cipher.h"
+#include "phy-xilinx-vphy/xhdcp22_mmult.h"
+#include "phy-xilinx-vphy/xhdcp22_rng.h"
+#include "phy-xilinx-vphy/xhdcp22_common.h"
+#include "phy-xilinx-vphy/xtmrctr.h"
+#endif
+
 /* baseline driver includes */
 #include "xilinx-hdmi-tx/xv_hdmitxss.h"
 #include "xilinx-hdmi-tx/xil_printf.h"
@@ -1090,9 +1101,9 @@ XV_axi4s_remap_Config* XV_axi4s_remap_LookupConfig_TX(u16 DeviceId) {
 	return NULL;
 }
 
-#ifdef USE_HDCP /* WIP HDCP */
+#if (defined(USE_HDCP) && USE_HDCP) /* WIP HDCP */
 extern XHdcp22_Cipher_Config XHdcp22_Cipher_ConfigTable[];
-//extern XHdcp22_mmult_Config XHdcp22_mmult_ConfigTable[];
+extern XHdcp22_mmult_Config XHdcp22_mmult_ConfigTable[];
 extern XHdcp22_Rng_Config XHdcp22_Rng_ConfigTable[];
 #endif
 
@@ -1150,11 +1161,11 @@ static int xilinx_drm_hdmi_parse_of(struct xilinx_drm_hdmi *hdmi, XV_HdmiTxSs_Co
 		goto error_dt;
 	}
 
-#ifdef USE_HDCP /* WIP HDCP */
+#if (defined(USE_HDCP) && USE_HDCP) /* WIP HDCP */
 	XHdcp22_Cipher_ConfigTable[1].DeviceId = 0;
 	XHdcp22_Cipher_ConfigTable[1].BaseAddress = 0;
-	//XHdcp22_mmult_ConfigTable[0].DeviceId = 0;
-	//XHdcp22_mmult_ConfigTable[0].BaseAddress = 0;
+	XHdcp22_mmult_ConfigTable[0].DeviceId = 0;
+	XHdcp22_mmult_ConfigTable[0].BaseAddress = 0;
 	XHdcp22_Rng_ConfigTable[0].DeviceId = 0;
 	XHdcp22_Rng_ConfigTable[0].BaseAddress = 0;
 #endif
