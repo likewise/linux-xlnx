@@ -920,62 +920,42 @@ static void VphyHdmiRxReadyCallback(void *CallbackRef)
 
 #define XPAR_HDMI_INPUT_V_HDMI_RX_SS_0_V_HDMI_RX_PRESENT         1
 
-#define XPAR_HDMI_INPUT_V_HDMI_RX_SS_0_AXI_GPIO_0_PRESENT 0
-#define XPAR_HDMI_INPUT_V_HDMI_RX_SS_0_AXI_GPIO_0_DEVICE_ID 255
-#define XPAR_HDMI_INPUT_V_HDMI_RX_SS_0_AXI_GPIO_0_BASEADDR 0
-
-#define XPAR_HDMI_INPUT_V_HDMI_RX_SS_0_AXI_TIMER_0_PRESENT 0
-#define XPAR_HDMI_INPUT_V_HDMI_RX_SS_0_AXI_TIMER_0_DEVICE_ID 255
-#define XPAR_HDMI_INPUT_V_HDMI_RX_SS_0_AXI_TIMER_0_BASEADDR 0
-
-#define XPAR_HDMI_INPUT_V_HDMI_RX_SS_0_HDCP_0_PRESENT 0
-#define XPAR_HDMI_INPUT_V_HDMI_RX_SS_0_HDCP_0_DEVICE_ID 255
-#define XPAR_HDMI_INPUT_V_HDMI_RX_SS_0_HDCP_0_BASEADDR 0
-
-#define XPAR_HDMI_INPUT_V_HDMI_RX_SS_0_HDCP22_RX_0_PRESENT 0
-#define XPAR_HDMI_INPUT_V_HDMI_RX_SS_0_HDCP22_RX_0_DEVICE_ID 255
-#define XPAR_HDMI_INPUT_V_HDMI_RX_SS_0_HDCP22_RX_0_BASEADDR 0
-
-#define XPAR_HDMI_INPUT_V_HDMI_RX_SS_0_V_AXI4S_REMAP_0_PRESENT 0
-#define XPAR_HDMI_INPUT_V_HDMI_RX_SS_0_V_AXI4S_REMAP_0_DEVICE_ID 255
-#define XPAR_HDMI_INPUT_V_HDMI_RX_SS_0_V_AXI4S_REMAP_0_BASEADDR 0
-
 static XV_HdmiRxSs_Config config = {
-	.DeviceId = XPAR_HDMI_INPUT_V_HDMI_RX_SS_0_DEVICE_ID,
-	.BaseAddress = XPAR_HDMI_INPUT_V_HDMI_RX_SS_0_BASEADDR,
-	.HighAddress = XPAR_HDMI_INPUT_V_HDMI_RX_SS_0_HIGHADDR,
-	.Ppc = XPAR_HDMI_INPUT_V_HDMI_RX_SS_0_INPUT_PIXELS_PER_CLOCK,
-	.MaxBitsPerPixel = XPAR_HDMI_INPUT_V_HDMI_RX_SS_0_MAX_BITS_PER_COMPONENT,
+	.DeviceId = 0,
+	.BaseAddress = 0,
+	.HighAddress = 0,
+	.Ppc = 2,
+	.MaxBitsPerPixel = 8,
 
 	.RemapperReset = {
-		.IsPresent = XPAR_HDMI_INPUT_V_HDMI_RX_SS_0_AXI_GPIO_0_PRESENT,
-		.DeviceId = XPAR_HDMI_INPUT_V_HDMI_RX_SS_0_AXI_GPIO_0_DEVICE_ID,
-		.AddrOffset = XPAR_HDMI_INPUT_V_HDMI_RX_SS_0_AXI_GPIO_0_BASEADDR
+		.IsPresent = 0,
+		.DeviceId = 255,
+		.AddrOffset = 0
 	},
 	.HdcpTimer = {
-		.IsPresent = XPAR_HDMI_INPUT_V_HDMI_RX_SS_0_AXI_TIMER_0_PRESENT,
-		.DeviceId = XPAR_HDMI_INPUT_V_HDMI_RX_SS_0_AXI_TIMER_0_DEVICE_ID,
-		.AddrOffset = XPAR_HDMI_INPUT_V_HDMI_RX_SS_0_AXI_TIMER_0_BASEADDR
+		.IsPresent = 0,
+		.DeviceId = 255,
+		.AddrOffset = 0
 	},
 	.Hdcp14 = {
-		.IsPresent = XPAR_HDMI_INPUT_V_HDMI_RX_SS_0_HDCP_0_PRESENT,
-		.DeviceId = XPAR_HDMI_INPUT_V_HDMI_RX_SS_0_HDCP_0_DEVICE_ID,
-		.AddrOffset = XPAR_HDMI_INPUT_V_HDMI_RX_SS_0_HDCP_0_BASEADDR
+		.IsPresent = 0,
+		.DeviceId = 255,
+		.AddrOffset = 0
 	},
 	.Hdcp22 = {
-		.IsPresent = XPAR_HDMI_INPUT_V_HDMI_RX_SS_0_HDCP22_RX_0_PRESENT,
-		.DeviceId  = XPAR_HDMI_INPUT_V_HDMI_RX_SS_0_HDCP22_RX_0_DEVICE_ID,
-		.AddrOffset = XPAR_HDMI_INPUT_V_HDMI_RX_SS_0_HDCP22_RX_0_BASEADDR
+		.IsPresent = 0,
+		.DeviceId  = 255,
+		.AddrOffset = 0
 	},
 	.Remapper = {
-		.IsPresent = XPAR_HDMI_INPUT_V_HDMI_RX_SS_0_V_AXI4S_REMAP_0_PRESENT,
-		.DeviceId = XPAR_HDMI_INPUT_V_HDMI_RX_SS_0_V_AXI4S_REMAP_0_DEVICE_ID,
-		.AddrOffset = XPAR_HDMI_INPUT_V_HDMI_RX_SS_0_V_AXI4S_REMAP_0_BASEADDR
+		.IsPresent = 0,
+		.DeviceId = 255,
+		.AddrOffset = 0
 	},
 	.HdmiRx = {
-		.IsPresent = XPAR_HDMI_INPUT_V_HDMI_RX_SS_0_V_HDMI_RX_PRESENT,
-		.DeviceId = XPAR_HDMI_INPUT_V_HDMI_RX_SS_0_V_HDMI_RX_DEVICE_ID,
-		.AddrOffset = XPAR_HDMI_INPUT_V_HDMI_RX_SS_0_V_HDMI_RX_BASEADDR
+		.IsPresent = 1,
+		.DeviceId = 0,
+		.AddrOffset = 0
 	}
 };
 
@@ -991,6 +971,7 @@ static XGpio_Config XGpio_FixedConfig = {
 #endif
 };
 XGpio_Config *XGpio_LookupConfig_RX(u16 DeviceId) {
+	BUG_ON(1);
 	return (XGpio_Config *)&XGpio_FixedConfig;
 }
 XV_axi4s_remap_Config* XV_axi4s_remap_LookupConfig_RX(u16 DeviceId) {
@@ -1000,8 +981,8 @@ XV_axi4s_remap_Config* XV_axi4s_remap_LookupConfig_RX(u16 DeviceId) {
 
 static XV_HdmiRx_Config XV_HdmiRx_FixedConfig =
 {
-	XPAR_HDMI_INPUT_V_HDMI_RX_SS_0_V_HDMI_RX_DEVICE_ID,
-	XPAR_HDMI_INPUT_V_HDMI_RX_SS_0_V_HDMI_RX_BASEADDR
+	0,
+	0
 };
 XV_HdmiRx_Config *XV_HdmiRx_LookupConfig(u16 DeviceId)
 {
