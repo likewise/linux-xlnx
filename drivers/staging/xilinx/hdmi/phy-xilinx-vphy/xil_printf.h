@@ -11,7 +11,7 @@ extern "C" {
 #include <stdarg.h>
 #endif
 #include "xil_types.h"
-#include "xparameters.h"
+
 
 /*----------------------------------------------------*/
 /* Use the following parameter passing structure to   */

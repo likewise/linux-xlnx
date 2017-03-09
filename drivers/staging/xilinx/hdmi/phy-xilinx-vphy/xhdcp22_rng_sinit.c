@@ -37,7 +37,7 @@
 
 /***************************** Include Files *********************************/
 #include "xhdcp22_rng.h"
-#include "xparameters.h"
+
 
 /************************** Constant Definitions *****************************/
 #ifndef XPAR_XHDCP22_RNG_NUM_INSTANCES
