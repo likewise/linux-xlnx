@@ -59,14 +59,24 @@
 #include "phy-xilinx-vphy/xv_axi4s_remap_hw.h"
 
 /* either comment-out, or define as 1. Adapt Makefile also, see HDCP section */
-//#define USE_HDCP 1
+#define USE_HDCP
 
-#if (defined(USE_HDCP) && USE_HDCP) /* WIP HDCP */
+#ifdef USE_HDCP /* WIP HDCP */
+
+#ifdef XPAR_XHDCP_NUM_INSTANCES
+#include "xtmrctr.h"
+#include "xhdcp1x.h"
+#endif
+#ifdef XPAR_XHDCP22_TX_NUM_INSTANCES
+#include "xhdcp22_tx.h"
+#endif
+
 #include "phy-xilinx-vphy/bigdigits.h"
 #include "phy-xilinx-vphy/xhdcp22_cipher.h"
 #include "phy-xilinx-vphy/xhdcp22_mmult.h"
 #include "phy-xilinx-vphy/xhdcp22_rng.h"
 #include "phy-xilinx-vphy/xhdcp22_common.h"
+#include "phy-xilinx-vphy/xhdcp22_rx.h"
 #include "phy-xilinx-vphy/xtmrctr.h"
 #endif
 
@@ -415,7 +425,7 @@ error_dt:
 	return -EINVAL;
 }
 
-#if (defined(USE_HDCP) && USE_HDCP) /* WIP HDCP */
+#ifdef USE_HDCP /* WIP HDCP */
 extern XHdcp22_Cipher_Config XHdcp22_Cipher_ConfigTable[];
 extern XHdcp22_mmult_Config XHdcp22_mmult_ConfigTable[];
 extern XHdcp22_Rng_Config XHdcp22_Rng_ConfigTable[];
@@ -606,6 +616,13 @@ MODULE_LICENSE("GPL");
 MODULE_AUTHOR("Leon Woestenberg <leon@sidebranch.com>");
 MODULE_DESCRIPTION("Xilinx Vphy driver");
 
+XHdcp1x_Config XHdcp1x_ConfigTable[4];
+XHdcp22_Cipher_Config XHdcp22_Cipher_ConfigTable[4];
+XHdcp22_mmult_Config XHdcp22_mmult_ConfigTable[4];
+XHdcp22_Rng_Config XHdcp22_Rng_ConfigTable[4];
+XHdcp22_Rx_Config XHdcp22_Rx_ConfigTable[4];
+XHdcp22_Tx_Config XHdcp22_Tx_ConfigTable[4];
+
 /* common functionality shared between RX and TX */
 EXPORT_SYMBOL_GPL(XVidC_ReportTiming);
 EXPORT_SYMBOL_GPL(XVidC_SetVideoStream);
@@ -631,7 +648,7 @@ EXPORT_SYMBOL_GPL(XV_axi4s_remap_EnableAutoRestart);
 EXPORT_SYMBOL_GPL(XV_axi4s_remap_Set_outPixClk);
 EXPORT_SYMBOL_GPL(XV_axi4s_remap_Set_outHDMI420);
 
-#if (defined(USE_HDCP) && USE_HDCP) /* WIP HDCP */
+#ifdef USE_HDCP
 EXPORT_SYMBOL_GPL(mpAdd);
 EXPORT_SYMBOL_GPL(mpConvFromOctets);
 EXPORT_SYMBOL_GPL(mpConvToOctets);
@@ -645,6 +662,11 @@ EXPORT_SYMBOL_GPL(mpModulo);
 EXPORT_SYMBOL_GPL(mpMultiply);
 EXPORT_SYMBOL_GPL(mpShiftLeft);
 EXPORT_SYMBOL_GPL(mpSubtract);
+
+EXPORT_SYMBOL_GPL(XHdcp1x_SetCallback);
+EXPORT_SYMBOL_GPL(XHdcp1x_LookupConfig);
+EXPORT_SYMBOL_GPL(XHdcp1x_CipherIntrHandler);
+EXPORT_SYMBOL_GPL(XHdcp1x_SelfTest);
 
 EXPORT_SYMBOL_GPL(XHdcp22Cipher_CfgInitialize);
 EXPORT_SYMBOL_GPL(XHdcp22Cipher_LookupConfig);

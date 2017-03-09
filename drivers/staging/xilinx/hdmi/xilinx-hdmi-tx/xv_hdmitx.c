@@ -43,7 +43,7 @@
 
 #include "xv_hdmitx.h"
 #include "xil_printf.h"
-#include "xparameters.h"
+
 #include <linux/string.h>
 
 /************************** Constant Definitions *****************************/

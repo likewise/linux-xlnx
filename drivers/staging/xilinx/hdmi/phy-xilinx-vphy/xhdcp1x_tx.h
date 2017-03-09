@@ -61,7 +61,7 @@ extern "C" {
 /***************************** Include Files *********************************/
 
 #include "xhdcp1x.h"
-#include "xparameters.h"
+
 #include "xstatus.h"
 #include "xil_types.h"
 

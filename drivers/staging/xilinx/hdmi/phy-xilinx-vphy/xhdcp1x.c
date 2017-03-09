@@ -64,7 +64,7 @@
 #include "xhdcp1x_rx.h"
 #include "xhdcp1x_tx.h"
 #include "xil_types.h"
-#include "xparameters.h"
+
 #include "xstatus.h"
 
 /************************** Constant Definitions *****************************/

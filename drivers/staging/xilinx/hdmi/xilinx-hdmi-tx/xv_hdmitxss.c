@@ -3581,7 +3581,7 @@ void XV_HdmiTxSs_HdcpInfo(XV_HdmiTxSs *InstancePtr)
           xil_printf("\n\rHDCP 1.4 TX Info\n\r");
 
           // Route debug output to xil_printf
-          XHdcp1x_SetDebugPrintf(xil_printf);
+          XHdcp1x_SetDebugPrintf(printk);
 
           // Display info
           XHdcp1x_Info(InstancePtr->Hdcp14Ptr);
@@ -3639,7 +3639,7 @@ void XV_HdmiTxSs_HdcpSetInfoDetail(XV_HdmiTxSs *InstancePtr, u8 Verbose)
 #ifdef XPAR_XHDCP_NUM_INSTANCES
     // HDCP 1.4
     if (InstancePtr->Hdcp14Ptr) {
-      XHdcp1x_SetDebugLogMsg(xil_printf);
+      XHdcp1x_SetDebugLogMsg(printk);
     }
 #endif
 

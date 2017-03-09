@@ -16,32 +16,32 @@
 /*****************************************************************************/
 /**
 *
-* @file xhdcp22_cipher_sinit.c
-* @addtogroup hdcp22_cipher_v1_1
+* @file xhdcp1x_sinit.c
+* @addtogroup hdcp1x_v4_0
 * @{
-* @details
 *
-* This file contains the static initialization methods for the Xilinx
-* HDCP 2.2 Cipher core.
+* This file contains static initialization method for Xilinx HDCP driver
 *
 * <pre>
 * MODIFICATION HISTORY:
 *
 * Ver   Who    Date     Changes
 * ----- ------ -------- --------------------------------------------------
-* 1.00  JO     10/01/15 Initial release.
+* 1.00  fidus  07/16/15 Initial release.
 * </pre>
 *
 ******************************************************************************/
 
-
 /***************************** Include Files *********************************/
-#include "xhdcp22_cipher.h"
+
+#include "xhdcp1x.h"
+#include "xhdcp1x_cipher.h"
 
 
 /************************** Constant Definitions *****************************/
-#ifndef XPAR_XHDCP22_CIPHER_NUM_INSTANCES
-#define XPAR_XHDCP22_CIPHER_NUM_INSTANCES 0
+
+#ifndef XPAR_XHDCP_NUM_INSTANCES
+#define XPAR_XHDCP_NUM_INSTANCES 0	/**< Number of HDCP Instances */
 #endif
 
 /***************** Macros (Inline Functions) Definitions *********************/
@@ -51,47 +51,39 @@
 /************************** Function Prototypes ******************************/
 
 /************************** Variable Definitions *****************************/
-extern XHdcp22_Cipher_Config XHdcp22_Cipher_ConfigTable[];
+
+extern XHdcp1x_Config XHdcp1x_ConfigTable[];	/**< Instance of Lookup table
+						  *  of HDCP instance(s) in
+						  *  the design */
 
 /************************** Function Definitions *****************************/
 
 /*****************************************************************************/
 /**
+* This function returns a reference to an XHdcp1x_Config structure based on
+* specified device ID.
 *
-* This function returns a reference to an XHdcp22_Cipher_Config structure based
-* on the core id, <i>DeviceId</i>. The return value will refer to an entry in
-* the device configuration table defined in the xhdcp22_cipher_g.c file.
+* @param	DeviceId is the unique core ID of the HDCP interface.
 *
-* @param  DeviceId is the unique core ID of the XHDCP22 Cipher core for the
-*         lookup operation.
+* @return	A reference to the config record in the configuration table (in
+*		xhdcp_g.c) corresponding the specified DeviceId. NULL if no
+*		match is found.
 *
-* @return XHdcp22Cipher_LookupConfig returns a reference to a config record
-*         in the configuration table (in xhdcp22_cipher_g.c) corresponding
-*         to <i>DeviceId</i>, or NULL if no match is found.
-*
-* @note   None.
+* @note		None.
 *
 ******************************************************************************/
-XHdcp22_Cipher_Config *XHdcp22Cipher_LookupConfig(u16 DeviceId)
+XHdcp1x_Config *XHdcp1x_LookupConfig(u16 DeviceId)
 {
-
-	XHdcp22_Cipher_Config *CfgPtr = NULL;
+	XHdcp1x_Config *CfgPtr = NULL;
 	u32 Index;
 
-	/* Checking for device id for which instance it is matching */
-	for (Index = (u32)0x0; Index < (u32)(XPAR_XHDCP22_CIPHER_NUM_INSTANCES);
-		Index++) {
-
-		/* Assigning address of config table if both device ids
-		 * are matched
-		 */
-		if (XHdcp22_Cipher_ConfigTable[Index].DeviceId == DeviceId) {
-			CfgPtr = &XHdcp22_Cipher_ConfigTable[Index];
+	for (Index = 0; Index < XPAR_XHDCP_NUM_INSTANCES; Index++) {
+		if (XHdcp1x_ConfigTable[Index].DeviceId == DeviceId) {
+			CfgPtr = &XHdcp1x_ConfigTable[Index];
 			break;
 		}
 	}
 
-	return (XHdcp22_Cipher_Config *)CfgPtr;
+	return (CfgPtr);
 }
-
 /** @} */
