@@ -59,19 +59,9 @@
 #include "phy-xilinx-vphy/xv_axi4s_remap_hw.h"
 
 /* either comment-out, or define as 1. Adapt Makefile also, see HDCP section */
-#define USE_HDCP
+//#define USE_HDCP 1
 
-#ifdef USE_HDCP /* WIP HDCP */
-
-#ifdef XPAR_XHDCP_NUM_INSTANCES
-#include "xtmrctr.h"
-#include "xhdcp1x.h"
-#endif
-#ifdef XPAR_XHDCP22_TX_NUM_INSTANCES
-#include "xhdcp22_tx.h"
-#endif
-
-
+#if (defined(USE_HDCP) && USE_HDCP) /* WIP HDCP */
 #include "phy-xilinx-vphy/bigdigits.h"
 #include "phy-xilinx-vphy/xhdcp22_cipher.h"
 #include "phy-xilinx-vphy/xhdcp22_mmult.h"
@@ -425,7 +415,7 @@ error_dt:
 	return -EINVAL;
 }
 
-#ifdef USE_HDCP /* WIP HDCP */
+#if (defined(USE_HDCP) && USE_HDCP) /* WIP HDCP */
 extern XHdcp22_Cipher_Config XHdcp22_Cipher_ConfigTable[];
 extern XHdcp22_mmult_Config XHdcp22_mmult_ConfigTable[];
 extern XHdcp22_Rng_Config XHdcp22_Rng_ConfigTable[];
@@ -616,26 +606,6 @@ MODULE_LICENSE("GPL");
 MODULE_AUTHOR("Leon Woestenberg <leon@sidebranch.com>");
 MODULE_DESCRIPTION("Xilinx Vphy driver");
 
-XHdcp1x_Config XHdcp1x_ConfigTable[4];
-XHdcp22_Cipher_Config XHdcp22_Cipher_ConfigTable[4];
-XHdcp22_mmult_Config XHdcp22_mmult_ConfigTable[4];
-XHdcp22_Rng_Config XHdcp22_Rng_ConfigTable[4];
-XHdcp22_Rx_Config XHdcp22_Rx_ConfigTable[4] =
-{
-#if XPAR_XHDCP22_RX_NUM_INSTANCES
-	{
-		XPAR_V_HDMI_RX_SS_0_HDCP22_RX_0_DEVICE_ID,
-		XPAR_V_HDMI_RX_SS_0_HDCP22_RX_0_BASEADDR,
-		XPAR_V_HDMI_RX_SS_0_HDCP22_RX_0_PROTOCOL,
-		XPAR_V_HDMI_RX_SS_0_HDCP22_RX_0_MODE,
-		XPAR_V_HDMI_RX_SS_0_HDCP22_RX_0_HDCP22_TIMER_DEVICE_ID,
-		XPAR_V_HDMI_RX_SS_0_HDCP22_RX_0_HDCP22_CIPHER_DEVICE_ID,
-		XPAR_V_HDMI_RX_SS_0_HDCP22_RX_0_HDCP22_MMULT_DEVICE_ID,
-		XPAR_V_HDMI_RX_SS_0_HDCP22_RX_0_HDCP22_RNG_DEVICE_ID
-	}
-#endif
-};
-
 /* common functionality shared between RX and TX */
 EXPORT_SYMBOL_GPL(XVidC_ReportTiming);
 EXPORT_SYMBOL_GPL(XVidC_SetVideoStream);
@@ -661,7 +631,7 @@ EXPORT_SYMBOL_GPL(XV_axi4s_remap_EnableAutoRestart);
 EXPORT_SYMBOL_GPL(XV_axi4s_remap_Set_outPixClk);
 EXPORT_SYMBOL_GPL(XV_axi4s_remap_Set_outHDMI420);
 
-#ifdef USE_HDCP
+#if (defined(USE_HDCP) && USE_HDCP) /* WIP HDCP */
 EXPORT_SYMBOL_GPL(mpAdd);
 EXPORT_SYMBOL_GPL(mpConvFromOctets);
 EXPORT_SYMBOL_GPL(mpConvToOctets);
@@ -675,11 +645,6 @@ EXPORT_SYMBOL_GPL(mpModulo);
 EXPORT_SYMBOL_GPL(mpMultiply);
 EXPORT_SYMBOL_GPL(mpShiftLeft);
 EXPORT_SYMBOL_GPL(mpSubtract);
-
-EXPORT_SYMBOL_GPL(XHdcp1x_SetCallback);
-EXPORT_SYMBOL_GPL(XHdcp1x_LookupConfig);
-EXPORT_SYMBOL_GPL(XHdcp1x_CipherIntrHandler);
-EXPORT_SYMBOL_GPL(XHdcp1x_SelfTest);
 
 EXPORT_SYMBOL_GPL(XHdcp22Cipher_CfgInitialize);
 EXPORT_SYMBOL_GPL(XHdcp22Cipher_LookupConfig);

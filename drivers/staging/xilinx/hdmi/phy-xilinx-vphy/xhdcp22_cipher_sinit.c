@@ -37,7 +37,7 @@
 
 /***************************** Include Files *********************************/
 #include "xhdcp22_cipher.h"
-
+#include "xparameters.h"
 
 /************************** Constant Definitions *****************************/
 #ifndef XPAR_XHDCP22_CIPHER_NUM_INSTANCES

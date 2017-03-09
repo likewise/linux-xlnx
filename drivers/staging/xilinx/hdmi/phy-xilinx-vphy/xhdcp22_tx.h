@@ -81,7 +81,7 @@ extern "C" {
 /***************************** Include Files *********************************/
 //#include <stdio.h>
 #include <linux/string.h>
-
+#include "xparameters.h"
 
 #include "xil_assert.h"
 #include "xstatus.h"

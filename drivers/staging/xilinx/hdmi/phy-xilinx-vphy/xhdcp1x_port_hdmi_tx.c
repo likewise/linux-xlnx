@@ -38,9 +38,9 @@
 
 /***************************** Include Files *********************************/
 
-
+#include "xparameters.h"
 #if defined(XPAR_XV_HDMITX_NUM_INSTANCES) && (XPAR_XV_HDMITX_NUM_INSTANCES > 0)
-//#include <stdlib.h>
+#include <stdlib.h>
 #include <linux/string.h>
 #include "xhdcp1x_port.h"
 #include "xhdcp1x_port_hdmi.h"

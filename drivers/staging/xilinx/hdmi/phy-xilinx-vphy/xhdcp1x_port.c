@@ -35,12 +35,12 @@
 
 /***************************** Include Files *********************************/
 
-//#include <stdlib.h>
+#include <stdlib.h>
 #include <linux/string.h>
 #include "xhdcp1x_port.h"
 #include "xil_assert.h"
 #include "xil_types.h"
-
+#include "xparameters.h"
 
 /************************** Constant Definitions *****************************/
 

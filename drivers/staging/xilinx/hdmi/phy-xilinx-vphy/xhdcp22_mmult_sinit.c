@@ -37,7 +37,7 @@
 #if (defined(__KERNEL__) || (!defined(__linux__)))
 
 #include "xstatus.h"
-
+#include "xparameters.h"
 #include "xhdcp22_mmult.h"
 
 #ifndef XPAR_XHDCP22_MMULT_NUM_INSTANCES
