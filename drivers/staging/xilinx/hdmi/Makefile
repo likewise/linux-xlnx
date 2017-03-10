@@ -2,7 +2,9 @@
 # see below for further mainlining hints
 
 # in same cases only used to check against presence, i.e. >0, actual number is not used
-ccflags-y := -DXPAR_XV_HDMIRX_NUM_INSTANCES=4 -DXPAR_XV_HDMITX_NUM_INSTANCES=4
+ccflags-y := -DXPAR_XV_HDMIRX_NUM_INSTANCES=4
+ccflags-y += -DXPAR_XV_HDMITX_NUM_INSTANCES=4
+ccflags-y += -DXPAR_XTMRCTR_NUM_INSTANCES=8
 ccflags-y += -DXPAR_XHDCP_NUM_INSTANCES=4
 ccflags-y += -DXPAR_XHDCP22_RX_NUM_INSTANCES=4
 ccflags-y += -DXPAR_XHDCP22_TX_NUM_INSTANCES=4
@@ -49,6 +51,7 @@ CFLAGS_xilinx_drm_hdmi.o += -I$(src)/include -I${src}/../../../gpu/drm/xilinx/
 CFLAGS_xilinx_drm_hdmi.o += -I${src}/phy-xilinx-vphy
 
 xilinx-hdmi-tx-objs += xilinx-hdmi-tx/xv_hdmitx.o
+xilinx-hdmi-tx-objs += xilinx-hdmi-tx/xv_hdmitx_sinit.o
 xilinx-hdmi-tx-objs += xilinx-hdmi-tx/xv_hdmitx_intr.o
 xilinx-hdmi-tx-objs += xilinx-hdmi-tx/xv_hdmitxss.o
 xilinx-hdmi-tx-objs += xilinx-hdmi-tx/xv_hdmitxss_log.o
@@ -123,7 +126,7 @@ phy-xilinx-vphy-hdcp-objs += phy-xilinx-vphy/xhdcp22_rng_sinit.o
 phy-xilinx-vphy-hdcp-objs += phy-xilinx-vphy/bigdigits.o
 phy-xilinx-vphy-hdcp-objs += phy-xilinx-vphy/xtmrctr.o
 phy-xilinx-vphy-hdcp-objs += phy-xilinx-vphy/xtmrctr_l.o
-phy-xilinx-vphy-hdcp-objs += phy-xilinx-vphy/xtmrctr_g.o
+#phy-xilinx-vphy-hdcp-objs += phy-xilinx-vphy/xtmrctr_g.o
 phy-xilinx-vphy-hdcp-objs += phy-xilinx-vphy/xtmrctr_sinit.o
 phy-xilinx-vphy-hdcp-objs += phy-xilinx-vphy/xtmrctr_options.o
 phy-xilinx-vphy-hdcp-objs += phy-xilinx-vphy/xtmrctr_intr.o

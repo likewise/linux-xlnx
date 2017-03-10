@@ -616,12 +616,13 @@ MODULE_LICENSE("GPL");
 MODULE_AUTHOR("Leon Woestenberg <leon@sidebranch.com>");
 MODULE_DESCRIPTION("Xilinx Vphy driver");
 
-XHdcp1x_Config XHdcp1x_ConfigTable[4];
+XHdcp1x_Config XHdcp1x_ConfigTable[XPAR_XHDCP_NUM_INSTANCES];
 XHdcp22_Cipher_Config XHdcp22_Cipher_ConfigTable[4];
 XHdcp22_mmult_Config XHdcp22_mmult_ConfigTable[4];
 XHdcp22_Rng_Config XHdcp22_Rng_ConfigTable[4];
 XHdcp22_Rx_Config XHdcp22_Rx_ConfigTable[4];
 XHdcp22_Tx_Config XHdcp22_Tx_ConfigTable[4];
+XTmrCtr_Config XTmrCtr_ConfigTable[XPAR_XTMRCTR_NUM_INSTANCES];
 
 /* common functionality shared between RX and TX */
 EXPORT_SYMBOL_GPL(XVidC_ReportTiming);
@@ -667,6 +668,9 @@ EXPORT_SYMBOL_GPL(XHdcp1x_SetCallback);
 EXPORT_SYMBOL_GPL(XHdcp1x_LookupConfig);
 EXPORT_SYMBOL_GPL(XHdcp1x_CipherIntrHandler);
 EXPORT_SYMBOL_GPL(XHdcp1x_SelfTest);
+
+EXPORT_SYMBOL_GPL(XHdcp1x_ConfigTable);
+EXPORT_SYMBOL_GPL(XTmrCtr_ConfigTable);
 
 EXPORT_SYMBOL_GPL(XHdcp22Cipher_CfgInitialize);
 EXPORT_SYMBOL_GPL(XHdcp22Cipher_LookupConfig);

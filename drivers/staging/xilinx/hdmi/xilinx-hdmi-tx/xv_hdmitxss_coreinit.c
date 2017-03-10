@@ -225,7 +225,7 @@ int XV_HdmiTxSs_SubcoreInitHdcpTimer(XV_HdmiTxSs *HdmiTxSsPtr)
 	XV_HdmiTxSs_LogWrite(HdmiTxSsPtr, XV_HDMITXSS_LOG_EVT_HDCPTIMER_INIT, 0);
     ConfigPtr  = XTmrCtr_LookupConfig(HdmiTxSsPtr->Config.HdcpTimer.DeviceId);
     if (ConfigPtr == NULL) {
-      xdbg_printf(XDBG_DEBUG_GENERAL,"HDMITXSS ERR:: AXIS Timer device not found\r\n");
+      xil_printf("HDMITXSS ERR:: AXIS Timer device not found\r\n");
       return(XST_FAILURE);
     }
 
@@ -237,7 +237,7 @@ int XV_HdmiTxSs_SubcoreInitHdcpTimer(XV_HdmiTxSs *HdmiTxSsPtr)
                                &AbsAddr);
 
     if (Status != XST_SUCCESS) {
-      xdbg_printf(XDBG_DEBUG_GENERAL,"HDMITXSS ERR:: AXI Timer core base address (0x%x) \
+      xil_printf("HDMITXSS ERR:: AXI Timer core base address (0x%x) \
                     invalid %d\r\n", AbsAddr);
       return(XST_FAILURE);
     }
@@ -262,7 +262,7 @@ int XV_HdmiTxSs_SubcoreInitHdcpTimer(XV_HdmiTxSs *HdmiTxSsPtr)
       &XV_HdmiTxSs_HdcpTimerBusyDelay);
 
     if (Status != XST_SUCCESS) {
-      xdbg_printf(XDBG_DEBUG_GENERAL,"HDMITXSS ERR:: AXI Timer Initialization failed\r\n");
+      xil_printf("HDMITXSS ERR:: AXI Timer Initialization failed\r\n");
       return(XST_FAILURE);
     }
   }

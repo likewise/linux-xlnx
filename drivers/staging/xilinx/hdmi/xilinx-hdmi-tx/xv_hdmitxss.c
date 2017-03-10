@@ -403,13 +403,17 @@ int XV_HdmiTxSs_CfgInitialize(XV_HdmiTxSs *InstancePtr,
   // HDCP 1.4
 #ifdef XPAR_XHDCP_NUM_INSTANCES
   if (HdmiTxSsPtr->HdcpTimerPtr) {
+    xil_printf("XV_HdmiTxSs_SubcoreInitHdcpTimer()\n");
     if (XV_HdmiTxSs_SubcoreInitHdcpTimer(HdmiTxSsPtr) != XST_SUCCESS){
+     xil_printf("XV_HdmiTxSs_SubcoreInitHdcpTimer() FAILED\n");
       return(XST_FAILURE);
     }
   }
 
   if (HdmiTxSsPtr->Hdcp14Ptr) {
+    xil_printf("XV_HdmiTxSs_SubcoreInitHdcp14()\n");
     if (XV_HdmiTxSs_SubcoreInitHdcp14(HdmiTxSsPtr) != XST_SUCCESS){
+      xil_printf("XV_HdmiTxSs_SubcoreInitHdcp14() FAILED\n");
       return(XST_FAILURE);
     }
   }
