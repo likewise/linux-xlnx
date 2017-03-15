@@ -38,6 +38,7 @@
 #include "xhdcp1x_hw.h"
 #include "xhdcp1x_cipher.h"
 #include "xil_types.h"
+#include "xil_printf.h"
 
 /************************** Constant Definitions *****************************/
 
@@ -234,6 +235,7 @@ void XHdcp1x_CipherHandleInterrupt(void *InstancePtr)
 
 	/* Check for pending */
 	if (Pending != 0) {
+		xil_printf("XHdcp1x_CipherHandleInterrupt()\n");
 		/* Clear Pending */
 		XHdcp1x_WriteReg(HdcpPtr->Config.BaseAddress,
 			XHDCP1X_CIPHER_REG_INTERRUPT_STATUS, Pending);

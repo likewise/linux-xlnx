@@ -24,7 +24,7 @@
 #include <linux/slab.h>
 #include <asm-generic/bug.h>
 
-#define assert BUG_ON
+#define assert(a) BUG_ON(!(a))
 
 /* Useful definitions */
 #ifndef max

@@ -1393,7 +1393,7 @@ int XV_HdmiTx_AuxSend(XV_HdmiTx *InstancePtr)
         (XV_HDMITX_AUX_STA_OFFSET)) & (XV_HDMITX_AUX_STA_FIFO_FUL_MASK);
 
     if (RegValue) {
-        xdbg_printf((XDBG_DEBUG_GENERAL), "HDMI TX AUX FIFO full\r\n");
+        xil_printf("HDMI TX AUX FIFO full\r\n");
         Status = (XST_FAILURE);
     }
     else {

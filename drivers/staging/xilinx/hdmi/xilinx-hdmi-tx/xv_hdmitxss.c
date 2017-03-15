@@ -429,6 +429,7 @@ int XV_HdmiTxSs_CfgInitialize(XV_HdmiTxSs *InstancePtr,
 #ifdef XPAR_XHDCP22_TX_NUM_INSTANCES
   // HDCP 2.2
   if (HdmiTxSsPtr->Hdcp22Ptr) {
+    xil_printf("XV_HdmiTxSs_SubcoreInitHdcp22()\n");
     if (XV_HdmiTxSs_SubcoreInitHdcp22(HdmiTxSsPtr) != XST_SUCCESS){
       return(XST_FAILURE);
     }
@@ -1153,6 +1154,7 @@ static void XV_HdmiTxSs_StreamUpCallback(void *CallbackRef)
 #ifdef USE_HDCP
   /* Push the stream-up event to the HDCP event queue */
   XV_HdmiTxSs_HdcpPushEvent(HdmiTxSsPtr, XV_HDMITXSS_HDCP_STREAMUP_EVT);
+  xil_printf("XV_HdmiTxSs_HdcpPushEvent(HdmiTxSsPtr, XV_HDMITXSS_HDCP_STREAMUP_EVT)\n");
 #endif
 
   /* Check if user callback has been registered.
@@ -2915,7 +2917,7 @@ int XV_HdmiTxSs_HdcpAuthRequest(XV_HdmiTxSs *InstancePtr)
 
   /* Verify if sink is attached */
   if (!XV_HdmiTx_IsStreamConnected(InstancePtr->HdmiTxPtr)) {
-    xdbg_printf(XDBG_DEBUG_GENERAL, "No sink is attached\n\r");
+    xil_printf("No sink is attached\n\r");
     XV_HdmiTxSs_HdcpSetProtocol(InstancePtr, XV_HDMITXSS_HDCP_NONE);
     return XST_FAILURE;
   }
@@ -2924,13 +2926,13 @@ int XV_HdmiTxSs_HdcpAuthRequest(XV_HdmiTxSs *InstancePtr)
   /* Authenticate HDCP 2.2, takes priority */
   if (InstancePtr->Hdcp22Ptr) {
     if (XV_HdmiTxSs_IsSinkHdcp22Capable(InstancePtr)) {
-      xdbg_printf(XDBG_DEBUG_GENERAL, "Starting HDCP 2.2 authentication\n\r");
+      xil_printf("Starting HDCP 2.2 authentication\n\r");
       Status = XV_HdmiTxSs_HdcpSetProtocol(InstancePtr, XV_HDMITXSS_HDCP_22);
       Status |= XHdcp22Tx_Authenticate(InstancePtr->Hdcp22Ptr);
     }
     else {
       Status = XST_FAILURE;
-      xdbg_printf(XDBG_DEBUG_GENERAL, "Sink is not HDCP 2.2 capable\n\r");
+      xil_printf("Sink is not HDCP 2.2 capable\n\r");
     }
   }
 #endif
@@ -2939,13 +2941,13 @@ int XV_HdmiTxSs_HdcpAuthRequest(XV_HdmiTxSs *InstancePtr)
   /* Authenticate HDCP 1.4 */
   if ((InstancePtr->Hdcp14Ptr) && (Status == XST_FAILURE)) {
     if (XV_HdmiTxSs_IsSinkHdcp14Capable(InstancePtr)) {
-      xdbg_printf(XDBG_DEBUG_GENERAL, "Starting HDCP 1.4 authentication\n\r");
+      xil_printf("Starting HDCP 1.4 authentication\n\r");
       Status = XV_HdmiTxSs_HdcpSetProtocol(InstancePtr, XV_HDMITXSS_HDCP_14);
       Status |= XHdcp1x_Authenticate(InstancePtr->Hdcp14Ptr);
     }
     else {
       Status = XST_FAILURE;
-      xdbg_printf(XDBG_DEBUG_GENERAL, "Sink is not HDCP 1.4 capable\n\r");
+      xil_printf("Sink is not HDCP 1.4 capable\n\r");
     }
   }
 #endif
@@ -3244,19 +3246,28 @@ u8 XV_HdmiTxSs_IsSinkHdcp22Capable(XV_HdmiTxSs *InstancePtr)
   if (InstancePtr->Hdcp22Ptr) {
     /* Write the register offset */
     status = XV_HdmiTx_DdcWrite(InstancePtr->HdmiTxPtr, 0x3A, 1, (u8*)&data, FALSE);
-    if (status != XST_SUCCESS)
+    if (status != XST_SUCCESS) {
+      xil_printf("Could not write 0x3A to determine HDCP22 capability.\n");
       return FALSE;
+    }
 
     /* Read the HDCP2 version */
     status = XV_HdmiTx_DdcRead(InstancePtr->HdmiTxPtr, 0x3A, 1, (u8*)&data, TRUE);
-    if (status != XST_SUCCESS)
+    if (status != XST_SUCCESS) {
+      xil_printf("Could not read 0x3A to determine HDCP22 capability.\n");
+
       return FALSE;
+    }
 
     /* Check the HDCP2.2 version */
-    if(data & 0x4)
+    if(data & 0x4) {
+      xil_printf("I2C reports HDCP22 capability.\n");
       return TRUE;
-    else
+    }
+    else {
+      xil_printf("I2C does not report HDCP22 capability.\n");
       return FALSE;
+    }
   }
   else {
     return FALSE;

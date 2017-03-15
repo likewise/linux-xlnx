@@ -124,7 +124,7 @@ int XV_HdmiTxSs_SubcoreInitHdmiTx(XV_HdmiTxSs *HdmiTxSsPtr)
 	XV_HdmiTxSs_LogWrite(HdmiTxSsPtr, XV_HDMITXSS_LOG_EVT_HDMITX_INIT, 0);
     ConfigPtr  = XV_HdmiTx_LookupConfig(HdmiTxSsPtr->Config.HdmiTx.DeviceId);
     if (ConfigPtr == NULL) {
-      xdbg_printf(XDBG_DEBUG_GENERAL,"HDMITXSS ERR:: HDMI TX device not found\r\n");
+      xil_printf("HDMITXSS ERR:: HDMI TX device not found\r\n");
       return(XST_FAILURE);
     }
 
@@ -136,7 +136,7 @@ int XV_HdmiTxSs_SubcoreInitHdmiTx(XV_HdmiTxSs *HdmiTxSsPtr)
                                &AbsAddr);
 
     if (Status != XST_SUCCESS) {
-      xdbg_printf(XDBG_DEBUG_GENERAL,"HDMITXSS ERR:: HDMI TX core base address (0x%x) \
+      xil_printf("HDMITXSS ERR:: HDMI TX core base address (0x%x) \
         invalid %d\r\n", AbsAddr);
       return(XST_FAILURE);
     }
@@ -147,7 +147,7 @@ int XV_HdmiTxSs_SubcoreInitHdmiTx(XV_HdmiTxSs *HdmiTxSsPtr)
                                     AbsAddr);
 
     if (Status != XST_SUCCESS) {
-      xdbg_printf(XDBG_DEBUG_GENERAL,"HDMITXSS ERR:: HDMI TX Initialization failed\r\n");
+      xil_printf("HDMITXSS ERR:: HDMI TX Initialization failed\r\n");
       return(XST_FAILURE);
     }
   }
@@ -174,7 +174,7 @@ int XV_HdmiTxSs_SubcoreInitVtc(XV_HdmiTxSs *HdmiTxSsPtr)
 	XV_HdmiTxSs_LogWrite(HdmiTxSsPtr, XV_HDMITXSS_LOG_EVT_VTC_INIT, 0);
     ConfigPtr  = XVtc_LookupConfig(HdmiTxSsPtr->Config.Vtc.DeviceId);
     if (ConfigPtr == NULL) {
-      xdbg_printf(XDBG_DEBUG_GENERAL,"HDMITXSS ERR:: VTC device not found\r\n");
+      xil_printf("HDMITXSS ERR:: VTC device not found\r\n");
       return(XST_FAILURE);
     }
 
@@ -186,7 +186,7 @@ int XV_HdmiTxSs_SubcoreInitVtc(XV_HdmiTxSs *HdmiTxSsPtr)
                                &AbsAddr);
 
     if (Status != XST_SUCCESS) {
-      xdbg_printf(XDBG_DEBUG_GENERAL,"HDMITXSS ERR:: CSC core base address (0x%x) \
+      xil_printf("HDMITXSS ERR:: CSC core base address (0x%x) \
                             invalid %d\r\n", AbsAddr);
       return(XST_FAILURE);
     }
@@ -197,7 +197,7 @@ int XV_HdmiTxSs_SubcoreInitVtc(XV_HdmiTxSs *HdmiTxSsPtr)
                                 AbsAddr);
 
     if (Status != XST_SUCCESS) {
-      xdbg_printf(XDBG_DEBUG_GENERAL,"HDMITXSS ERR:: VTC Initialization failed\r\n");
+      xil_printf("HDMITXSS ERR:: VTC Initialization failed\r\n");
       return(XST_FAILURE);
     }
   }
@@ -296,7 +296,7 @@ int XV_HdmiTxSs_SubcoreInitHdcp14(XV_HdmiTxSs *HdmiTxSsPtr)
 	  XV_HdmiTxSs_LogWrite(HdmiTxSsPtr, XV_HDMITXSS_LOG_EVT_HDCP14_INIT, 0);
       ConfigPtr  = XHdcp1x_LookupConfig(HdmiTxSsPtr->Config.Hdcp14.DeviceId);
       if (ConfigPtr == NULL){
-        xdbg_printf(XDBG_DEBUG_GENERAL,"HDMITXSS ERR:: HDCP 1.4 device not found\r\n");
+        xil_printf("HDMITXSS ERR:: HDCP 1.4 device not found\r\n");
         return(XST_FAILURE);
       }
 
@@ -308,7 +308,7 @@ int XV_HdmiTxSs_SubcoreInitHdcp14(XV_HdmiTxSs *HdmiTxSsPtr)
                                  &AbsAddr);
 
       if (Status != XST_SUCCESS){
-        xdbg_printf(XDBG_DEBUG_GENERAL,"HDMITXSS ERR:: HDCP 1.4 core base address (0x%x) invalid %d\r\n",
+        xil_printf("HDMITXSS ERR:: HDCP 1.4 core base address (0x%x) invalid %d\r\n",
           AbsAddr);
         return(XST_FAILURE);
       }
@@ -333,7 +333,7 @@ int XV_HdmiTxSs_SubcoreInitHdcp14(XV_HdmiTxSs *HdmiTxSsPtr)
         XV_HdmiTxSs_DdcReadHandler, HdmiTxSsPtr->HdmiTxPtr);
 
       if (Status != XST_SUCCESS) {
-        xdbg_printf(XDBG_DEBUG_GENERAL,"HDMITXSS ERR:: HDCP 1.4 Initialization failed\r\n");
+        xil_printf("HDMITXSS ERR:: HDCP 1.4 Initialization failed\r\n");
         return(XST_FAILURE);
       }
 
@@ -369,16 +369,17 @@ int XV_HdmiTxSs_SubcoreInitHdcp22(XV_HdmiTxSs *HdmiTxSsPtr)
 
   /* Is the HDCP 2.2 TX present? */
   if (HdmiTxSsPtr->Hdcp22Ptr) {
-
+    xil_printf("HdmiTxSsPtr->Hdcp22Ptr is set.\n");
     /* Is the key loaded? */
     if (HdmiTxSsPtr->Hdcp22Lc128Ptr && HdmiTxSsPtr->Hdcp22SrmPtr) {
+      xil_printf("HdmiTxSsPtr->Hdcp22Lc128Ptr && HdmiTxSsPtr->Hdcp22SrmPtr are set.\n");
 
       /* Get core configuration */
-	  XV_HdmiTxSs_LogWrite(HdmiTxSsPtr, XV_HDMITXSS_LOG_EVT_HDCP22_INIT, 0);
+      XV_HdmiTxSs_LogWrite(HdmiTxSsPtr, XV_HDMITXSS_LOG_EVT_HDCP22_INIT, 0);
       /* Initialize HDCP 2.2 TX */
       Hdcp22TxConfig = XHdcp22Tx_LookupConfig(HdmiTxSsPtr->Config.Hdcp22.DeviceId);
       if (Hdcp22TxConfig == NULL) {
-        xdbg_printf(XDBG_DEBUG_GENERAL,"HDMITXSS ERR:: HDCP 2.2 device not found\r\n");
+        xil_printf("HDMITXSS ERR:: HDCP 2.2 device not found\r\n");
         return XST_FAILURE;
       }
 
@@ -389,15 +390,17 @@ int XV_HdmiTxSs_SubcoreInitHdcp22(XV_HdmiTxSs *HdmiTxSsPtr)
                                  HdmiTxSsPtr->Config.Hdcp22.AddrOffset,
                                  &AbsAddr);
 
+      xil_printf("HDCP22 base address %p\n", AbsAddr);
+
       if (Status != XST_SUCCESS) {
-        xdbg_printf(XDBG_DEBUG_GENERAL,"HDMITXSS ERR:: HDCP 2.2 core base address (0x%x) invalid %d\r\n",
+        xil_printf("HDMITXSS ERR:: HDCP 2.2 core base address (0x%x) invalid %d\r\n",
           AbsAddr);
         return(XST_FAILURE);
       }
 
       Status = XHdcp22Tx_CfgInitialize(HdmiTxSsPtr->Hdcp22Ptr, Hdcp22TxConfig, AbsAddr);
       if (Status != XST_SUCCESS) {
-        xdbg_printf(XDBG_DEBUG_GENERAL,"HDMITXSS ERR:: HDCP 2.2 Initialization failed\r\n");
+        xil_printf("HDMITXSS ERR:: HDCP 2.2 Initialization failed\r\n");
         return Status;
       }
 
@@ -406,6 +409,7 @@ int XV_HdmiTxSs_SubcoreInitHdcp22(XV_HdmiTxSs *HdmiTxSsPtr)
         XV_HdmiTxSs_DdcWriteHandler, HdmiTxSsPtr->HdmiTxPtr);
       XHdcp22Tx_SetCallback(HdmiTxSsPtr->Hdcp22Ptr, XHDCP22_TX_HANDLER_DDC_READ,
         XV_HdmiTxSs_DdcReadHandler, HdmiTxSsPtr->HdmiTxPtr);
+
 
       /* Set polling value */
       XHdcp22Tx_SetMessagePollingValue(HdmiTxSsPtr->Hdcp22Ptr, 2);
@@ -418,7 +422,7 @@ int XV_HdmiTxSs_SubcoreInitHdcp22(XV_HdmiTxSs *HdmiTxSsPtr)
       /* Load SRM */
       Status = XHdcp22Tx_LoadRevocationTable(HdmiTxSsPtr->Hdcp22Ptr, HdmiTxSsPtr->Hdcp22SrmPtr);
       if (Status != XST_SUCCESS) {
-        xdbg_printf(XDBG_DEBUG_GENERAL,"HDMITXSS ERR:: HDCP 2.2 failed to load SRM\r\n");
+        xil_printf("HDMITXSS ERR:: HDCP 2.2 failed to load SRM\r\n");
         return Status;
       }
 
@@ -451,7 +455,7 @@ int XV_HdmiTxSs_SubcoreInitRemapperReset(XV_HdmiTxSs *HdmiTxSsPtr)
 	XV_HdmiTxSs_LogWrite(HdmiTxSsPtr, XV_HDMITXSS_LOG_EVT_REMAP_HWRESET_INIT, 0);
     ConfigPtr  = XGpio_LookupConfig_TX(HdmiTxSsPtr->Config.RemapperReset.DeviceId);
     if (ConfigPtr == NULL) {
-      xdbg_printf(XDBG_DEBUG_GENERAL,"HDMITXSS ERR:: Reset module for Remapper not found\r\n");
+      xil_printf("HDMITXSS ERR:: Reset module for Remapper not found\r\n");
       return(XST_FAILURE);
     }
 
@@ -463,7 +467,7 @@ int XV_HdmiTxSs_SubcoreInitRemapperReset(XV_HdmiTxSs *HdmiTxSsPtr)
                                &AbsAddr);
 
     if (Status != XST_SUCCESS) {
-      xdbg_printf(XDBG_DEBUG_GENERAL,"HDMITXSS ERR:: Remapper Reset GPIO core base address (0x%x) \
+      xil_printf("HDMITXSS ERR:: Remapper Reset GPIO core base address (0x%x) \
                             invalid %d\r\n", AbsAddr);
       return(XST_FAILURE);
     }
@@ -474,7 +478,7 @@ int XV_HdmiTxSs_SubcoreInitRemapperReset(XV_HdmiTxSs *HdmiTxSsPtr)
                                  AbsAddr);
 
     if (Status != XST_SUCCESS) {
-      xdbg_printf(XDBG_DEBUG_GENERAL,"HDMITXSS ERR:: Remapper Reset Initialization failed\r\n");
+      xil_printf("HDMITXSS ERR:: Remapper Reset Initialization failed\r\n");
       return(XST_FAILURE);
     }
   }
@@ -501,7 +505,7 @@ int XV_HdmiTxSs_SubcoreInitRemapper(XV_HdmiTxSs *HdmiTxSsPtr)
 	XV_HdmiTxSs_LogWrite(HdmiTxSsPtr, XV_HDMITXSS_LOG_EVT_REMAP_INIT, 0);
     ConfigPtr  = XV_axi4s_remap_LookupConfig_TX(HdmiTxSsPtr->Config.Remapper.DeviceId);
     if (ConfigPtr == NULL) {
-      xdbg_printf(XDBG_DEBUG_GENERAL,"HDMITXSS ERR:: Remapper not found\r\n");
+      xil_printf("HDMITXSS ERR:: Remapper not found\r\n");
       return(XST_FAILURE);
     }
 
@@ -513,7 +517,7 @@ int XV_HdmiTxSs_SubcoreInitRemapper(XV_HdmiTxSs *HdmiTxSsPtr)
                                &AbsAddr);
 
     if (Status != XST_SUCCESS) {
-      xdbg_printf(XDBG_DEBUG_GENERAL,"HDMITXSS ERR:: Remapper core base address (0x%x) \
+      xil_printf("HDMITXSS ERR:: Remapper core base address (0x%x) \
                             invalid %d\r\n", AbsAddr);
       return(XST_FAILURE);
     }
@@ -524,7 +528,7 @@ int XV_HdmiTxSs_SubcoreInitRemapper(XV_HdmiTxSs *HdmiTxSsPtr)
                                  AbsAddr);
 
     if (Status != XST_SUCCESS) {
-      xdbg_printf(XDBG_DEBUG_GENERAL,"HDMITXSS ERR:: Remapper Initialization failed\r\n");
+      xil_printf("HDMITXSS ERR:: Remapper Initialization failed\r\n");
       return(XST_FAILURE);
     }
   }

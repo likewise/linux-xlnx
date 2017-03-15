@@ -101,7 +101,7 @@ typedef void XHdcp22_Tx_TransitionFuncType(XHdcp22_Tx *InstancePtr);
 static int XHdcp22Tx_InitializeTimer(XHdcp22_Tx *InstancePtr);
 static int XHdcp22Tx_InitializeCipher(XHdcp22_Tx *InstancePtr);
 static int XHdcp22Tx_InitializeRng(XHdcp22_Tx *InstancePtr);
-static int XHdcp22Tx_ComputeBaseAddress(u32 BaseAddress, u32 SubcoreOffset, u32 *SubcoreAddressPtr);
+static int XHdcp22Tx_ComputeBaseAddress(UINTPTR BaseAddress, u32 SubcoreOffset, UINTPTR *SubcoreAddressPtr);
 
 /* Stubs for callbacks */
 static int XHdcp22Tx_StubDdc(u8 DeviceAddress, u16 ByteCount, u8* BufferPtr,
@@ -416,7 +416,7 @@ static int XHdcp22Tx_InitializeTimer(XHdcp22_Tx *InstancePtr)
 	/* Verify arguments */
 	Xil_AssertNonvoid(InstancePtr != NULL);
 
-	u32 SubcoreBaseAddr;
+	UINTPTR SubcoreBaseAddr;
 
 	int Result = XST_SUCCESS;
 
@@ -464,7 +464,7 @@ static int XHdcp22Tx_InitializeCipher(XHdcp22_Tx *InstancePtr)
 	int Result = XST_SUCCESS;
 
 	XHdcp22_Cipher_Config *ConfigPtr = NULL;
-	u32 SubcoreBaseAddr;
+	UINTPTR SubcoreBaseAddr;
 
 	ConfigPtr = XHdcp22Cipher_LookupConfig(InstancePtr->Config.CipherId);
 	if (ConfigPtr == NULL) {
@@ -502,7 +502,7 @@ static int XHdcp22Tx_InitializeRng(XHdcp22_Tx *InstancePtr)
 	Xil_AssertNonvoid(InstancePtr != NULL);
 
 	int Result = XST_SUCCESS;
-	u32 SubcoreBaseAddr;
+	UINTPTR SubcoreBaseAddr;
 
 	XHdcp22_Rng_Config *ConfigPtr = NULL;
 
@@ -909,10 +909,10 @@ u32 XHdcp22Tx_GetVersion(XHdcp22_Tx *InstancePtr)
 *         subsystem address range else XST_FAILURE
 *
 ******************************************************************************/
-static int XHdcp22Tx_ComputeBaseAddress(u32 BaseAddress, u32 SubcoreOffset, u32 *SubcoreAddressPtr)
+static int XHdcp22Tx_ComputeBaseAddress(UINTPTR BaseAddress, u32 SubcoreOffset, UINTPTR *SubcoreAddressPtr)
 {
 	int Status;
-	u32 Address;
+	UINTPTR Address;
 
 	Address = BaseAddress | SubcoreOffset;
 	if((Address >= BaseAddress))

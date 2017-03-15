@@ -40,6 +40,7 @@
 /***************************** Include Files *********************************/
 
 #include "xtmrctr.h"
+#include "xil_printf.h"
 
 
 /************************** Constant Definitions *****************************/
@@ -144,6 +145,8 @@ void XTmrCtr_InterruptHandler(void *InstancePtr)
 				 * interrupts and call the callback to handle
 				 * any application specific processing
 				 */
+
+				xil_printf("Timer %d Expired.\n", (int)TmrCtrNumber);
 				TmrCtrPtr->Stats.Interrupts++;
 				TmrCtrPtr->Handler(TmrCtrPtr->CallBackRef,
 						   TmrCtrNumber);

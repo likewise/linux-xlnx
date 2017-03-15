@@ -74,6 +74,7 @@
 #endif
 #include "xhdcp1x_tx.h"
 #include "xil_types.h"
+#include "xil_printf.h"
 
 /************************** Constant Definitions *****************************/
 
@@ -958,15 +959,18 @@ void XHdcp1x_TxDisableBlank(XHdcp1x *InstancePtr)
 ******************************************************************************/
 static void XHdcp1x_TxDebugLog(const XHdcp1x *InstancePtr, const char *LogMsg)
 {
+#if 0
 	char Label[16];
 
 	/* Format Label */
 	snprintf(Label, 16, "hdcp-tx(%d) - ", InstancePtr->Config.DeviceId);
-
 	/* Log it */
 	XHDCP1X_DEBUG_LOGMSG(Label);
 	XHDCP1X_DEBUG_LOGMSG(LogMsg);
 	XHDCP1X_DEBUG_LOGMSG("\r\n");
+#else
+	xil_printf("hdcp-tx(%d) - %s\n", InstancePtr->Config.DeviceId, LogMsg);
+#endif
 }
 
 /*****************************************************************************/
@@ -3162,6 +3166,11 @@ static void XHdcp1x_TxExitState(XHdcp1x *InstancePtr, XHdcp1x_StateType State)
 static void XHdcp1x_TxDoTheState(XHdcp1x *InstancePtr, XHdcp1x_EventType Event)
 {
 	XHdcp1x_StateType NextState = InstancePtr->Tx.CurrentState;
+	char *state_name = XHdcp1x_TxStateToString(InstancePtr->Tx.CurrentState);
+	char *event_name = XHdcp1x_TxEventToString(Event);
+
+	if (Event != XHDCP1X_EVENT_POLL)
+		xil_printf("XHdcp1x_TxDoTheState(): state: %s, event: %s\n", state_name, event_name);
 
 	/* Case-wise process the kind of state called */
 	switch (InstancePtr->Tx.CurrentState) {

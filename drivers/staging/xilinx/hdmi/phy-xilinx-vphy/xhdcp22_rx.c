@@ -68,7 +68,7 @@ static int  XHdcp22Rx_InitializeCipher(XHdcp22_Rx *InstancePtr);
 static int  XHdcp22Rx_InitializeMmult(XHdcp22_Rx *InstancePtr);
 static int  XHdcp22Rx_InitializeRng(XHdcp22_Rx *InstancePtr);
 static int  XHdcp22Rx_InitializeTimer(XHdcp22_Rx *InstancePtr);
-static int  XHdcp22Rx_ComputeBaseAddress(u32 BaseAddress, u32 SubcoreOffset, u32 *SubcoreAddressPtr);
+static int  XHdcp22Rx_ComputeBaseAddress(UINTPTR BaseAddress, u32 SubcoreOffset, UINTPTR *SubcoreAddressPtr);
 
 /* Functions for generating authentication parameters */
 static int  XHdcp22Rx_GenerateRrx(XHdcp22_Rx *InstancePtr, u8 *RrxPtr);
@@ -1193,7 +1193,7 @@ static int XHdcp22Rx_InitializeCipher(XHdcp22_Rx *InstancePtr)
 	Xil_AssertNonvoid(InstancePtr != NULL);
 
 	int Status = XST_SUCCESS;
-	u32 SubcoreBaseAddr;
+	UINTPTR SubcoreBaseAddr;
 	XHdcp22_Cipher_Config *CipherConfigPtr = NULL;
 
 	CipherConfigPtr = XHdcp22Cipher_LookupConfig(InstancePtr->Config.CipherDeviceId);
@@ -1226,7 +1226,7 @@ static int XHdcp22Rx_InitializeMmult(XHdcp22_Rx *InstancePtr)
 	Xil_AssertNonvoid(InstancePtr != NULL);
 
 	int Status = XST_SUCCESS;
-	u32 SubcoreBaseAddr;
+	UINTPTR SubcoreBaseAddr;
 	XHdcp22_mmult_Config *MmultConfigPtr;
 
 	MmultConfigPtr = XHdcp22_mmult_LookupConfig(InstancePtr->Config.MontMultDeviceId);
@@ -1257,7 +1257,7 @@ static int XHdcp22Rx_InitializeRng(XHdcp22_Rx *InstancePtr)
 	Xil_AssertNonvoid(InstancePtr != NULL);
 
 	int Status = XST_SUCCESS;
-	u32 SubcoreBaseAddr;
+	UINTPTR SubcoreBaseAddr;
 	XHdcp22_Rng_Config *RngConfigPtr;
 
 	RngConfigPtr = XHdcp22Rng_LookupConfig(InstancePtr->Config.RngDeviceId);
@@ -1288,7 +1288,7 @@ static int XHdcp22Rx_InitializeTimer(XHdcp22_Rx *InstancePtr)
 	Xil_AssertNonvoid(InstancePtr != NULL);
 
 	int Status = XST_SUCCESS;
-	u32 SubcoreBaseAddr;
+	UINTPTR SubcoreBaseAddr;
 	XTmrCtr_Config *TimerConfigPtr;
 
 	TimerConfigPtr = XTmrCtr_LookupConfig(InstancePtr->Config.TimerDeviceId);
@@ -1420,10 +1420,10 @@ static void XHdcp22Rx_StopTimer(XHdcp22_Rx *InstancePtr)
 * 			subsystem address range else XST_FAILURE
 *
 ******************************************************************************/
-static int XHdcp22Rx_ComputeBaseAddress(u32 BaseAddress, u32 SubcoreOffset, u32 *SubcoreAddressPtr)
+static int XHdcp22Rx_ComputeBaseAddress(UINTPTR BaseAddress, u32 SubcoreOffset, UINTPTR *SubcoreAddressPtr)
 {
 	int Status;
-	u32 Address;
+	UINTPTR Address;
 
 	Address = BaseAddress | SubcoreOffset;
 	if((Address >= BaseAddress))

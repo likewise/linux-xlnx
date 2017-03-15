@@ -2,17 +2,17 @@
 # see below for further mainlining hints
 
 # in same cases only used to check against presence, i.e. >0, actual number is not used
-ccflags-y := -DXPAR_XV_HDMIRX_NUM_INSTANCES=4
+ccflags-y := -DXPAR_XV_HDMIRXSS_NUM_INSTANCES=4
+ccflags-y += -DXPAR_XV_HDMITXSS_NUM_INSTANCES=4
+ccflags-y += -DXPAR_XV_HDMIRX_NUM_INSTANCES=4
 ccflags-y += -DXPAR_XV_HDMITX_NUM_INSTANCES=4
-ccflags-y += -DXPAR_XTMRCTR_NUM_INSTANCES=8
 ccflags-y += -DXPAR_XHDCP_NUM_INSTANCES=4
 ccflags-y += -DXPAR_XHDCP22_RX_NUM_INSTANCES=4
 ccflags-y += -DXPAR_XHDCP22_TX_NUM_INSTANCES=4
+ccflags-y += -DXPAR_XHDCP22_MMULT_NUM_INSTANCES=4
 ccflags-y += -DXPAR_XHDCP22_CIPHER_NUM_INSTANCES=8
-ccflags-y += -DXPAR_XHDCP22_MMULT_NUM_INSTANCES=8
 ccflags-y += -DXPAR_XHDCP22_RNG_NUM_INSTANCES=8
-ccflags-y += -DXPAR_XV_HDMIRXSS_NUM_INSTANCES=4
-ccflags-y += -DXPAR_XV_HDMITXSS_NUM_INSTANCES=4
+ccflags-y += -DXPAR_XTMRCTR_NUM_INSTANCES=16
 
 ccflags-y += -I${src}/phy-xilinx-vphy
 
@@ -31,6 +31,7 @@ CFLAGS_xilinx-hdmirx.o += -I$(src)/xilinx-hdmi-rx/
 CFLAGS_xilinx-hdmirx.o += -I$(src)/include/ -I${src}/../../../media/platform/xilinx
 CFLAGS_xilinx-hdmirx.o += -I${src}/phy-xilinx-vphy
 xilinx-hdmi-rx-objs += xilinx-hdmi-rx/xv_hdmirx.o
+xilinx-hdmi-rx-objs += xilinx-hdmi-rx/xv_hdmirx_sinit.o
 xilinx-hdmi-rx-objs += xilinx-hdmi-rx/xv_hdmirx_intr.o
 xilinx-hdmi-rx-objs += xilinx-hdmi-rx/xv_hdmirxss.o
 xilinx-hdmi-rx-objs += xilinx-hdmi-rx/xv_hdmirxss_log.o
@@ -59,9 +60,6 @@ xilinx-hdmi-tx-objs += xilinx-hdmi-tx/xv_hdmitxss_coreinit.o
 xilinx-hdmi-tx-objs += xilinx-hdmi-tx/xv_hdmitx_vsif.o
 xilinx-hdmi-tx-objs += xilinx-hdmi-tx/xvtc.o
 xilinx-hdmi-tx-objs += xilinx-hdmi-tx/xvtc_intr.o
-
-#xilinx-hdmi-tx-hdcp-objs := xilinx-hdmi-tx/xhdcp22_tx.o
-#xilinx-hdmi-tx-hdcp-objs += xilinx-hdmi-tx/xhdcp22_tx_crypt.o
 
 # module interdependency during linking
 # (probably only needed when building separate modules)
@@ -111,22 +109,15 @@ phy-xilinx-vphy-hdcp-objs += phy-xilinx-vphy/xhdcp1x_intr.o
 phy-xilinx-vphy-hdcp-objs += phy-xilinx-vphy/xhdcp1x_sinit.o
 phy-xilinx-vphy-hdcp-objs += phy-xilinx-vphy/xhdcp1x_selftest.o
 
-#baseline/xhdcp1x_port_dp_rx.c \
-#baseline/xhdcp1x_port_dp_tx.c \
-
 phy-xilinx-vphy-hdcp-objs += phy-xilinx-vphy/xhdcp22_cipher.o
 phy-xilinx-vphy-hdcp-objs += phy-xilinx-vphy/xhdcp22_cipher_sinit.o
-#phy-xilinx-vphy-hdcp-objs += phy-xilinx-vphy/xhdcp22_cipher_g.o
 phy-xilinx-vphy-hdcp-objs += phy-xilinx-vphy/xhdcp22_mmult.o
 phy-xilinx-vphy-hdcp-objs += phy-xilinx-vphy/xhdcp22_mmult_sinit.o
-#phy-xilinx-vphy-hdcp-objs += phy-xilinx-vphy/xhdcp22_mmult_g.o
 phy-xilinx-vphy-hdcp-objs += phy-xilinx-vphy/xhdcp22_rng.o
 phy-xilinx-vphy-hdcp-objs += phy-xilinx-vphy/xhdcp22_rng_sinit.o
-#phy-xilinx-vphy-hdcp-objs += phy-xilinx-vphy/xhdcp22_rng_g.o
 phy-xilinx-vphy-hdcp-objs += phy-xilinx-vphy/bigdigits.o
 phy-xilinx-vphy-hdcp-objs += phy-xilinx-vphy/xtmrctr.o
 phy-xilinx-vphy-hdcp-objs += phy-xilinx-vphy/xtmrctr_l.o
-#phy-xilinx-vphy-hdcp-objs += phy-xilinx-vphy/xtmrctr_g.o
 phy-xilinx-vphy-hdcp-objs += phy-xilinx-vphy/xtmrctr_sinit.o
 phy-xilinx-vphy-hdcp-objs += phy-xilinx-vphy/xtmrctr_options.o
 phy-xilinx-vphy-hdcp-objs += phy-xilinx-vphy/xtmrctr_intr.o
@@ -139,9 +130,7 @@ phy-xilinx-vphy-hdcp-objs += phy-xilinx-vphy/sha2.o
 phy-xilinx-vphy-hdcp-objs += phy-xilinx-vphy/xhdcp22_tx.o
 phy-xilinx-vphy-hdcp-objs += phy-xilinx-vphy/xhdcp22_tx_crypt.o
 phy-xilinx-vphy-hdcp-objs += phy-xilinx-vphy/xhdcp22_tx_sinit.o
-#phy-xilinx-vphy-hdcp-objs += phy-xilinx-vphy/xhdcp22_tx_g.o
 
 phy-xilinx-vphy-hdcp-objs += phy-xilinx-vphy/xhdcp22_rx.o
 phy-xilinx-vphy-hdcp-objs += phy-xilinx-vphy/xhdcp22_rx_crypt.o
 phy-xilinx-vphy-hdcp-objs += phy-xilinx-vphy/xhdcp22_rx_sinit.o
-#phy-xilinx-vphy-hdcp-objs += phy-xilinx-vphy/xhdcp22_rx_g.o
