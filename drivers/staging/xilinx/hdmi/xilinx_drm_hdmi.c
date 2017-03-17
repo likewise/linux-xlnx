@@ -1169,12 +1169,9 @@ static int xilinx_drm_hdmi_encoder_init(struct platform_device *pdev,
 
 	HdmiTxSsPtr = (XV_HdmiTxSs *)&hdmi->xv_hdmitxss;
 
-	//printk(KERN_INFO "HdmiTxSsPtr = %p\n", HdmiTxSsPtr);
 	BUG_ON(!HdmiTxSsPtr);
 
-	// Initialize top level and all included sub-cores
-	Status = XV_HdmiTxSs_CfgInitialize(HdmiTxSsPtr, &config,
-		(uintptr_t)hdmi->iomem);
+	Status = XV_HdmiTxSs_CfgInitialize(HdmiTxSsPtr, &config, (uintptr_t)hdmi->iomem);
 	if (Status != XST_SUCCESS)
 	{
 		dev_err(hdmi->dev, "initialization failed with error %d\n", Status);
@@ -1228,33 +1225,36 @@ static int xilinx_drm_hdmi_encoder_init(struct platform_device *pdev,
 	}
 
 	/* HDCP 1.4 Cipher interrupt */
-	if (hdmi->hdcp1x_irq)
-	/* Request the HDCP14 interrupt */
-	ret = devm_request_threaded_irq(&pdev->dev, hdmi->hdcp1x_irq, hdmitx_hdcp_irq_handler, hdmitx_hdcp_irq_thread,
-		IRQF_TRIGGER_HIGH /*| IRQF_SHARED*/, "xilinx-hdmitxss-hdcp1x-cipher", hdmi/*dev_id*/);
-	if (ret) {
-		dev_err(&pdev->dev, "unable to request IRQ %d\n", hdmi->hdcp1x_irq);
-		return ret;
+	if (hdmi->hdcp1x_irq > 0) {
+		/* Request the HDCP14 interrupt */
+		ret = devm_request_threaded_irq(&pdev->dev, hdmi->hdcp1x_irq, hdmitx_hdcp_irq_handler, hdmitx_hdcp_irq_thread,
+			IRQF_TRIGGER_HIGH /*| IRQF_SHARED*/, "xilinx-hdmitxss-hdcp1x-cipher", hdmi/*dev_id*/);
+		if (ret) {
+			dev_err(&pdev->dev, "unable to request IRQ %d\n", hdmi->hdcp1x_irq);
+			return ret;
+		}
 	}
 
 	/* HDCP 1.4 Timer interrupt */
-	if (hdmi->hdcp1x_timer_irq)
-	/* Request the HDCP14 interrupt */
-	ret = devm_request_threaded_irq(&pdev->dev, hdmi->hdcp1x_timer_irq, hdmitx_hdcp_irq_handler, hdmitx_hdcp_irq_thread,
-		IRQF_TRIGGER_HIGH /*| IRQF_SHARED*/, "xilinx-hdmitxss-hdcp1x-timer", hdmi/*dev_id*/);
-	if (ret) {
-		dev_err(&pdev->dev, "unable to request IRQ %d\n", hdmi->hdcp1x_timer_irq);
-		return ret;
+	if (hdmi->hdcp1x_timer_irq > 0) {
+		/* Request the HDCP14 interrupt */
+		ret = devm_request_threaded_irq(&pdev->dev, hdmi->hdcp1x_timer_irq, hdmitx_hdcp_irq_handler, hdmitx_hdcp_irq_thread,
+			IRQF_TRIGGER_HIGH /*| IRQF_SHARED*/, "xilinx-hdmitxss-hdcp1x-timer", hdmi/*dev_id*/);
+		if (ret) {
+			dev_err(&pdev->dev, "unable to request IRQ %d\n", hdmi->hdcp1x_timer_irq);
+			return ret;
+		}
 	}
 
 	/* HDCP 2.2 Timer interrupt */
-	if (hdmi->hdcp22_timer_irq)
-	/* Request the HDCP14 interrupt */
-	ret = devm_request_threaded_irq(&pdev->dev, hdmi->hdcp22_timer_irq, hdmitx_hdcp_irq_handler, hdmitx_hdcp_irq_thread,
-		IRQF_TRIGGER_HIGH /*| IRQF_SHARED*/, "xilinx-hdmitxss-hdcp22-timer", hdmi/*dev_id*/);
-	if (ret) {
-		dev_err(&pdev->dev, "unable to request IRQ %d\n", hdmi->hdcp22_timer_irq);
-		return ret;
+	if (hdmi->hdcp22_timer_irq > 0) {
+		/* Request the HDCP14 interrupt */
+		ret = devm_request_threaded_irq(&pdev->dev, hdmi->hdcp22_timer_irq, hdmitx_hdcp_irq_handler, hdmitx_hdcp_irq_thread,
+			IRQF_TRIGGER_HIGH /*| IRQF_SHARED*/, "xilinx-hdmitxss-hdcp22-timer", hdmi/*dev_id*/);
+		if (ret) {
+			dev_err(&pdev->dev, "unable to request IRQ %d\n", hdmi->hdcp22_timer_irq);
+			return ret;
+		}
 	}
 
 	mutex_unlock(&hdmi->hdmi_mutex);
@@ -1323,11 +1323,13 @@ XVtc_Config *XVtc_LookupConfig(u16 DeviceId)
 
 XV_HdmiTx_Config XV_HdmiTx_ConfigTable[XPAR_XV_HDMITX_NUM_INSTANCES];
 
+/* Just to make sure the function symbol exist, not used */
 XGpio_Config *XGpio_LookupConfig_TX(u16 DeviceId)
 {
 	BUG_ON(1);
 	return (XGpio_Config *)NULL;
 }
+/* Just to make sure the function symbol exist, not used */
 XV_axi4s_remap_Config* XV_axi4s_remap_LookupConfig_TX(u16 DeviceId) {
 	BUG_ON(1);
 	return NULL;
@@ -1487,7 +1489,6 @@ static int xilinx_drm_hdmi_parse_of(struct xilinx_drm_hdmi *hdmi, XV_HdmiTxSs_Co
 		goto error_dt;
 	config->MaxBitsPerPixel = val;
 
-	//"xlnx,gfx-fmt";
 	rc = of_property_read_u32(node, "xlnx,hdmi-tx-offset", &val);
 	if (rc == 0) {
 		config->HdmiTx.AddrOffset = val;
@@ -1495,7 +1496,6 @@ static int xilinx_drm_hdmi_parse_of(struct xilinx_drm_hdmi *hdmi, XV_HdmiTxSs_Co
 		XV_HdmiTx_ConfigTable[0].BaseAddress = val;
 	}
 
-	//"xlnx,gfx-fmt";
 	rc = of_property_read_u32(node, "xlnx,vtc-offset", &val);
 	if (rc < 0) {
 		hdmi_dbg("Not using an internal VTC.");
@@ -1706,11 +1706,11 @@ static int xilinx_drm_hdmi_probe(struct platform_device *pdev)
 	config.HighAddress = config.BaseAddress + resource_size(res) - 1;
 
 	res = platform_get_resource_byname(pdev, IORESOURCE_MEM, "hdcp1x-keymngmt");
-	dev_info(hdmi->dev, "HDCP1x key management block @%p.\n", res);
 
 	if (res) {
 		dev_info(hdmi->dev, "Mapping HDCP1x key management block.\n");
 		hdmi->hdcp1x_keymngmt_iomem = devm_ioremap_resource(hdmi->dev, res);
+		dev_info(hdmi->dev, "HDCP1x key management block @%p.\n", hdmi->hdcp1x_keymngmt_iomem);
 		if (IS_ERR(hdmi->hdcp1x_keymngmt_iomem)) {
 			dev_err(hdmi->dev, "Could not ioremap hdcp1x-keymngmt.\n");
 			return PTR_ERR(hdmi->hdcp1x_keymngmt_iomem);
@@ -1731,7 +1731,10 @@ static int xilinx_drm_hdmi_probe(struct platform_device *pdev)
 			return -EINVAL;
 		}
 		dev_info(hdmi->dev, "HDCP 1.4 TX Key Manager initializated OK.\n");
-
+	}
+	if (config.Hdcp22.IsPresent) {
+		XV_HdmiTxSs *HdmiTxSsPtr;
+		HdmiTxSsPtr = (XV_HdmiTxSs *)&hdmi->xv_hdmitxss;
 		/* Set pointer to HDCP 2.2 LC128 */
 		XV_HdmiTxSs_HdcpSetKey(HdmiTxSsPtr, XV_HDMITXSS_KEY_HDCP22_LC128, Hdcp22Lc128);
 		XV_HdmiTxSs_HdcpSetKey(HdmiTxSsPtr, XV_HDMITXSS_KEY_HDCP22_SRM, Hdcp22Srm);
@@ -1778,14 +1781,14 @@ static int xilinx_drm_hdmi_probe(struct platform_device *pdev)
 		return hdmi->irq;
 	}
 
-	hdmi->hdcp1x_irq = platform_get_irq_byname(pdev, "hdcp1x-irq");
+	hdmi->hdcp1x_irq = platform_get_irq_byname(pdev, "hdcp1x");
 	dev_err(&pdev->dev, "hdmi->hdcp1x_irq = %d\n", hdmi->hdcp1x_irq);
-	hdmi->hdcp1x_timer_irq = platform_get_irq_byname(pdev, "hdcp1x-timer-irq");
+	hdmi->hdcp1x_timer_irq = platform_get_irq_byname(pdev, "hdcp1x-timer");
 	dev_err(&pdev->dev, "hdmi->hdcp1x_timer_irq = %d\n", hdmi->hdcp1x_timer_irq);
 
-	hdmi->hdcp22_irq = platform_get_irq_byname(pdev, "hdcp22-irq");
+	hdmi->hdcp22_irq = platform_get_irq_byname(pdev, "hdcp22");
 	dev_err(&pdev->dev, "hdmi->hdcp1x_irq = %d\n", hdmi->hdcp22_irq);
-	hdmi->hdcp22_timer_irq = platform_get_irq_byname(pdev, "hdcp22-timer-irq");
+	hdmi->hdcp22_timer_irq = platform_get_irq_byname(pdev, "hdcp22-timer");
 	dev_err(&pdev->dev, "hdmi->hdcp22_timer_irq = %d\n", hdmi->hdcp22_timer_irq);
 
 	INIT_DELAYED_WORK(&hdmi->delayed_work_hdcp_poll, hdcp_poll_work/*function*/);
