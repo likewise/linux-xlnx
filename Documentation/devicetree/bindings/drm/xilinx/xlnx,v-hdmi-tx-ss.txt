@@ -44,5 +44,18 @@ phy-names must be hdmi-phy0 etc.
 		/* not yet standardized or created by the DTG */
 		/* required offset of VTC within reg */
 		xlnx,pixel-format = "argb8888";
+
+		xlnx,hdcp22-tx-offset = <0x40000>;
+		/* relative to xlnx,hdcp22-tx-offset */
+		xlnx,hdcp22-cipher-offset = <0x00000>;
+		xlnx,hdcp22-timer-offset = <0x10000>;
+		xlnx,hdcp22-rng-offset = <0x20000>;
+
+		xlnx,hdcp1x-timer-offset = <0x00000>;
+		xlnx,hdcp1x-offset = <0x80000>;
+
+		/* initial settings for HDCP */
+		xlnx,hdcp-authenticate = <0x1>;
+		xlnx,hdcp-encrypt = <0x1>;
 	};
 
