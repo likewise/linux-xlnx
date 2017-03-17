@@ -617,11 +617,11 @@ MODULE_AUTHOR("Leon Woestenberg <leon@sidebranch.com>");
 MODULE_DESCRIPTION("Xilinx Vphy driver");
 
 XHdcp1x_Config XHdcp1x_ConfigTable[XPAR_XHDCP_NUM_INSTANCES];
-XHdcp22_Cipher_Config XHdcp22_Cipher_ConfigTable[4];
-XHdcp22_mmult_Config XHdcp22_mmult_ConfigTable[4];
-XHdcp22_Rng_Config XHdcp22_Rng_ConfigTable[4];
-XHdcp22_Rx_Config XHdcp22_Rx_ConfigTable[4];
-XHdcp22_Tx_Config XHdcp22_Tx_ConfigTable[4];
+XHdcp22_Cipher_Config XHdcp22_Cipher_ConfigTable[XPAR_XHDCP22_CIPHER_NUM_INSTANCES];
+XHdcp22_mmult_Config XHdcp22_mmult_ConfigTable[XPAR_XHDCP22_MMULT_NUM_INSTANCES];
+XHdcp22_Rng_Config XHdcp22_Rng_ConfigTable[XPAR_XHDCP22_RNG_NUM_INSTANCES];
+XHdcp22_Rx_Config XHdcp22_Rx_ConfigTable[XPAR_XHDCP22_RX_NUM_INSTANCES];
+XHdcp22_Tx_Config XHdcp22_Tx_ConfigTable[XPAR_XHDCP22_TX_NUM_INSTANCES];
 XTmrCtr_Config XTmrCtr_ConfigTable[XPAR_XTMRCTR_NUM_INSTANCES];
 
 /* common functionality shared between RX and TX */
@@ -649,7 +649,7 @@ EXPORT_SYMBOL_GPL(XV_axi4s_remap_EnableAutoRestart);
 EXPORT_SYMBOL_GPL(XV_axi4s_remap_Set_outPixClk);
 EXPORT_SYMBOL_GPL(XV_axi4s_remap_Set_outHDMI420);
 
-#ifdef USE_HDCP
+#if 0 //def USE_HDCP
 EXPORT_SYMBOL_GPL(mpAdd);
 EXPORT_SYMBOL_GPL(mpConvFromOctets);
 EXPORT_SYMBOL_GPL(mpConvToOctets);
@@ -668,9 +668,6 @@ EXPORT_SYMBOL_GPL(XHdcp1x_SetCallback);
 EXPORT_SYMBOL_GPL(XHdcp1x_LookupConfig);
 EXPORT_SYMBOL_GPL(XHdcp1x_CipherIntrHandler);
 EXPORT_SYMBOL_GPL(XHdcp1x_SelfTest);
-
-EXPORT_SYMBOL_GPL(XHdcp1x_ConfigTable);
-EXPORT_SYMBOL_GPL(XTmrCtr_ConfigTable);
 
 EXPORT_SYMBOL_GPL(XHdcp22Cipher_CfgInitialize);
 EXPORT_SYMBOL_GPL(XHdcp22Cipher_LookupConfig);
@@ -693,6 +690,7 @@ EXPORT_SYMBOL_GPL(XHdcp22_mmult_Write_N_Words);
 EXPORT_SYMBOL_GPL(XHdcp22Rng_CfgInitialize);
 EXPORT_SYMBOL_GPL(XHdcp22Rng_GetRandom);
 EXPORT_SYMBOL_GPL(XHdcp22Rng_LookupConfig);
+
 EXPORT_SYMBOL_GPL(XTmrCtr_CfgInitialize);
 EXPORT_SYMBOL_GPL(XTmrCtr_GetValue);
 EXPORT_SYMBOL_GPL(XTmrCtr_LookupConfig);
@@ -702,6 +700,11 @@ EXPORT_SYMBOL_GPL(XTmrCtr_SetOptions);
 EXPORT_SYMBOL_GPL(XTmrCtr_SetResetValue);
 EXPORT_SYMBOL_GPL(XTmrCtr_Stop);
 EXPORT_SYMBOL_GPL(XTmrCtr_Start);
+#endif
+
+#ifdef USE_HDCP
+EXPORT_SYMBOL_GPL(XHdcp1x_ConfigTable);
+EXPORT_SYMBOL_GPL(XTmrCtr_ConfigTable);
 
 EXPORT_SYMBOL_GPL(XHdcp22_Cipher_ConfigTable);
 EXPORT_SYMBOL_GPL(XHdcp22_mmult_ConfigTable);
