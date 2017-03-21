@@ -6,6 +6,7 @@ ccflags-y := -DXPAR_XV_HDMIRXSS_NUM_INSTANCES=4
 ccflags-y += -DXPAR_XV_HDMITXSS_NUM_INSTANCES=4
 ccflags-y += -DXPAR_XV_HDMIRX_NUM_INSTANCES=4
 ccflags-y += -DXPAR_XV_HDMITX_NUM_INSTANCES=4
+ccflags-y += -DXPAR_XVTC_NUM_INSTANCES=4
 ccflags-y += -DXPAR_XHDCP_NUM_INSTANCES=4
 ccflags-y += -DXPAR_XHDCP22_RX_NUM_INSTANCES=4
 ccflags-y += -DXPAR_XHDCP22_TX_NUM_INSTANCES=4
@@ -60,6 +61,7 @@ xilinx-hdmi-tx-objs += xilinx-hdmi-tx/xv_hdmitxss_coreinit.o
 xilinx-hdmi-tx-objs += xilinx-hdmi-tx/xv_hdmitx_vsif.o
 xilinx-hdmi-tx-objs += xilinx-hdmi-tx/xvtc.o
 xilinx-hdmi-tx-objs += xilinx-hdmi-tx/xvtc_intr.o
+xilinx-hdmi-tx-objs += xilinx-hdmi-tx/xvtc_sinit.o
 
 # module interdependency during linking
 # (probably only needed when building separate modules)
