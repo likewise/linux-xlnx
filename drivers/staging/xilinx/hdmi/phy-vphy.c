@@ -26,6 +26,8 @@
 #define DEBUG
 //#define DEBUG_TRACE
 
+#define DEBUG_MUTEX
+
 #include <linux/clk.h>
 #include <linux/delay.h>
 #include <linux/io.h>
@@ -98,6 +100,20 @@
 #  define hdmi_dbg(x...)
 #endif
 
+#if (defined(DEBUG_MUTEX) && defined(DEBUG))
+/* storage for source code line number where mutex was last locked, -1 otherwise */
+static int hdmi_mutex_line = -1;
+/* If mutex is locked, print the line number of where it was locked. lock the mutex.
+ * Please keep this macro on a single line, so that the C __LINE__ macro is correct.
+ */
+#  define hdmi_mutex_lock(x) do { if (mutex_is_locked(x)) { hdmi_dbg("@line %d waiting for mutex owner @line %d\n", __LINE__, hdmi_mutex_line); } mutex_lock(x); hdmi_mutex_line = __LINE__; } while(0)
+#  define hdmi_mutex_unlock(x) do { hdmi_mutex_line = -1; mutex_unlock(x); } while(0)
+/* non-debug variant */
+#else
+#  define hdmi_mutex_lock(x) mutex_lock(x)
+#  define hdmi_mutex_unlock(x) mutex_unlock(x)
+#endif
+
 /**
  * struct xvphy_lane - representation of a lane
  * @phy: pointer to the kernel PHY device
@@ -158,7 +174,7 @@ void xvphy_mutex_lock(struct phy *phy)
 {
 	struct xvphy_lane *vphy_lane = phy_get_drvdata(phy);
 	struct xvphy_dev *vphy_dev = vphy_lane->data;
-	mutex_lock(&vphy_dev->xvphy_mutex);
+	hdmi_mutex_lock(&vphy_dev->xvphy_mutex);
 }
 EXPORT_SYMBOL_GPL(xvphy_mutex_lock);
 
@@ -166,7 +182,7 @@ void xvphy_mutex_unlock(struct phy *phy)
 {
 	struct xvphy_lane *vphy_lane = phy_get_drvdata(phy);
 	struct xvphy_dev *vphy_dev = vphy_lane->data;
-	mutex_unlock(&vphy_dev->xvphy_mutex);
+	hdmi_mutex_unlock(&vphy_dev->xvphy_mutex);
 }
 EXPORT_SYMBOL_GPL(xvphy_mutex_unlock);
 
@@ -221,14 +237,14 @@ static irqreturn_t xvphy_irq_thread(int irq, void *dev_id)
 
 	//printk(KERN_DEBUG "xvphy_irq_thread()\n");
 	/* call baremetal interrupt handler with mutex locked */
-	mutex_lock(&vphydev->xvphy_mutex);
+	hdmi_mutex_lock(&vphydev->xvphy_mutex);
 
 	IntrStatus = XVphy_ReadReg(vphydev->xvphy.Config.BaseAddr, XVPHY_INTR_STS_REG);
 	printk(KERN_DEBUG "XVphy IntrStatus = 0x%08x\n", IntrStatus);
 
 	/* handle pending interrupts */
 	XVphy_InterruptHandler(&vphydev->xvphy);
-	mutex_unlock(&vphydev->xvphy_mutex);
+	hdmi_mutex_unlock(&vphydev->xvphy_mutex);
 
 	/* enable interrupt requesting in the VPHY */
 	XVphy_IntrEnable(&vphydev->xvphy, XVPHY_INTR_HANDLER_TYPE_TXRESET_DONE |

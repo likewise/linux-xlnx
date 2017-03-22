@@ -16,6 +16,8 @@
 #define DEBUG
 //#define DEBUG_TRACE
 
+#define DEBUG_MUTEX
+
 #include <linux/device.h>
 #include <linux/gpio/consumer.h>
 #include <linux/module.h>
@@ -68,26 +70,39 @@
 
 #define HDMI_MAX_LANES	4
 
-#define EDID_BLOCKS_MAX 2
+#define EDID_BLOCKS_MAX 10
+#define EDID_BLOCK_SIZE 128
+
+#if (defined(DEBUG_MUTEX) && defined(DEBUG))
+/* storage for source code line number where mutex was last locked, -1 otherwise */
+static int hdmi_mutex_line = -1;
+/* if mutex is locked, print the stored line number. lock the mutex.
+ * keep this macro on a single line, so that the C __LINE__ macro is correct
+ */
+#  define hdmi_mutex_lock(x) do { if (mutex_is_locked(x)) hdmi_dbg("@line %d waiting for mutex owner @line %d\n", __LINE__, hdmi_mutex_line); mutex_lock(x); hdmi_mutex_line = __LINE__; } while(0)
+#  define hdmi_mutex_unlock(x) do { hdmi_mutex_line = -1; mutex_unlock(x); } while(0)
+/* non-debug variant */
+#else
+#  define hdmi_mutex_lock(x) mutex_lock(x)
+#  define hdmi_mutex_unlock(x) mutex_unlock(x)
+#endif
 
 struct xhdmirx_device {
 	struct device xvip;
 	struct device *dev;
 	void __iomem *iomem;
-#ifdef USE_HDCP
-	void __iomem *hdcp1x_keymngmt_iomem;
-#endif
 	struct clk *clk;
 	/* interrupt number */
 	int irq;
 #ifdef USE_HDCP
+	void __iomem *hdcp1x_keymngmt_iomem;
 	int hdcp1x_irq;
 	int hdcp1x_timer_irq;
 	int hdcp22_irq;
 	int hdcp22_timer_irq;
 	/* delayed work to drive HDCP poll */
 	struct delayed_work delayed_work_hdcp_poll;
-#endif
+#endif /* USE_HDCP */
 	bool teardown;
 	struct phy *phy[HDMI_MAX_LANES];
 
@@ -121,9 +136,13 @@ struct xhdmirx_device {
 	struct clk *clkp;
 	struct clk *axi_lite_clk;
 
-	u8 edid_user[EDID_BLOCKS_MAX*128];
+	/* copy of user specified EDID block, if any */
+	u8 edid_user[EDID_BLOCKS_MAX * EDID_BLOCK_SIZE];
 	/* number of actual blocks valid in edid_user */
 	int edid_user_blocks;
+
+	/* number of EDID blocks supported by IP */
+	int edid_blocks_max;
 
 	/* configuration for the baseline subsystem driver instance */
 	XV_HdmiRxSs_Config config;
@@ -223,11 +242,11 @@ static int xhdmirx_set_format(struct v4l2_subdev *subdev,
 	hdmi_dbg("xhdmirx_set_format\n");
 	if (fmt->pad > 0)
 		return -EINVAL;
-	mutex_lock(&xhdmirx->xhdmirx_mutex);
+	hdmi_mutex_lock(&xhdmirx->xhdmirx_mutex);
 	/* there is nothing we can take from the format requested by the caller,
 	 * by convention we must return the active (i.e. detected) format */
 	fmt->format = xhdmirx->detected_format;
-	mutex_unlock(&xhdmirx->xhdmirx_mutex);
+	hdmi_mutex_unlock(&xhdmirx->xhdmirx_mutex);
 	return 0;
 }
 
@@ -243,7 +262,7 @@ static int xhdmirx_get_edid(struct v4l2_subdev *subdev, struct v4l2_edid *edid) 
 		return -EINVAL;
 	/* caller is only interested in the size of the EDID? */
 	if ((edid->start_block == 0) && (edid->blocks == 0)) do_copy = 0;
-	mutex_lock(&xhdmirx->xhdmirx_mutex);
+	hdmi_mutex_lock(&xhdmirx->xhdmirx_mutex);
 	/* user EDID active? */
 	if (xhdmirx->edid_user_blocks) {
 		if (do_copy)
@@ -254,7 +273,7 @@ static int xhdmirx_get_edid(struct v4l2_subdev *subdev, struct v4l2_edid *edid) 
 			memcpy(edid->edid, &xilinx_edid[0], sizeof(xilinx_edid));
 		edid->blocks = sizeof(xilinx_edid) / 128;
 	}
-	mutex_unlock(&xhdmirx->xhdmirx_mutex);
+	hdmi_mutex_unlock(&xhdmirx->xhdmirx_mutex);
 	return 0;
 }
 
@@ -289,12 +308,12 @@ static int xhdmirx_set_edid(struct v4l2_subdev *subdev, struct v4l2_edid *edid) 
 		return -EINVAL;
 	if (edid->start_block != 0)
 		return -EINVAL;
-	if (edid->blocks > EDID_BLOCKS_MAX) {
+	if (edid->blocks > xhdmirx->edid_blocks_max) {
 		/* notify caller of how many EDID blocks this driver supports */
-		edid->blocks = EDID_BLOCKS_MAX;
+		edid->blocks = xhdmirx->edid_blocks_max;
 		return -E2BIG;
 	}
-	mutex_lock(&xhdmirx->xhdmirx_mutex);
+	hdmi_mutex_lock(&xhdmirx->xhdmirx_mutex);
 	xhdmirx->edid_user_blocks = edid->blocks;
 
 	cancel_delayed_work_sync(&xhdmirx->delayed_work_enable_hotplug);
@@ -306,8 +325,8 @@ static int xhdmirx_set_edid(struct v4l2_subdev *subdev, struct v4l2_edid *edid) 
 		/* enable hotplug after 100 ms */
 		queue_delayed_work(xhdmirx->work_queue,
 				&xhdmirx->delayed_work_enable_hotplug, HZ / 10);
-		}
-	mutex_unlock(&xhdmirx->xhdmirx_mutex);
+	}
+	hdmi_mutex_unlock(&xhdmirx->xhdmirx_mutex);
 	return 0;
 }
 
@@ -321,33 +340,12 @@ static int xhdmirx_enum_frame_size(struct v4l2_subdev *subdev,
 {
 	if (fse->pad > 0)
 		return -EINVAL;
-#if 0
-	/* @TODO we want to provide all HDMI frame sizes, not that they are
-	 * settable... */
-	printk(KERN_INFO "xhdmirx_enum_frame_size\n");
-#endif
+	/* we support a non-discrete set, i.e. contiguous range of frame sizes,
+	 * do not return a discrete set */
 	return 0;
 }
 
-#if 0
-static const struct v4l2_dv_timings_cap xhdmirx_timings_cap = {
-	.type = V4L2_DV_BT_656_1120,
-	/* keep this initialization for compatibility with GCC < 4.4.6 */
-	.reserved = { 0 },
-	/* Pixel clock from REF_01 p. 20. Min/max height/width are unknown */
-	V4L2_INIT_BT_TIMINGS(1, 10000, 1, 10000, 0, 165000000,
-			V4L2_DV_BT_STD_CEA861 | V4L2_DV_BT_STD_DMT |
-			V4L2_DV_BT_STD_GTF | V4L2_DV_BT_STD_CVT,
-			V4L2_DV_BT_CAP_PROGRESSIVE |
-			V4L2_DV_BT_CAP_REDUCED_BLANKING |
-			V4L2_DV_BT_CAP_CUSTOM)
-};
-
-/* https://en.wikipedia.org/wiki/Extended_Display_Identification_Data#CEA-861-F */
-static const struct v4l2_dv_timings xhdmirx_timings[] = {
-	V4L2_DV_BT_CEA_1920X1080P6,0
-};
-
+#if 0 /* use default implementation as we support a non-discrete range of timings exposed by timing capabilities */
 static int xhdmirx_enum_dv_timings(struct v4l2_subdev *sd,
 				    struct v4l2_enum_dv_timings *timings)
 {
@@ -385,16 +383,16 @@ static int xhdmirx_query_dv_timings(struct v4l2_subdev *subdev,
 	if (!timings)
 		return -EINVAL;
 
-	mutex_lock(&xhdmirx->xhdmirx_mutex);
+	hdmi_mutex_lock(&xhdmirx->xhdmirx_mutex);
 	if (!xhdmirx->hdmi_stream_is_up) {
-		mutex_unlock(&xhdmirx->xhdmirx_mutex);
+		hdmi_mutex_unlock(&xhdmirx->xhdmirx_mutex);
 		return -ENOLINK;
 	}
 
 	/* copy detected timings into destination */
 	*timings = xhdmirx->detected_timings;
 
-	mutex_unlock(&xhdmirx->xhdmirx_mutex);
+	hdmi_mutex_unlock(&xhdmirx->xhdmirx_mutex);
 	return 0;
 }
 
@@ -562,7 +560,7 @@ static irqreturn_t hdmirx_irq_thread(int irq, void *dev_id)
 	HdmiRxSsPtr = (XV_HdmiRxSs *)&xhdmirx->xv_hdmirxss;
 	BUG_ON(!HdmiRxSsPtr->HdmiRxPtr);
 
-	mutex_lock(&xhdmirx->xhdmirx_mutex);
+	hdmi_mutex_lock(&xhdmirx->xhdmirx_mutex);
 	/* call baremetal interrupt handler, this in turn will
 	 * call the registed callbacks functions */
 
@@ -581,7 +579,7 @@ static irqreturn_t hdmirx_irq_thread(int irq, void *dev_id)
 	if (xhdmirx->IntrStatus[6]) HdmiRx_LinkStatusIntrHandler(HdmiRxSsPtr->HdmiRxPtr);
 	//printk(KERN_INFO "hdmirx_irq_thread() %s 0x%08x\n", which, (int)which_mask);
 
-	mutex_unlock(&xhdmirx->xhdmirx_mutex);
+	hdmi_mutex_unlock(&xhdmirx->xhdmirx_mutex);
 	spin_lock_irqsave(&xhdmirx->irq_lock, flags);
 	/* unmask interrupt request */
 	XV_HdmiRxSs_IntrEnable(HdmiRxSsPtr);
@@ -590,6 +588,10 @@ static irqreturn_t hdmirx_irq_thread(int irq, void *dev_id)
 
 	return IRQ_HANDLED;
 }
+
+#ifdef USE_HDCP
+/* (un)mask the interrupt on the host (rather than device) in top/bottom half */
+//#define MASK_IRQ_ON_HOST
 
 /* top-half interrupt handler for HDMI RX HDCP */
 static irqreturn_t hdmirx_hdcp_irq_handler(int irq, void *dev_id)
@@ -602,26 +604,33 @@ static irqreturn_t hdmirx_hdcp_irq_handler(int irq, void *dev_id)
 	//printk(KERN_INFO "hdmirx_irq_handler()\n");
 	HdmiRxSsPtr = (XV_HdmiRxSs *)&xhdmirx->xv_hdmirxss;
 	BUG_ON(!HdmiRxSsPtr->HdmiRxPtr);
-	printk(KERN_INFO "hdmirx_hdcp_irq_handler()\n");
+	printk(KERN_INFO "hdmirx_hdcp_irq_handler(irq = %d)\n", irq);
 
-#if 0
-	spin_lock_irqsave(&hdmi->irq_lock, flags);
-	/* @TODO mask interrupt requests for the HDCP timers and HDCP 1.4 Cipher interrupt */
-	spin_unlock_irqrestore(&hdmi->irq_lock, flags);
-#endif
-
+#if 1 /* use threaded irq handler approach*/
+#ifdef MASK_IRQ_ON_HOST
+	disable_irq_nosync(irq);
+#else
+	spin_lock_irqsave(&xhdmirx->irq_lock, flags);
+	/* mask/disable interrupt requests from timers */
+	XTmrCtr_DisableIntr(HdmiRxSsPtr->HdcpTimerPtr->BaseAddress, 0);
+	XTmrCtr_DisableIntr(HdmiRxSsPtr->Hdcp22Ptr->TimerInst.BaseAddress, 0);
+	/* mask/disable interrupt request from HDCP1x link status update */
+	XHdcp1x_WriteReg(HdmiRxSsPtr->Hdcp14Ptr->Config.BaseAddress,
+		XHDCP1X_CIPHER_REG_INTERRUPT_MASK, (u32)0xFFFFFFFFu);
+	spin_unlock_irqrestore(&xhdmirx->irq_lock, flags);
+#endif /* MASK_IRQ_ON_HOST */
+	/* call bottom-half */
+	return IRQ_WAKE_THREAD;
+#else
 	XV_HdmiRxSS_HdcpIntrHandler(HdmiRxSsPtr);
 	XV_HdmiRxSS_HdcpTimerIntrHandler(HdmiRxSsPtr);
 	XV_HdmiRxSS_Hdcp22TimerIntrHandler(HdmiRxSsPtr);
+	/* will not result in bottom-half to run */
 	return IRQ_HANDLED;
-
-	/* call bottom-half */
-	return IRQ_WAKE_THREAD;
+#endif
 }
 
-/* (struct xilinx_drm_hdmi *)dev_id */
-/* @TODO this function is currently unused, as there is no bare-metal API
- * mask/unmask functionality exposed required to run the interrupt handlers in a top and bottom half */
+/* HDCP service routine, runs outside of interrupt context and can sleep and takes mutexes */
 static irqreturn_t hdmirx_hdcp_irq_thread(int irq, void *dev_id)
 {
 	struct xhdmirx_device *xhdmirx;
@@ -637,26 +646,41 @@ static irqreturn_t hdmirx_hdcp_irq_thread(int irq, void *dev_id)
 		printk(KERN_INFO "irq_thread: teardown\n");
 		return IRQ_HANDLED;
 	}
+	printk(KERN_INFO "hdmirx_hdcp_irq_thread(irq = %d)\n", irq);
 
-	mutex_lock(&xhdmirx->xhdmirx_mutex);
+	hdmi_mutex_lock(&xhdmirx->xhdmirx_mutex);
 
-	XV_HdmiRxSS_HdcpIntrHandler(HdmiRxSsPtr);
-	XV_HdmiRxSS_HdcpTimerIntrHandler(HdmiRxSsPtr);
-	XV_HdmiRxSS_Hdcp22TimerIntrHandler(HdmiRxSsPtr);
+	if (irq == xhdmirx->hdcp1x_irq) {
+		XV_HdmiRxSS_HdcpIntrHandler(HdmiRxSsPtr);
+	} else if (irq == xhdmirx->hdcp1x_timer_irq) {
+		XV_HdmiRxSS_HdcpTimerIntrHandler(HdmiRxSsPtr);
+	} else if (irq == xhdmirx->hdcp22_timer_irq) {
+		XV_HdmiRxSS_Hdcp22TimerIntrHandler(HdmiRxSsPtr);
+	}
+	hdmi_mutex_unlock(&xhdmirx->xhdmirx_mutex);
 
-	mutex_unlock(&xhdmirx->xhdmirx_mutex);
-
-#if 0
-	spin_lock_irqsave(&hdmi->irq_lock, flags);
-	/* unmask interrupt request */
-	/* @TODO unmask HDCP1x interrupt requests */
-	spin_unlock_irqrestore(&hdmi->irq_lock, flags);
+	/* re-enable interrupt requests */
+#ifdef MASK_IRQ_ON_HOST
+	enable_irq(irq);
+#else
+	hdmi_dbg("HdmiRxSsPtr->HdcpTimerPtr->BaseAddress = %p\n", HdmiRxSsPtr->HdcpTimerPtr->BaseAddress);
+	hdmi_dbg("HdmiRxSsPtr->HdcpTimerPtr->Config.BaseAddress = %p\n", HdmiRxSsPtr->HdcpTimerPtr->Config.BaseAddress);
+	spin_lock_irqsave(&xhdmirx->irq_lock, flags);
+	/* unmask/enable interrupt requests from timers */
+	XTmrCtr_EnableIntr(HdmiRxSsPtr->HdcpTimerPtr->BaseAddress, 0);
+	XTmrCtr_EnableIntr(HdmiRxSsPtr->Hdcp22Ptr->TimerInst.BaseAddress, 0);
+	/* unmask/enable interrupt request from HDCP1x link status update */
+	XHdcp1x_WriteReg(HdmiRxSsPtr->Hdcp14Ptr->Config.BaseAddress,
+		XHDCP1X_CIPHER_REG_INTERRUPT_MASK, (u32)0xFFFFFFFDu);
+	spin_unlock_irqrestore(&xhdmirx->irq_lock, flags);
 #endif
 
 	printk(KERN_INFO "hdmirx_irq_thread() done\n");
 
 	return IRQ_HANDLED;
 }
+
+#endif /* USE_HDCP */
 
 /* callbacks from HDMI RX SS interrupt handler
  * these are called with the xhdmirx->mutex locked and the xvphy_mutex non-locked
@@ -809,6 +833,7 @@ static void RxStreamUpCallback(void *CallbackRef)
 
 	/* https://linuxtv.org/downloads/v4l-dvb-apis/subdev.html#v4l2-mbus-framefmt */
 	/* see UG934 page 8 */
+	/* the V4L2 media bus fmt codes match the AXI S format, and match those from TPG */
 	if (Stream->ColorFormatId == XVIDC_CSF_RGB) {
 		/* red blue green */
 		xhdmirx->detected_format.code = MEDIA_BUS_FMT_RBG888_1X24;
@@ -910,14 +935,14 @@ static void VphyHdmiRxInitCallback(void *CallbackRef)
 	/* a pair of mutexes must be locked in fixed order to prevent deadlock,
 	 * and the order is RX SS then XVPHY, so first unlock XVPHY then lock both */
 	xvphy_mutex_unlock(xhdmirx->phy[0]);
-	mutex_lock(&xhdmirx->xhdmirx_mutex);
+	hdmi_mutex_lock(&xhdmirx->xhdmirx_mutex);
 	xvphy_mutex_lock(xhdmirx->phy[0]);
 
 	XV_HdmiRxSs_RefClockChangeInit(HdmiRxSsPtr);
 	/* @NOTE maybe implement xvphy_set_hdmirx_tmds_clockratio(); */
 	VphyPtr->HdmiRxTmdsClockRatio = HdmiRxSsPtr->TMDSClockRatio;
 	/* unlock RX SS but keep XVPHY locked */
-	mutex_unlock(&xhdmirx->xhdmirx_mutex);
+	hdmi_mutex_unlock(&xhdmirx->xhdmirx_mutex);
 }
 
 /* Called from non-interrupt context with xvphy mutex locked
@@ -936,7 +961,7 @@ static void VphyHdmiRxReadyCallback(void *CallbackRef)
 	/* a pair of mutexes must be locked in fixed order to prevent deadlock,
 	 * and the order is RX SS then XVPHY, so first unlock XVPHY then lock both */
 	xvphy_mutex_unlock(xhdmirx->phy[0]);
-	mutex_lock(&xhdmirx->xhdmirx_mutex);
+	hdmi_mutex_lock(&xhdmirx->xhdmirx_mutex);
 	xvphy_mutex_lock(xhdmirx->phy[0]);
 
 	RxPllType = XVphy_GetPllType(VphyPtr, 0, XVPHY_DIR_RX,
@@ -950,7 +975,7 @@ static void VphyHdmiRxReadyCallback(void *CallbackRef)
 		XV_HdmiRxSs_SetStream(&xhdmirx->xv_hdmirxss, VphyPtr->HdmiRxRefClkHz,
 				(VphyPtr->Quads[0].Plls[0].LineRateHz / 1000000));
 	}
-	mutex_unlock(&xhdmirx->xhdmirx_mutex);
+	hdmi_mutex_unlock(&xhdmirx->xhdmirx_mutex);
 }
 
 static void RxHdcpAuthenticatedCallback(void *CallbackRef)
@@ -1063,14 +1088,13 @@ static void hdcp_poll_work(struct work_struct *work)
 
 	//dev_info(hdmi->dev, "hdcp_poll_work()\n");
 
-	//mutex_lock(&hdmi->hdmi_mutex);
+	hdmi_mutex_lock(&xhdmirx->xhdmirx_mutex);
 	XV_HdmiRxSs_HdcpPoll(HdmiRxSsPtr);
-	//mutex_unlock(&hdmi->hdmi_mutex);
+	hdmi_mutex_unlock(&xhdmirx->xhdmirx_mutex);
 
 	counter++;
 	if (counter >= 1000) {
 		counter = 0;
-		hdmi_dbg("hdcp_poll has run 1000 times, showing last second's log:\n");
 		XV_HdmiRxSs_HdcpInfo(HdmiRxSsPtr);
 	}
 
@@ -1207,7 +1231,7 @@ static int XHdcp_KeyManagerInit(uintptr_t BaseAddress, u8 *Hdcp14Key)
  */
 
 static int instance = 0;
-/* TX uses [0, 127] and RX uses [128, 254] */
+/* TX uses [1, 127] and RX uses [128, 254] */
 /* The HDCP14 timer uses an additional offset of +64 */
 #define RX_DEVICE_ID_BASE 128
 
@@ -1240,6 +1264,15 @@ static int xhdmirx_parse_of(struct xhdmirx_device *xhdmirx, XV_HdmiRxSs_Config *
 	} else {
 		goto error_dt;
 	}
+
+	rc = of_property_read_u32(node, "xlnx,edid-ram-size", &val);
+	hdmi_dbg("xlnx,edid-ram-size = 0x%x\n", val);
+	if (rc == 0) {
+		if (val % 128)
+			goto error_dt;
+		xhdmirx->edid_blocks_max = val / EDID_BLOCK_SIZE;
+	}
+
 #ifdef USE_HDCP /* WIP HDCP */
 	rc = of_property_read_u32(node, "xlnx,hdcp1x-offset", &val);
 	if (rc == 0) {
@@ -1259,7 +1292,7 @@ static int xhdmirx_parse_of(struct xhdmirx_device *xhdmirx, XV_HdmiRxSs_Config *
 	if (rc == 0) {
 		hdmi_dbg("xlnx,hdcp1x-timer-offset = 0x%x\n", val);
 		/* make subcomponent of RXSS present */
-		config->HdcpTimer.DeviceId = RX_DEVICE_ID_BASE + 64 + instance;
+		config->HdcpTimer.DeviceId = RX_DEVICE_ID_BASE + instance;
 		config->HdcpTimer.IsPresent = 1;
 		config->HdcpTimer.AddrOffset = val;
 		/* and configure it */
@@ -1286,7 +1319,7 @@ static int xhdmirx_parse_of(struct xhdmirx_device *xhdmirx, XV_HdmiRxSs_Config *
 	rc = of_property_read_u32(node, "xlnx,hdcp22-timer-offset", &val);
 	if (rc == 0) {
 		hdmi_dbg("xlnx,hdcp22-timer-offset = 0x%x\n", val);
-		XTmrCtr_ConfigTable[XPAR_XTMRCTR_NUM_INSTANCES/2 + instance * 2 + 1].DeviceId = RX_DEVICE_ID_BASE + instance;
+		XTmrCtr_ConfigTable[XPAR_XTMRCTR_NUM_INSTANCES/2 + instance * 2 + 1].DeviceId = RX_DEVICE_ID_BASE + 64 + instance;
 		XTmrCtr_ConfigTable[XPAR_XTMRCTR_NUM_INSTANCES/2 + instance * 2 + 1].BaseAddress = val;
 	}
 	rc = of_property_read_u32(node, "xlnx,hdcp22-cipher-offset", &val);
@@ -1340,6 +1373,8 @@ static int xhdmirx_probe(struct platform_device *pdev)
 		return -ENOMEM;
 	/* store pointer of the real device inside platform device */
 	xhdmirx->dev = &pdev->dev;
+
+	xhdmirx->edid_blocks_max = 2;
 
 	/* mutex that protects against concurrent access */
 	mutex_init(&xhdmirx->xhdmirx_mutex);
@@ -1477,7 +1512,7 @@ static int xhdmirx_probe(struct platform_device *pdev)
 		goto error_phy;
 	}
 
-	mutex_lock(&xhdmirx->xhdmirx_mutex);
+	hdmi_mutex_lock(&xhdmirx->xhdmirx_mutex);
 
 #ifdef USE_HDCP
 	if (config.Hdcp14.IsPresent && config.HdcpTimer.IsPresent && xhdmirx->hdcp1x_keymngmt_iomem) {
@@ -1489,7 +1524,7 @@ static int xhdmirx_probe(struct platform_device *pdev)
 		Status = XHdcp_KeyManagerInit((uintptr_t)xhdmirx->hdcp1x_keymngmt_iomem, HdmiRxSsPtr->Hdcp14KeyPtr);
 		if (Status != XST_SUCCESS) {
 			dev_err(xhdmirx->dev, "HDCP 1.4 RX Key Manager initialization error.\n");
-			mutex_unlock(&xhdmirx->xhdmirx_mutex);
+			hdmi_mutex_unlock(&xhdmirx->xhdmirx_mutex);
 			return -EINVAL;
 		}
 		dev_info(xhdmirx->dev, "HDCP 1.4 RX Key Manager initializated OK.\n");
@@ -1516,9 +1551,9 @@ static int xhdmirx_probe(struct platform_device *pdev)
 	/* retrieve EDID */
 	if (request_firmware(&fw_edid, fw_edid_name, xhdmirx->dev) == 0) {
 		int blocks = fw_edid->size / 128;
-		if ((blocks == 0) || (blocks > EDID_BLOCKS_MAX) || (fw_edid->size % 128)) {
+		if ((blocks == 0) || (blocks > xhdmirx->edid_blocks_max) || (fw_edid->size % 128)) {
 			dev_err(xhdmirx->dev, "%s must be n * 128 bytes, with 1 <= n <= %d, using Xilinx built-in EDID instead.\n",
-				fw_edid_name, EDID_BLOCKS_MAX);
+				fw_edid_name, xhdmirx->edid_blocks_max);
 		} else {
 			memcpy(xhdmirx->edid_user, fw_edid->data, 128 * blocks);
 			xhdmirx->edid_user_blocks = blocks;
@@ -1585,7 +1620,7 @@ static int xhdmirx_probe(struct platform_device *pdev)
 
 	if (ret) {
 		dev_err(&pdev->dev, "unable to request IRQ %d\n", xhdmirx->irq);
-		mutex_unlock(&xhdmirx->xhdmirx_mutex);
+		hdmi_mutex_unlock(&xhdmirx->xhdmirx_mutex);
 		goto error_phy;
 	}
 
@@ -1596,7 +1631,7 @@ static int xhdmirx_probe(struct platform_device *pdev)
 			IRQF_TRIGGER_HIGH /*| IRQF_SHARED*/, "xilinx-hdmirxss-hdcp1x-cipher", xhdmirx/*dev_id*/);
 		if (ret) {
 			dev_err(&pdev->dev, "unable to request IRQ %d\n", xhdmirx->hdcp1x_irq);
-			mutex_unlock(&xhdmirx->xhdmirx_mutex);
+			hdmi_mutex_unlock(&xhdmirx->xhdmirx_mutex);
 			return ret;
 		}
 	}
@@ -1608,7 +1643,7 @@ static int xhdmirx_probe(struct platform_device *pdev)
 			IRQF_TRIGGER_HIGH /*| IRQF_SHARED*/, "xilinx-hdmirxss-hdcp1x-timer", xhdmirx/*dev_id*/);
 		if (ret) {
 			dev_err(&pdev->dev, "unable to request IRQ %d\n", xhdmirx->hdcp1x_timer_irq);
-			mutex_unlock(&xhdmirx->xhdmirx_mutex);
+			hdmi_mutex_unlock(&xhdmirx->xhdmirx_mutex);
 			return ret;
 		}
 	}
@@ -1620,8 +1655,8 @@ static int xhdmirx_probe(struct platform_device *pdev)
 			IRQF_TRIGGER_HIGH /*| IRQF_SHARED*/, "xilinx-hdmirxss-hdcp22", xhdmirx/*dev_id*/);
 		if (ret) {
 			dev_err(&pdev->dev, "unable to request IRQ %d\n", xhdmirx->hdcp22_irq);
-				mutex_unlock(&xhdmirx->xhdmirx_mutex);
-			mutex_unlock(&xhdmirx->xhdmirx_mutex);
+				hdmi_mutex_unlock(&xhdmirx->xhdmirx_mutex);
+			hdmi_mutex_unlock(&xhdmirx->xhdmirx_mutex);
 			return ret;
 		}
 	}
@@ -1633,8 +1668,8 @@ static int xhdmirx_probe(struct platform_device *pdev)
 			IRQF_TRIGGER_HIGH /*| IRQF_SHARED*/, "xilinx-hdmirxss-hdcp22-timer", xhdmirx/*dev_id*/);
 		if (ret) {
 			dev_err(&pdev->dev, "unable to request IRQ %d\n", xhdmirx->hdcp22_timer_irq);
-				mutex_unlock(&xhdmirx->xhdmirx_mutex);
-			mutex_unlock(&xhdmirx->xhdmirx_mutex);
+				hdmi_mutex_unlock(&xhdmirx->xhdmirx_mutex);
+			hdmi_mutex_unlock(&xhdmirx->xhdmirx_mutex);
 
 			return ret;
 		}
@@ -1655,7 +1690,7 @@ static int xhdmirx_probe(struct platform_device *pdev)
 	ret = media_entity_pads_init(&subdev->entity, 1/*npads*/, &xhdmirx->pad);
 	if (ret < 0) {
 		dev_err(&pdev->dev, "failed to init media entity\n");
-		mutex_unlock(&xhdmirx->xhdmirx_mutex);
+		hdmi_mutex_unlock(&xhdmirx->xhdmirx_mutex);
 		goto error_irq;
 	}
 
@@ -1664,7 +1699,7 @@ static int xhdmirx_probe(struct platform_device *pdev)
 	ret = v4l2_ctrl_handler_setup(&xhdmirx->ctrl_handler);
 	if (ret < 0) {
 		dev_err(&pdev->dev, "failed to set controls\n");
-		mutex_unlock(&xhdmirx->xhdmirx_mutex);
+		hdmi_mutex_unlock(&xhdmirx->xhdmirx_mutex);
 		goto error_irq;
 	}
 
@@ -1682,11 +1717,11 @@ static int xhdmirx_probe(struct platform_device *pdev)
 	ret = v4l2_async_register_subdev(subdev);
 	if (ret < 0) {
 		dev_err(&pdev->dev, "failed to register subdev\n");
-		mutex_unlock(&xhdmirx->xhdmirx_mutex);
+		hdmi_mutex_unlock(&xhdmirx->xhdmirx_mutex);
 		goto error;
 	}
 
-	mutex_unlock(&xhdmirx->xhdmirx_mutex);
+	hdmi_mutex_unlock(&xhdmirx->xhdmirx_mutex);
 
 	spin_lock_irqsave(&xhdmirx->irq_lock, flags);
 	XV_HdmiRxSs_IntrEnable(HdmiRxSsPtr);
@@ -1695,6 +1730,9 @@ static int xhdmirx_probe(struct platform_device *pdev)
 	/* call into hdcp_poll_work, which will reschedule itself */
 	hdcp_poll_work(&xhdmirx->delayed_work_hdcp_poll.work);
 
+	/* probe has succeeded for this instance, increment instance index */
+	instance++;
+	/* return success */
 	return 0;
 
 error:
@@ -1730,11 +1768,11 @@ static int xhdmirx_remove(struct platform_device *pdev)
 	cancel_delayed_work(&xhdmirx->delayed_work_enable_hotplug);
 	destroy_workqueue(xhdmirx->work_queue);
 #if 0 // @TODO mutex can not be acquired
-	mutex_lock(&xhdmirx->xhdmirx_mutex);
+	hdmi_mutex_lock(&xhdmirx->xhdmirx_mutex);
 #endif
 
 #if 0
-	mutex_unlock(&xhdmirx->xhdmirx_mutex);
+	hdmi_mutex_unlock(&xhdmirx->xhdmirx_mutex);
 #endif
 
 	v4l2_async_unregister_subdev(subdev);
