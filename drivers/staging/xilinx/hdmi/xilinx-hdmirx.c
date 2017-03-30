@@ -1362,7 +1362,6 @@ static int xhdmirx_probe(struct platform_device *pdev)
 	unsigned long flags;
 	unsigned long axi_clk_rate;
 	unsigned long dru_clk_rate;
-	char *phy_name = "hdmi-phy0";
 
 	XV_HdmiRxSs *HdmiRxSsPtr;
 	u32 Status;
@@ -1494,22 +1493,26 @@ static int xhdmirx_probe(struct platform_device *pdev)
 	dru_clk_rate = clk_get_rate(xhdmirx->clkp);
 	hdmi_dbg("dru-clk rate = %lu\n", dru_clk_rate);
 
-	xhdmirx->phy[index] = devm_phy_get(xhdmirx->dev, phy_name);
-	if (IS_ERR(xhdmirx->phy[index])) {
-		ret = PTR_ERR(xhdmirx->phy[index]);
-		xhdmirx->phy[index] = NULL;
-		if (ret == -EPROBE_DEFER)
-			hdmi_dbg("phy -EPROBE_DEFER\n");
-		if (ret != -EPROBE_DEFER)
-			dev_err(xhdmirx->dev, "failed to get phy lane %s, error %d\n", phy_name, ret);
-		goto error_phy;
-	}
+	for (index = 0; index < 3; index++)
+	{
+		char phy_name[16];
+		snprintf(phy_name, sizeof(phy_name), "hdmi-phy%d", index);
+		xhdmirx->phy[index] = devm_phy_get(xhdmirx->dev, phy_name);
+		if (IS_ERR(xhdmirx->phy[index])) {
+			ret = PTR_ERR(xhdmirx->phy[index]);
+			xhdmirx->phy[index] = NULL;
+			if (ret != -EPROBE_DEFER)
+				dev_err(xhdmirx->dev, "failed to get phy lane %s index %d, error %d\n",
+					phy_name, index, ret);
+			goto error_phy;
+		}
 
-	ret = phy_init(xhdmirx->phy[index]);
-	if (ret) {
-		dev_err(xhdmirx->dev,
-			"failed to init phy lane %d\n", index);
-		goto error_phy;
+		ret = phy_init(xhdmirx->phy[index]);
+		if (ret) {
+			dev_err(xhdmirx->dev,
+				"failed to init phy lane %d\n", index);
+			goto error_phy;
+		}
 	}
 
 	hdmi_mutex_lock(&xhdmirx->xhdmirx_mutex);
@@ -1517,7 +1520,7 @@ static int xhdmirx_probe(struct platform_device *pdev)
 #ifdef USE_HDCP
 	if (config.Hdcp14.IsPresent && config.HdcpTimer.IsPresent && xhdmirx->hdcp1x_keymngmt_iomem) {
 		u8 Status;
-		dev_info(xhdmirx->dev, "HDCP1x components are all there.\n");
+		hdmi_dbg("HDCP1x components are all there.\n");
 		/* Set pointer to HDCP 1.4 key */
 		XV_HdmiRxSs_HdcpSetKey(HdmiRxSsPtr, XV_HDMIRXSS_KEY_HDCP14, Hdcp14KeyB);
 		/* Key manager Init */
@@ -1527,7 +1530,7 @@ static int xhdmirx_probe(struct platform_device *pdev)
 			hdmi_mutex_unlock(&xhdmirx->xhdmirx_mutex);
 			return -EINVAL;
 		}
-		dev_info(xhdmirx->dev, "HDCP 1.4 RX Key Manager initializated OK.\n");
+		hdmi_dbg("HDCP 1.4 RX Key Manager initializated OK.\n");
 	}
 	if (config.Hdcp22.IsPresent) {
 		/* Set pointer to HDCP 2.2 LC128 */

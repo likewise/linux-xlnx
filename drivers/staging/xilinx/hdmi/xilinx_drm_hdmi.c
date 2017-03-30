@@ -1775,18 +1775,17 @@ static int xilinx_drm_hdmi_probe(struct platform_device *pdev)
 	if (ret < 0)
 		return ret;
 
-	index = 2;
+	for (index = 0; index < 3; index++)
 	{
-		char phy_name[32];
+		char phy_name[16];
 		snprintf(phy_name, sizeof(phy_name), "hdmi-phy%d", index);
-
-		index = 0;
 		hdmi->phy[index] = devm_phy_get(hdmi->dev, phy_name);
 		if (IS_ERR(hdmi->phy[index])) {
 			ret = PTR_ERR(hdmi->phy[index]);
+			hdmi->phy[index] = NULL;
 			if (ret != -EPROBE_DEFER)
-				dev_err(hdmi->dev, "failed to get phy lane %s, error %d\n",
-					phy_name, ret);
+				dev_err(hdmi->dev, "failed to get phy lane %s index %d, error %d\n",
+					phy_name, index, ret);
 			goto error_phy;
 		}
 
@@ -1813,11 +1812,11 @@ static int xilinx_drm_hdmi_probe(struct platform_device *pdev)
 	res = platform_get_resource_byname(pdev, IORESOURCE_MEM, "hdcp1x-keymngmt");
 
 	if (res) {
-		dev_info(hdmi->dev, "Mapping HDCP1x key management block.\n");
+		hdmi_dbg("Mapping HDCP1x key management block.\n");
 		hdmi->hdcp1x_keymngmt_iomem = devm_ioremap_resource(hdmi->dev, res);
-		dev_info(hdmi->dev, "HDCP1x key management block @%p.\n", hdmi->hdcp1x_keymngmt_iomem);
+		hdmi_dbg("HDCP1x key management block @%p.\n", hdmi->hdcp1x_keymngmt_iomem);
 		if (IS_ERR(hdmi->hdcp1x_keymngmt_iomem)) {
-			dev_err(hdmi->dev, "Could not ioremap hdcp1x-keymngmt.\n");
+			hdmi_dbg("Could not ioremap hdcp1x-keymngmt.\n");
 			return PTR_ERR(hdmi->hdcp1x_keymngmt_iomem);
 		}
 	}

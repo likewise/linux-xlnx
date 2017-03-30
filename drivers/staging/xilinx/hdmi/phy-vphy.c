@@ -124,7 +124,7 @@ static int hdmi_mutex_line = -1;
  * @ref_clk: enum of allowed ref clock rates for this lane PLL
  * @pll_lock: PLL status
  * @data: pointer to hold private data
- * @refclk_rate: PLL reference clock frequency
+ * @direction: 0=rx, 1=tx
  * @share_laneclk: lane number of the clock to be shared
  */
 struct xvphy_lane {
@@ -135,7 +135,7 @@ struct xvphy_lane {
 	bool pll_lock;
 	/* data is pointer to parent xvphy_dev */
 	void *data;
-	u32 refclk_rate;
+	bool direction_tx;
 	u32 share_laneclk;
 };
 
