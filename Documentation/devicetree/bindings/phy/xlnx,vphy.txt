@@ -9,10 +9,19 @@ specific support functions.
 Its current users are Xilinx HDMI RX/TX SS.
 (See xlnx,v-hdmi-rx-ss.txt and xlnx,v-hdmi-tx-ss.txt)
 
-At least one lane reference must be made (by each of HDMI RX and TX) to
-get a handle to the vphy driver. The (currently 4) arguments are not
-used and subject to change or removal. The vphy reference is subject to
-change.
+Required properties (port (child) nodes):
+lane0:
+- #phy-cells	: Should be 4
+		  Cell after port phandle is device type from:
+			- <controller_type controller_instance is_shared direction_tx>
+
+controller_type = 0 for HDMI
+controller_instance = [0, ...] indexes the instance of the protocol controller
+is_shared = 1 if the RX and TX can be shared across the same protocol/controller
+direction_tx = 0 for RX and 1 for TX
+
+(These properties are intended for future steering of multiple protocols sharing VPHYs,
+and are therefore subject to change.)
 
 An example is, with comments for work-in-progress (TODO):
 

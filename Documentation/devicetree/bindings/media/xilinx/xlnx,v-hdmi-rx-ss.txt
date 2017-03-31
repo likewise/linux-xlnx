@@ -15,15 +15,24 @@ phy-names must be hdmi-phy0 etc.
 		interrupts = <0 91 4>;
 		interrupt-parent = <&gic>;
 
-		clocks = <&vid_stream_clk>, <&si570_2>;
-		clock-names = "video", "dru-clk";
+		clocks = <&vid_s_axi_clk>, <&vid_stream_clk>;
+		clock-names = "axi-lite", "video";
 
-		phy-names = "hdmi-phy0", "hdmi-phy1";
-		phys = <&vphy_lane0 0 1 1 125000000>, <&vphy_lane1 0 1 1 125000000>;
+		phy-names = "hdmi-phy0", "hdmi-phy1", "hdmi-phy2";
+		phys = <&vphy_lane0 0 1 1 0>, <&vphy_lane1 0 1 1 0>, <&vphy_lane2 0 1 1 0>;
 
 		/* these are handled in the driver */
 		/* these are created by the device tree generator */
 		xlnx,input-pixels-per-clock = <0x2>;
 		xlnx,max-bits-per-component = <0x8>;
+
+		xlnx,hdcp22-rx-offset = <0x40000>;
+		/* relative to xlnx,hdcp22-tx-offset */
+		xlnx,hdcp22-cipher-offset = <0x00000>;
+		xlnx,hdcp22-timer-offset = <0x10000>;
+		xlnx,hdcp22-rng-offset = <0x20000>;
+
+		xlnx,hdcp1x-timer-offset = <0x00000>;
+		xlnx,hdcp1x-offset = <0x80000>;
 	};
 

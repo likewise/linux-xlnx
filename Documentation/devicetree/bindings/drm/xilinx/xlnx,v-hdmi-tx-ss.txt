@@ -30,8 +30,8 @@ phy-names must be hdmi-phy0 etc.
 		clocks = <&vid_s_axi_clk>, <&vid_stream_clk>, <&dp159>;
 		clock-names = "axi-lite", "video", "retimer-clk";
 
-		phy-names = "hdmi-phy2";
-		phys = <&vphy_lane2 0 1 1 125000000>;
+		phy-names = "hdmi-phy0", "hdmi-phy1", "hdmi-phy2";
+		phys = <&vphy_lane0 0 1 1 1>, <&vphy_lane1 0 1 1 1>, <&vphy_lane2 0 1 1 1>;
 
 		/* these are created by the device tree generator (DTG) */
 		xlnx,input-pixels-per-clock = <0x2>;

@@ -1232,7 +1232,7 @@ static int XHdcp_KeyManagerInit(uintptr_t BaseAddress, u8 *Hdcp14Key)
 
 static int instance = 0;
 /* TX uses [1, 127] and RX uses [128, 254] */
-/* The HDCP14 timer uses an additional offset of +64 */
+/* The HDCP22 timer uses an additional offset of +64 */
 #define RX_DEVICE_ID_BASE 128
 
 static int xhdmirx_parse_of(struct xhdmirx_device *xhdmirx, XV_HdmiRxSs_Config *config)
