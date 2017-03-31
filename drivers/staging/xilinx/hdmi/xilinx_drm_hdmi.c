@@ -1644,7 +1644,7 @@ static int xilinx_drm_hdmi_parse_of(struct xilinx_drm_hdmi *hdmi, XV_HdmiTxSs_Co
 		XHdcp22_Tx_ConfigTable[instance].DeviceId = config->Hdcp22.DeviceId;
 		XHdcp22_Tx_ConfigTable[instance].BaseAddress = val;
 		XHdcp22_Tx_ConfigTable[instance].Protocol = 0;//HDCP22_TX_HDMI;
-		XHdcp22_Tx_ConfigTable[instance].TimerDeviceId = 0/*@TODO currently fixed 1 for HDCP14, 0 for HDCP22*/;
+		XHdcp22_Tx_ConfigTable[instance].TimerDeviceId = TX_DEVICE_ID_BASE + 64 + instance;
 		XHdcp22_Tx_ConfigTable[instance].CipherId = TX_DEVICE_ID_BASE + instance;
 		XHdcp22_Tx_ConfigTable[instance].RngId = TX_DEVICE_ID_BASE + instance;;
 	}
@@ -1809,6 +1809,7 @@ static int xilinx_drm_hdmi_probe(struct platform_device *pdev)
 	config.BaseAddress = (uintptr_t)hdmi->iomem;
 	config.HighAddress = config.BaseAddress + resource_size(res) - 1;
 
+#ifdef USE_HDCP
 	res = platform_get_resource_byname(pdev, IORESOURCE_MEM, "hdcp1x-keymngmt");
 
 	if (res) {
@@ -1843,6 +1844,7 @@ static int xilinx_drm_hdmi_probe(struct platform_device *pdev)
 		XV_HdmiTxSs_HdcpSetKey(HdmiTxSsPtr, XV_HDMITXSS_KEY_HDCP22_LC128, Hdcp22Lc128);
 		XV_HdmiTxSs_HdcpSetKey(HdmiTxSsPtr, XV_HDMITXSS_KEY_HDCP22_SRM, Hdcp22Srm);
 	}
+#endif
 
 #if 0
 	hdmi_dbg("config.BaseAddress =  %p.", config.BaseAddress);

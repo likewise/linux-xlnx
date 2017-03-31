@@ -329,8 +329,8 @@ static struct phy *xvphy_xlate(struct device *dev,
 	/* Check if lane sharing is required */
 	vphy_lane->share_laneclk = args->args[2];
 
-	/* get the required clk rate for controller from lanes */
-	vphy_lane->refclk_rate = args->args[3];
+	/* get the direction for controller from lanes */
+	vphy_lane->direction_tx = args->args[3];
 
 	//dev_info(dev, "xvphy_xlate() returns phy %p\n", vphy_lane->phy);
 	BUG_ON(!vphy_lane->phy);
@@ -432,10 +432,6 @@ static int vphy_parse_of(struct xvphy_dev *vphydev, XVphy_Config *c)
 	c->HdmiFastSwitch = val;
 	return 0;
 
-#if 0 /* example bool */
-	bool has_dre = false;
-	has_dre = of_property_read_bool(node, "xlnx,include-dre");
-#endif
 error_dt:
 	dev_err(vphydev->dev, "Error parsing device tree");
 	return -EINVAL;
@@ -523,8 +519,6 @@ static int xvphy_probe(struct platform_device *pdev)
 		port++;
 		index++;
 	}
-
-	//printk(KERN_INFO "xvphy_probe() found %d phy lanes from device-tree configuration.\n", index);
 
 	res = platform_get_resource(pdev, IORESOURCE_MEM, 0);
 	vphydev->iomem = devm_ioremap_resource(&pdev->dev, res);
