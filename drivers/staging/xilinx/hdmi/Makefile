@@ -2,7 +2,8 @@
 # see below for further mainlining hints
 
 # in same cases only used to check against presence, i.e. >0, actual number is not used
-ccflags-y := -DXPAR_XV_HDMIRXSS_NUM_INSTANCES=4
+ccflags-y := -DXPAR_XVPHY_NUM_INSTANCES=4
+ccflags-y += -DXPAR_XV_HDMIRXSS_NUM_INSTANCES=4
 ccflags-y += -DXPAR_XV_HDMITXSS_NUM_INSTANCES=4
 ccflags-y += -DXPAR_XV_HDMIRX_NUM_INSTANCES=4
 ccflags-y += -DXPAR_XV_HDMITX_NUM_INSTANCES=4
