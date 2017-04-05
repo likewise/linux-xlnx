@@ -156,6 +156,8 @@ struct xvphy_dev {
 	XVphy xvphy;
 	/* AXI Lite clock drives the clock detector */
 	struct clk *axi_lite_clk;
+	/* NI-DRU clock input */
+	struct clk *clkp;
 };
 
 /* given the (Linux) phy handle, return the xvphy */
@@ -458,6 +460,7 @@ static int xvphy_probe(struct platform_device *pdev)
 	struct phy_provider *provider;
 	struct phy *phy;
 	unsigned long axi_lite_rate;
+	unsigned long dru_clk_rate;
 
 	struct resource *res;
 	int lanecount, port = 0, index = 0;
@@ -482,7 +485,7 @@ static int xvphy_probe(struct platform_device *pdev)
 
 	BUG_ON(!np);
 
-	XVphy_ConfigTable[instance].DeviceId = 0;
+	XVphy_ConfigTable[instance].DeviceId = VPHY_DEVICE_ID_BASE + instance;
 	XVphy_ConfigTable[instance].BaseAddr = 0/* filled during probe*/;
 	XVphy_ConfigTable[instance].XcvrType = 5/*@TODO override via parse_of*/;
 	XVphy_ConfigTable[instance].TxBufferBypass = 1/*@TODO override via parse_of*/;
@@ -560,6 +563,26 @@ static int xvphy_probe(struct platform_device *pdev)
 	}
 	axi_lite_rate = clk_get_rate(vphydev->axi_lite_clk);
 	hdmi_dbg("AXI Lite clock rate = %lu Hz\n", axi_lite_rate);
+
+	vphydev->clkp = devm_clk_get(&pdev->dev, "nidru");
+	if (IS_ERR(vphydev->clkp)) {
+		ret = PTR_ERR(vphydev->clkp);
+		vphydev->clkp = NULL;
+		if (ret == -EPROBE_DEFER)
+			hdmi_dbg("dru-clk -EPROBE_DEFER\n");
+		if (ret != -EPROBE_DEFER)
+			dev_err(&pdev->dev, "failed to get the nidru clk.\n");
+		return ret;
+	}
+
+	ret = clk_prepare_enable(vphydev->clkp);
+	if (ret) {
+		dev_err(&pdev->dev, "failed to enable nidru clk\n");
+		return ret;
+	}
+
+	dru_clk_rate = clk_get_rate(vphydev->clkp);
+	hdmi_dbg("dru-clk rate = %lu\n", dru_clk_rate);
 
 	provider = devm_of_phy_provider_register(&pdev->dev, xvphy_xlate);
 	if (IS_ERR(provider)) {

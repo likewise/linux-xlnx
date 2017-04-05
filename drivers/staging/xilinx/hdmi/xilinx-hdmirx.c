@@ -132,8 +132,6 @@ struct xhdmirx_device {
 	bool cable_is_connected;
 	bool hdmi_stream_is_up;
 
-	/* NI-DRU clock input */
-	struct clk *clkp;
 	struct clk *axi_lite_clk;
 
 	/* copy of user specified EDID block, if any */
@@ -1361,7 +1359,6 @@ static int xhdmirx_probe(struct platform_device *pdev)
 	const char *fw_edid_name = "xilinx/xilinx-hdmi-rx-edid.bin";
 	unsigned long flags;
 	unsigned long axi_clk_rate;
-	unsigned long dru_clk_rate;
 
 	XV_HdmiRxSs *HdmiRxSsPtr;
 	u32 Status;
@@ -1445,19 +1442,6 @@ static int xhdmirx_probe(struct platform_device *pdev)
 	clk_prepare_enable(xhdmirx->axi_lite_clk);
 	axi_clk_rate = clk_get_rate(xhdmirx->axi_lite_clk);
 
-	if (!xhdmirx->clkp) {
-		xhdmirx->clkp = devm_clk_get(&pdev->dev, "dru-clk");
-		if (IS_ERR(xhdmirx->clkp)) {
-			ret = PTR_ERR(xhdmirx->clkp);
-			xhdmirx->clkp = NULL;
-			if (ret == -EPROBE_DEFER)
-				hdmi_dbg("dru-clk -EPROBE_DEFER\n");
-			if (ret != -EPROBE_DEFER)
-				dev_err(&pdev->dev, "failed to get the dru-clk.\n");
-			return ret;
-		}
-	}
-
 	/* get HDMI RXSS irq */
 	xhdmirx->irq = platform_get_irq(pdev, 0);
 	if (xhdmirx->irq <= 0) {
@@ -1483,15 +1467,6 @@ static int xhdmirx_probe(struct platform_device *pdev)
 
 	INIT_DELAYED_WORK(&xhdmirx->delayed_work_hdcp_poll, hdcp_poll_work/*function*/);
 #endif
-
-	ret = clk_prepare_enable(xhdmirx->clkp);
-	if (ret) {
-		dev_err(&pdev->dev, "failed to enable dru-clk\n");
-		return ret;
-	}
-
-	dru_clk_rate = clk_get_rate(xhdmirx->clkp);
-	hdmi_dbg("dru-clk rate = %lu\n", dru_clk_rate);
 
 	for (index = 0; index < 3; index++)
 	{
@@ -1770,19 +1745,11 @@ static int xhdmirx_remove(struct platform_device *pdev)
 
 	cancel_delayed_work(&xhdmirx->delayed_work_enable_hotplug);
 	destroy_workqueue(xhdmirx->work_queue);
-#if 0 // @TODO mutex can not be acquired
-	hdmi_mutex_lock(&xhdmirx->xhdmirx_mutex);
-#endif
-
-#if 0
-	hdmi_mutex_unlock(&xhdmirx->xhdmirx_mutex);
-#endif
 
 	v4l2_async_unregister_subdev(subdev);
 	v4l2_ctrl_handler_free(&xhdmirx->ctrl_handler);
 	media_entity_cleanup(&subdev->entity);
 	clk_disable_unprepare(xhdmirx->clk);
-	clk_disable_unprepare(xhdmirx->clkp);
 	hdmi_dbg("removed.\n");
 	return 0;
 }
