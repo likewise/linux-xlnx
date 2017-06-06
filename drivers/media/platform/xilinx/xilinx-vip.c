@@ -31,8 +31,13 @@ static const struct xvip_video_format xvip_video_formats[] = {
 	  2, V4L2_PIX_FMT_YUYV, "4:2:2, packed, YUYV" },
 	{ XVIP_VF_YUV_444, 8, NULL, MEDIA_BUS_FMT_VUY8_1X24,
 	  3, V4L2_PIX_FMT_YUV444, "4:4:4, packed, YUYV" },
+#if 0
 	{ XVIP_VF_RBG, 8, NULL, MEDIA_BUS_FMT_RBG888_1X24,
 	  3, 0, NULL },
+#else
+	{ XVIP_VF_RBG, 8, NULL, MEDIA_BUS_FMT_RBG888_1X24,
+	  3, V4L2_PIX_FMT_RGB24, "RGBX8 (RGB)" },
+#endif
 	{ XVIP_VF_MONO_SENSOR, 8, "mono", MEDIA_BUS_FMT_Y8_1X8,
 	  1, V4L2_PIX_FMT_GREY, "Greyscale 8-bit" },
 	{ XVIP_VF_MONO_SENSOR, 8, "rggb", MEDIA_BUS_FMT_SRGGB8_1X8,
