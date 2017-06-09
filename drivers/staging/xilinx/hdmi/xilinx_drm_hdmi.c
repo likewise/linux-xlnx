@@ -21,7 +21,7 @@
  */
 
 /* if both both DEBUG and DEBUG_TRACE are defined, trace_printk() is used */
-//#define DEBUG
+#define DEBUG
 //#define DEBUG_TRACE
 
 //#define DEBUG_MUTEX
@@ -51,7 +51,7 @@
 
 /* baseline driver includes */
 #include "xilinx-hdmi-tx/xv_hdmitxss.h"
-
+#include "../../../../../hdcp_private_keys.h"
 
 #define NUM_SUBCORE_IRQ				2
 #define HDMI_MAX_LANES				4
@@ -107,13 +107,27 @@ struct xilinx_drm_hdmi {
 	struct drm_encoder *encoder;
 	struct device *dev;
 	void __iomem *iomem;
-
+	void __iomem *hdcp1x_keymngmt_iomem;
 	/* video streaming bus clock */
 	struct clk *clk;
 	struct clk *axi_lite_clk;
 
 	/* HDMI TXSS interrupt number */
 	int irq;
+	/* HDCP interrupt numbers */
+	int hdcp1x_irq;
+	int hdcp1x_timer_irq;
+	int hdcp22_irq;
+	int hdcp22_timer_irq;
+	/* controls */
+	bool hdcp_authenticate;
+	bool hdcp_encrypt;
+	/* status */
+	bool hdcp_authenticated;
+	bool hdcp_encrypted;
+	/* delayed work to drive HDCP poll */
+	struct delayed_work delayed_work_hdcp_poll;
+
 	bool teardown;
 
 	struct phy *phy[HDMI_MAX_LANES];
@@ -241,6 +255,144 @@ static irqreturn_t hdmitx_irq_thread(int irq, void *dev_id)
 	return IRQ_HANDLED;
 }
 
+/* if defined (un)mask the interrupt on the host (rather than device) in top/bottom half */
+//#define MASK_IRQ_ON_HOST
+
+/* if defined, the HDCP handling runs in interrupt context and thus the
+ * DDC might race against EDID */
+#define RUN_HDCP_IN_INTERRUPT_CONTEXT
+
+/* top-half interrupt handler for HDMI TX HDCP */
+static irqreturn_t hdmitx_hdcp_irq_handler(int irq, void *dev_id)
+{
+	struct xilinx_drm_hdmi *xhdmi;
+
+	XV_HdmiTxSs *HdmiTxSsPtr;
+	unsigned long flags;
+
+	BUG_ON(!dev_id);
+	xhdmi = (struct xilinx_drm_hdmi *)dev_id;
+	HdmiTxSsPtr = (XV_HdmiTxSs *)&xhdmi->xv_hdmitxss;
+	BUG_ON(!HdmiTxSsPtr->HdmiTxPtr);
+
+ /* use desired threaded irq handler approach*/
+#ifndef RUN_HDCP_IN_INTERRUPT_CONTEXT
+#ifdef MASK_IRQ_ON_HOST
+	//printk(KERN_INFO "hdmitx_hdcp_irq_handler(irq = %d) disable_irq(irq = %d)\n", irq, irq);
+	disable_irq(irq);
+#else
+	spin_lock_irqsave(&xhdmi->irq_lock, flags);
+	/* mask/disable interrupt requests from timers */
+	XTmrCtr_DisableIntr(HdmiTxSsPtr->HdcpTimerPtr->BaseAddress, 0);
+	XTmrCtr_DisableIntr(HdmiTxSsPtr->Hdcp22Ptr->Timer.TmrCtr.BaseAddress, 0);
+	/* mask/disable interrupt request from HDCP1x link status update */
+	XHdcp1x_WriteReg(HdmiTxSsPtr->Hdcp14Ptr->Config.BaseAddress,
+		XHDCP1X_CIPHER_REG_INTERRUPT_MASK, (u32)0xFFFFFFFFu);
+	spin_unlock_irqrestore(&xhdmi->irq_lock, flags);
+#endif /* MASK_IRQ_ON_HOST */
+	//printk(KERN_INFO "hdmitx_hdcp_irq_handler(irq = %d) wake thread\n", irq);
+	/* call bottom-half */
+	return IRQ_WAKE_THREAD;
+#else
+	/* run HDCP interrupt handler functions in interrupt context */
+	XV_HdmiTxSS_HdcpIntrHandler(HdmiTxSsPtr);
+	XV_HdmiTxSS_HdcpTimerIntrHandler(HdmiTxSsPtr);
+	XV_HdmiTxSS_Hdcp22TimerIntrHandler(HdmiTxSsPtr);
+	/* will not result in bottom-half to run */
+	return IRQ_HANDLED;
+#endif
+}
+
+/* (struct xilinx_drm_hdmi *)dev_id */
+/* @TODO this function is currently unused, as there is no bare-metal API
+ * mask/unmask functionality exposed required to run the interrupt handlers in a top and bottom half */
+static irqreturn_t hdmitx_hdcp_irq_thread(int irq, void *dev_id)
+{
+	struct xilinx_drm_hdmi *xhdmi;
+	XV_HdmiTxSs *HdmiTxSsPtr;
+	unsigned long flags;
+
+	BUG_ON(!dev_id);
+	xhdmi = (struct xilinx_drm_hdmi *)dev_id;
+	if (!xhdmi) {
+		printk(KERN_INFO "irq_thread: !dev_id\n");
+		return IRQ_HANDLED;
+	}
+	/* driver is being torn down, do not process further interrupts */
+	if (xhdmi->teardown) {
+		printk(KERN_INFO "irq_thread: teardown\n");
+		return IRQ_HANDLED;
+	}
+	HdmiTxSsPtr = (XV_HdmiTxSs *)&xhdmi->xv_hdmitxss;
+
+	BUG_ON(!HdmiTxSsPtr->HdmiTxPtr);
+
+	//printk(KERN_INFO "hdmitx_hdcp_irq_thread(irq = %d)\n", irq);
+
+	/* invoke the bare-metal interrupt handler under mutex lock */
+	hdmi_mutex_lock(&xhdmi->hdmi_mutex);
+	//if (irq == xhdmi->hdcp1x_irq) {
+		XV_HdmiTxSS_HdcpIntrHandler(HdmiTxSsPtr);
+	//} else if (irq == xhdmi->hdcp1x_timer_irq) {
+		XV_HdmiTxSS_HdcpTimerIntrHandler(HdmiTxSsPtr);
+	//} else if (irq == xhdmi->hdcp22_timer_irq) {
+		XV_HdmiTxSS_Hdcp22TimerIntrHandler(HdmiTxSsPtr);
+	//}
+	hdmi_mutex_unlock(&xhdmi->hdmi_mutex);
+
+	/* re-enable interrupt requests */
+#ifdef MASK_IRQ_ON_HOST
+	//printk(KERN_INFO "hdmitx_hdcp_irq_thread(irq = %d), enable_irq(irq = %d)\n", irq);
+	enable_irq(irq);
+#else
+	spin_lock_irqsave(&xhdmi->irq_lock, flags);
+	/* unmask/enable interrupt requests from timers */
+	XTmrCtr_EnableIntr(HdmiTxSsPtr->HdcpTimerPtr->BaseAddress, 0);
+	XTmrCtr_EnableIntr(HdmiTxSsPtr->Hdcp22Ptr->Timer.TmrCtr.BaseAddress, 0);
+	/* unmask/enable interrupt request from HDCP1x link status update */
+	XHdcp1x_WriteReg(HdmiTxSsPtr->Hdcp14Ptr->Config.BaseAddress,
+		XHDCP1X_CIPHER_REG_INTERRUPT_MASK, (u32)0xFFFFFFFDu);
+	spin_unlock_irqrestore(&xhdmi->irq_lock, flags);
+#endif
+
+	//printk(KERN_INFO "hdmitx_irq_thread() done\n");
+
+	return IRQ_HANDLED;
+}
+
+static void XHdcp_Authenticate(XV_HdmiTxSs *HdmiTxSsPtr)
+{
+	u32 Status;
+	hdmi_dbg("XHdcp_Authenticate()\n");
+#if 1
+	if ((!(XV_HdmiTxSs_HdcpIsAuthenticated(HdmiTxSsPtr)) ||
+		XV_HdmiTxSs_IsStreamToggled(HdmiTxSsPtr)) &&
+		!(XV_HdmiTxSs_HdcpIsInProgress(HdmiTxSsPtr))) {
+			XV_HdmiTxSs_HdcpPushEvent(HdmiTxSsPtr, XV_HDMITXSS_HDCP_AUTHENTICATE_EVT);
+		hdmi_dbg("XV_HdmiTxSs_HdcpPushEvent(XV_HDMITXSS_HDCP_AUTHENTICATE_EVT)\n");
+	}
+#else
+	Status = XV_HdmiTxSs_HdcpAuthRequest(HdmiTxSsPtr);
+	hdmi_dbg("TxHdcpUnauthenticatedCallback(): TX XV_HdmiTxSs_HdcpAuthRequest() %s\n",
+		Status == XST_SUCCESS? "Succesfull": "FAILED");
+#endif
+}
+
+static void TxToggleCallback(void *CallbackRef)
+{
+	struct xilinx_drm_hdmi *xhdmi = (struct xilinx_drm_hdmi *)CallbackRef;
+	XV_HdmiTxSs *HdmiTxSsPtr = &xhdmi->xv_hdmitxss;
+	XVphy *VphyPtr = xhdmi->xvphy;
+	BUG_ON(!xhdmi);
+	BUG_ON(!HdmiTxSsPtr);
+	BUG_ON(!VphyPtr);
+	BUG_ON(!xhdmi->phy[0]);
+	hdmi_dbg("TxToggleCallback()\n");
+
+	if (xhdmi->hdcp_authenticate) {
+		XHdcp_Authenticate(HdmiTxSsPtr);
+	}
+}
 
 static void TxConnectCallback(void *CallbackRef)
 {
@@ -329,6 +481,11 @@ static void TxStreamUpCallback(void *CallbackRef)
 	HdmiTxSsVidStreamPtr = XV_HdmiTxSs_GetVideoStream(HdmiTxSsPtr);
 	XVidC_ReportStreamInfo(HdmiTxSsVidStreamPtr);
 #endif
+	if (xhdmi->hdcp_authenticate) {
+		XHdcp_Authenticate(HdmiTxSsPtr);
+		hdmi_dbg("TxStreamUpCallback(): TX XHdcp_Authenticate\n");
+	}
+	hdmi_dbg("TxStreamUpCallback(): done\n");
 }
 
 static void TxStreamDownCallback(void *CallbackRef)
@@ -347,6 +504,56 @@ static void TxStreamDownCallback(void *CallbackRef)
 
 	hdmi_dbg("TxStreamDownCallback(): TX stream is down\n\r");
 	xhdmi->hdmi_stream_up = 0;
+
+	xhdmi->hdcp_authenticated = 0;
+	xhdmi->hdcp_encrypted = 0;
+}
+
+void TxHdcpAuthenticatedCallback(void *CallbackRef)
+{
+	struct xilinx_drm_hdmi *xhdmi = (struct xilinx_drm_hdmi *)CallbackRef;
+	XV_HdmiTxSs *HdmiTxSsPtr;
+	BUG_ON(!xhdmi);
+	HdmiTxSsPtr = &xhdmi->xv_hdmitxss;
+	BUG_ON(!HdmiTxSsPtr);
+
+	xhdmi->hdcp_authenticated = 1;
+	if (XV_HdmiTxSs_HdcpGetProtocol(HdmiTxSsPtr) == XV_HDMITXSS_HDCP_22) {
+		hdmi_dbg("HDCP 2.2 TX authenticated.\n");
+	}
+
+	else if (XV_HdmiTxSs_HdcpGetProtocol(HdmiTxSsPtr) == XV_HDMITXSS_HDCP_14) {
+		hdmi_dbg("HDCP 1.4 TX authenticated.\n");
+	}
+
+	if (xhdmi->hdcp_encrypt) {
+		hdmi_dbg("Enabling Encryption.\n");
+		XV_HdmiTxSs_HdcpEnableEncryption(HdmiTxSsPtr);
+		xhdmi->hdcp_encrypted = 1;
+	} else {
+		hdmi_dbg("Not Enabling Encryption.\n");
+	}
+}
+
+void TxHdcpUnauthenticatedCallback(void *CallbackRef)
+{
+	struct xilinx_drm_hdmi *xhdmi = (struct xilinx_drm_hdmi *)CallbackRef;
+	XV_HdmiTxSs *HdmiTxSsPtr;
+	BUG_ON(!xhdmi);
+	HdmiTxSsPtr = &xhdmi->xv_hdmitxss;
+	BUG_ON(!HdmiTxSsPtr);
+
+	xhdmi->hdcp_authenticated = 0;
+
+	//cancel_delayed_work_sync(&xhdmi->delayed_work_hdcp_poll);
+	if (xhdmi->hdcp_authenticate) {
+		/* retry authentication */
+		if (XV_HdmiTxSs_HdcpGetProtocol(HdmiTxSsPtr) == XV_HDMITXSS_HDCP_14) {
+			XHdcp_Authenticate(HdmiTxSsPtr);
+			/* immediately re-start the HDCP polling action */
+			//schedule_delayed_work(&xhdmi->delayed_work_hdcp_poll, 0);
+		}
+	}
 }
 
 static void TxVsCallback(void *CallbackRef)
@@ -827,6 +1034,13 @@ static int xilinx_drm_hdmi_encoder_init(struct platform_device *pdev,
 		return -EINVAL;
 	}
 
+	hdmi_dbg("tx     subs absddr: 0x%p", (void *)HdmiTxSsPtr->Config.BaseAddress);
+	hdmi_dbg("tx     core absddr: 0x%p", (void *)HdmiTxSsPtr->Config.HdmiTx.AbsAddr);
+	hdmi_dbg("vtc    core absddr: 0x%p", (void *)HdmiTxSsPtr->Config.Vtc.AbsAddr);
+	hdmi_dbg("hdcp1x core absddr: 0x%p", (void *)HdmiTxSsPtr->Config.Hdcp14.AbsAddr);
+	hdmi_dbg("hdcp1x tmr  absddr: 0x%p", (void *)HdmiTxSsPtr->Config.HdcpTimer.AbsAddr);
+	hdmi_dbg("hdcp22 core absddr: 0x%p", (void *)HdmiTxSsPtr->Config.Hdcp22.AbsAddr);
+	
 	spin_lock_irqsave(&xhdmi->irq_lock, flags);
 	XV_HdmiTxSs_IntrDisable(HdmiTxSsPtr);
 	spin_unlock_irqrestore(&xhdmi->irq_lock, flags);
@@ -834,12 +1048,19 @@ static int xilinx_drm_hdmi_encoder_init(struct platform_device *pdev,
 	/* TX SS callback setup */
 	XV_HdmiTxSs_SetCallback(HdmiTxSsPtr, XV_HDMITXSS_HANDLER_CONNECT,
 		TxConnectCallback, (void *)xhdmi);
+	XV_HdmiTxSs_SetCallback(HdmiTxSsPtr, XV_HDMITXSS_HANDLER_TOGGLE,
+		TxToggleCallback, (void *)xhdmi);
 	XV_HdmiTxSs_SetCallback(HdmiTxSsPtr, XV_HDMITXSS_HANDLER_VS,
 		TxVsCallback, (void *)xhdmi);
 	XV_HdmiTxSs_SetCallback(HdmiTxSsPtr, XV_HDMITXSS_HANDLER_STREAM_UP,
 		TxStreamUpCallback, (void *)xhdmi);
 	XV_HdmiTxSs_SetCallback(HdmiTxSsPtr, XV_HDMITXSS_HANDLER_STREAM_DOWN,
 		TxStreamDownCallback, (void *)xhdmi);
+
+	XV_HdmiTxSs_SetCallback(HdmiTxSsPtr, XV_HDMITXSS_HANDLER_HDCP_AUTHENTICATED,
+		TxHdcpAuthenticatedCallback, (void *)xhdmi);
+	XV_HdmiTxSs_SetCallback(HdmiTxSsPtr, XV_HDMITXSS_HANDLER_HDCP_UNAUTHENTICATED,
+		TxHdcpUnauthenticatedCallback, (void *)xhdmi);
 
 	/* get a reference to the XVphy data structure */
 	xhdmi->xvphy = xvphy_get_xvphy(xhdmi->phy[0]);
@@ -862,6 +1083,36 @@ static int xilinx_drm_hdmi_encoder_init(struct platform_device *pdev,
 	if (ret) {
 		dev_err(&pdev->dev, "unable to request IRQ %d\n", xhdmi->irq);
 		return ret;
+	}
+
+	/* HDCP 1.4 Cipher interrupt */
+	if (xhdmi->hdcp1x_irq > 0) {
+		ret = devm_request_threaded_irq(&pdev->dev, xhdmi->hdcp1x_irq, hdmitx_hdcp_irq_handler, hdmitx_hdcp_irq_thread,
+			IRQF_TRIGGER_HIGH /*| IRQF_SHARED*/, "xilinx-hdmitxss-hdcp1x-cipher", xhdmi/*dev_id*/);
+		if (ret) {
+			dev_err(&pdev->dev, "unable to request IRQ %d\n", xhdmi->hdcp1x_irq);
+			return ret;
+		}
+	}
+
+	/* HDCP 1.4 Timer interrupt */
+	if (xhdmi->hdcp1x_timer_irq > 0) {
+		ret = devm_request_threaded_irq(&pdev->dev, xhdmi->hdcp1x_timer_irq, hdmitx_hdcp_irq_handler, hdmitx_hdcp_irq_thread,
+			IRQF_TRIGGER_HIGH /*| IRQF_SHARED*/, "xilinx-hdmitxss-hdcp1x-timer", xhdmi/*dev_id*/);
+		if (ret) {
+			dev_err(&pdev->dev, "unable to request IRQ %d\n", xhdmi->hdcp1x_timer_irq);
+			return ret;
+		}
+	}
+
+	/* HDCP 2.2 Timer interrupt */
+	if (xhdmi->hdcp22_timer_irq > 0) {
+		ret = devm_request_threaded_irq(&pdev->dev, xhdmi->hdcp22_timer_irq, hdmitx_hdcp_irq_handler, hdmitx_hdcp_irq_thread,
+			IRQF_TRIGGER_HIGH /*| IRQF_SHARED*/, "xilinx-hdmitxss-hdcp22-timer", xhdmi/*dev_id*/);
+		if (ret) {
+			dev_err(&pdev->dev, "unable to request IRQ %d\n", xhdmi->hdcp22_timer_irq);
+			return ret;
+		}
 	}
 
 	hdmi_mutex_unlock(&xhdmi->hdmi_mutex);
@@ -908,9 +1159,142 @@ static XV_HdmiTxSs_Config config =
 	},
 };
 
+static int XHdcp_KeyManagerInit(uintptr_t BaseAddress, u8 *Hdcp14Key)
+{
+	u32 RegValue;
+	u8 Row;
+	u8 i;
+	u8 *KeyPtr;
+	u8 Status;
+
+	//RC: add dbg
+	hdmi_dbg("hdcp1x KeyManager BaseAddress = 0x%p", (void *)BaseAddress);
+	hdmi_dbg("hdcp1x key = 0x%p", Hdcp14Key);
+
+	/* Assign key pointer */
+	KeyPtr = Hdcp14Key;
+
+	/* Reset */
+	Xil_Out32((BaseAddress + 0x0c), (1<<31));
+
+	// There are 41 rows
+	for (Row=0; Row<41; Row++)
+	{
+		/* Set write enable */
+		Xil_Out32((BaseAddress + 0x20), 1);
+
+		/* High data */
+		RegValue = 0;
+		for (i=0; i<4; i++)
+		{
+			RegValue <<= 8;
+			RegValue |= *KeyPtr;
+			KeyPtr++;
+		}
+
+		/* Write high data */
+		Xil_Out32((BaseAddress + 0x2c), RegValue);
+
+		/* Low data */
+		RegValue = 0;
+		for (i=0; i<4; i++)
+		{
+			RegValue <<= 8;
+			RegValue |= *KeyPtr;
+			KeyPtr++;
+		}
+
+		/* Write low data */
+		Xil_Out32((BaseAddress + 0x30), RegValue);
+
+		/* Table / Row Address */
+		Xil_Out32((BaseAddress + 0x28), Row);
+
+		// Write in progress
+		do
+		{
+			RegValue = Xil_In32(BaseAddress + 0x24);
+			RegValue &= 1;
+		} while (RegValue != 0);
+	}
+
+	// Verify
+
+	/* Re-Assign key pointer */
+	KeyPtr = Hdcp14Key;
+
+	/* Default Status */
+	Status = XST_SUCCESS;
+
+	/* Start at row 0 */
+	Row = 0;
+
+	do
+	{
+		/* Set read enable */
+		Xil_Out32((BaseAddress + 0x20), (1<<1));
+
+		/* Table / Row Address */
+		Xil_Out32((BaseAddress + 0x28), Row);
+
+		// Read in progress
+		do
+		{
+			RegValue = Xil_In32(BaseAddress + 0x24);
+			RegValue &= 1;
+		} while (RegValue != 0);
+
+		/* High data */
+		RegValue = 0;
+		for (i=0; i<4; i++)
+		{
+			RegValue <<= 8;
+			RegValue |= *KeyPtr;
+			KeyPtr++;
+		}
+
+		if (RegValue != Xil_In32(BaseAddress + 0x2c))
+			Status = XST_FAILURE;
+
+		/* Low data */
+		RegValue = 0;
+		for (i=0; i<4; i++)
+		{
+			RegValue <<= 8;
+			RegValue |= *KeyPtr;
+			KeyPtr++;
+		}
+
+		if (RegValue != Xil_In32(BaseAddress + 0x30))
+			Status = XST_FAILURE;
+
+		/* Increment row */
+		Row++;
+
+	} while ((Row<41) && (Status == XST_SUCCESS));
+
+	if (Status == XST_SUCCESS)
+	{
+		/* Set read lockout */
+		Xil_Out32((BaseAddress + 0x20), (1<<31));
+
+		/* Start AXI-Stream */
+		Xil_Out32((BaseAddress + 0x0c), (1));
+	}
+
+	return Status;
+}
+
 /* Local Global table for all sub-core instance(s) configuration settings */
 XVtc_Config XVtc_ConfigTable[XPAR_XVTC_NUM_INSTANCES];
 XV_HdmiTx_Config XV_HdmiTx_ConfigTable[XPAR_XV_HDMITX_NUM_INSTANCES];
+
+//RC: Why do we have to define extern when exported by VPHY
+extern XHdcp22_Cipher_Config XHdcp22_Cipher_ConfigTable[];
+extern XHdcp22_Rng_Config XHdcp22_Rng_ConfigTable[];
+extern XHdcp1x_Config XHdcp1x_ConfigTable[];
+extern XTmrCtr_Config XTmrCtr_ConfigTable[];
+extern XHdcp22_Tx_Config XHdcp22_Tx_ConfigTable[];
 
 /* Compute the absolute address by adding subsystem base address 
    to sub-core offset */
@@ -961,6 +1345,43 @@ static int xhdmi_drm_compute_subcore_AbsAddr(uintptr_t SubSys_BaseAddr,
 	   return -EFAULT;
 	}
 	
+	/* Subcore: hdcp1x */
+	if (config.Hdcp14.IsPresent) {
+	  ret = xhdmi_drm_subcore_AbsAddr(SubSys_BaseAddr,
+		  							  SubSys_HighAddr,
+									  config.Hdcp14.AbsAddr,
+									  &config.Hdcp14.AbsAddr);
+	  if (ret != XST_SUCCESS) {
+	     hdmi_dbg("hdcp1x sub-core address out-of range\n");
+	     return -EFAULT;
+	  }
+	}
+	
+	/* Subcore: hdcp1x timer */
+	if (config.HdcpTimer.IsPresent) {
+	  ret = xhdmi_drm_subcore_AbsAddr(SubSys_BaseAddr,
+	  								  SubSys_HighAddr,
+	  								  config.HdcpTimer.AbsAddr,
+	  								  &config.HdcpTimer.AbsAddr);
+	  if (ret != XST_SUCCESS) {
+	     hdmi_dbg("hdcp1x timer sub-core address out-of range\n");
+	     return -EFAULT;
+	  }
+	}
+	
+	/* Subcore: hdcp22 */
+	if (config.Hdcp22.IsPresent) {
+	  ret = xhdmi_drm_subcore_AbsAddr(SubSys_BaseAddr,
+	  								  SubSys_HighAddr,
+	  								  config.Hdcp22.AbsAddr,
+	  								  &config.Hdcp22.AbsAddr);
+	  
+	  if (ret != XST_SUCCESS) {
+	     hdmi_dbg("hdcp22 sub-core address out-of range\n");
+	     return -EFAULT;
+	  }
+	}
+	
 	return (ret);
 }
 
@@ -992,7 +1413,9 @@ static int xilinx_drm_hdmi_parse_of(struct xilinx_drm_hdmi *xhdmi, XV_HdmiTxSs_C
 	config->MaxBitsPerPixel = val;
 
 	rc = of_property_read_u32(node, "xlnx,hdmi-tx-offset", &val);
-	if (rc == 0) {
+	if (rc < 0) {
+		goto error_dt;
+	} else if (rc == 0) {
 		config->HdmiTx.DeviceId = TX_DEVICE_ID_BASE + instance;
 		config->HdmiTx.IsPresent = 1; 
  		config->HdmiTx.AbsAddr = val; 
@@ -1002,8 +1425,7 @@ static int xilinx_drm_hdmi_parse_of(struct xilinx_drm_hdmi *xhdmi, XV_HdmiTxSs_C
 	
 	rc = of_property_read_u32(node, "xlnx,vtc-offset", &val);
 	if (rc < 0) {
-		hdmi_dbg("Not using an internal VTC.");
-		config->Vtc.IsPresent = 0;
+		goto error_dt;
 	} else if (rc == 0) {
 		config->Vtc.IsPresent = 1;
 		config->Vtc.DeviceId = TX_DEVICE_ID_BASE + instance;
@@ -1012,7 +1434,69 @@ static int xilinx_drm_hdmi_parse_of(struct xilinx_drm_hdmi *xhdmi, XV_HdmiTxSs_C
 		XVtc_ConfigTable[instance].BaseAddress = val;
 	}
 
-	/* NOTE new */
+	rc = of_property_read_u32(node, "xlnx,hdcp1x-offset", &val);
+	if (rc == 0) {
+		/* make subcomponent of TXSS present */
+		config->Hdcp14.IsPresent = 1;
+		config->Hdcp14.DeviceId = TX_DEVICE_ID_BASE + instance;
+		config->Hdcp14.AbsAddr = val;
+		XHdcp1x_ConfigTable[instance].DeviceId = config->Hdcp14.DeviceId;
+		XHdcp1x_ConfigTable[instance].BaseAddress = val;
+		XHdcp1x_ConfigTable[instance].IsRx = 0;
+		XHdcp1x_ConfigTable[instance].IsHDMI = 1;
+	}
+
+	rc = of_property_read_u32(node, "xlnx,hdcp1x-timer-offset", &val);
+	if (rc == 0) {
+		/* make subcomponent of TXSS present */
+		config->HdcpTimer.DeviceId = TX_DEVICE_ID_BASE + instance;
+		config->HdcpTimer.IsPresent = 1;
+		config->HdcpTimer.AbsAddr = val;
+
+		/* and configure it */
+		XTmrCtr_ConfigTable[instance * 2 + 0].DeviceId = config->HdcpTimer.DeviceId;
+		XTmrCtr_ConfigTable[instance * 2 + 0].BaseAddress = val;
+		/* @TODO increment timer index */
+	}
+
+	rc = of_property_read_u32(node, "xlnx,hdcp22-tx-offset", &val);
+	if (rc == 0) {
+		config->Hdcp22.DeviceId = TX_DEVICE_ID_BASE + instance;
+		config->Hdcp22.IsPresent = 1;
+		config->Hdcp22.AbsAddr = val;
+		XHdcp22_Tx_ConfigTable[instance].DeviceId = config->Hdcp22.DeviceId;
+		XHdcp22_Tx_ConfigTable[instance].BaseAddress = val;
+		XHdcp22_Tx_ConfigTable[instance].Protocol = 0;//HDCP22_TX_HDMI;
+		XHdcp22_Tx_ConfigTable[instance].TimerDeviceId = TX_DEVICE_ID_BASE + 64 + instance;
+		XHdcp22_Tx_ConfigTable[instance].CipherId = TX_DEVICE_ID_BASE + instance;
+		XHdcp22_Tx_ConfigTable[instance].RngId = TX_DEVICE_ID_BASE + instance;;
+	}
+
+	rc = of_property_read_u32(node, "xlnx,hdcp22-timer-offset", &val);
+	if (rc == 0) {
+		XTmrCtr_ConfigTable[instance * 2 + 1].DeviceId = TX_DEVICE_ID_BASE + 64 + instance;
+		XTmrCtr_ConfigTable[instance * 2 + 1].BaseAddress = val;
+	}
+	rc = of_property_read_u32(node, "xlnx,hdcp22-cipher-offset", &val);
+	if (rc == 0) {
+		XHdcp22_Cipher_ConfigTable[instance].DeviceId = TX_DEVICE_ID_BASE + instance;
+		XHdcp22_Cipher_ConfigTable[instance].BaseAddress = val;
+	}
+	rc = of_property_read_u32(node, "xlnx,hdcp22-rng-offset", &val);
+	if (rc == 0) {
+		XHdcp22_Rng_ConfigTable[instance].DeviceId = TX_DEVICE_ID_BASE + instance;
+		XHdcp22_Rng_ConfigTable[instance].BaseAddress = val;
+	}
+
+	rc = of_property_read_u32(node, "xlnx,hdcp-authenticate", &val);
+	if (rc == 0) {
+		xhdmi->hdcp_authenticate = !!val; //RC: Why double negation
+	}
+	rc = of_property_read_u32(node, "xlnx,hdcp-encrypt", &val);
+	if (rc == 0) {
+		xhdmi->hdcp_encrypt = !!val; //RC: Why double negation
+	}	
+
 	rc = of_property_read_string(node, "xlnx,output-fmt", &format);
 	if (rc < 0) {
 		dev_err(xhdmi->dev, "xlnx,output-fmt must be specified\n");
@@ -1036,6 +1520,39 @@ static int xilinx_drm_hdmi_parse_of(struct xilinx_drm_hdmi *xhdmi, XV_HdmiTxSs_C
 error_dt:
 	dev_err(xhdmi->dev, "Error parsing device tree");
 	return rc;
+}
+
+static void hdcp_poll_work(struct work_struct *work)
+{
+	/* find our parent container structure */
+	struct xilinx_drm_hdmi *xhdmi = container_of(work, struct xilinx_drm_hdmi,
+		delayed_work_hdcp_poll.work);
+	static int counter = 0;
+	XV_HdmiTxSs *HdmiTxSsPtr;
+	BUG_ON(!xhdmi);
+	HdmiTxSsPtr = (XV_HdmiTxSs *)&xhdmi->xv_hdmitxss;
+	BUG_ON(!HdmiTxSsPtr);
+
+	//dev_info(xhdmi->dev, "hdcp_poll_work()\n");
+
+#ifndef RUN_HDCP_IN_INTERRUPT_CONTEXT
+	hdmi_mutex_lock(&xhdmi->hdmi_mutex);
+#endif
+	XV_HdmiTxSs_HdcpPoll(HdmiTxSsPtr);
+#ifndef RUN_HDCP_IN_INTERRUPT_CONTEXT
+	hdmi_mutex_unlock(&xhdmi->hdmi_mutex);
+#endif
+	/* reschedule this work again in 1 millisecond */
+	schedule_delayed_work(&xhdmi->delayed_work_hdcp_poll, msecs_to_jiffies(1));
+
+	counter++;
+	if (counter >= 100000) {
+		counter = 0;
+		XV_HdmiTxSs_HdcpInfo(HdmiTxSsPtr);
+	}
+	//dev_info(xhdmi->dev, "hdcp_poll_work()\n");
+
+	return;
 }
 
 static int xilinx_drm_hdmi_probe(struct platform_device *pdev)
@@ -1071,6 +1588,7 @@ static int xilinx_drm_hdmi_probe(struct platform_device *pdev)
 		return ret;
 	hdmi_dbg("xilinx_drm_hdmi DT parse done\n");
 
+	/* acquire vphy lanes */
 	for (index = 0; index < 3; index++)
 	{
 		char phy_name[16];
@@ -1097,7 +1615,9 @@ static int xilinx_drm_hdmi_probe(struct platform_device *pdev)
 		}
 	}
 
+	/* get ownership of the HDMI TXSS MMIO egister space resource */
 	res = platform_get_resource(pdev, IORESOURCE_MEM, 0);
+	/* map the MMIO region */
 	xhdmi->iomem = devm_ioremap_resource(xhdmi->dev, res);
 	if (IS_ERR(xhdmi->iomem))
 		return PTR_ERR(xhdmi->iomem);
@@ -1142,13 +1662,13 @@ static int xilinx_drm_hdmi_probe(struct platform_device *pdev)
 	hdmi_dbg("axi_clk_rate = %lu Hz\n", axi_clk_rate);
 	config.AxiLiteClkFreq = axi_clk_rate;
 
-	/* get irq */
-	xhdmi->irq = platform_get_irq(pdev, 0);
-	if (xhdmi->irq <= 0) {
-		dev_err(&pdev->dev, "platform_get_irq() failed\n");
-		destroy_workqueue(xhdmi->work_queue);
-		return xhdmi->irq;
-	}
+	/* we now know the AXI clock rate */
+	/* RC: hard coded index of 0 & 1 used in 4.6 code. Will not work for multi-instance
+	 * update: added "instance"
+	 */
+	XHdcp1x_ConfigTable[instance].SysFrequency = axi_clk_rate;
+	XTmrCtr_ConfigTable[instance * 2 + 0].SysClockFreqHz = axi_clk_rate;
+	XTmrCtr_ConfigTable[instance * 2 + 1].SysClockFreqHz = axi_clk_rate;
 
 	/* support to drive an external retimer IC on the TX path, depending on TX clock line rate */
 	xhdmi->retimer_clk = devm_clk_get(&pdev->dev, "retimer-clk");
@@ -1180,7 +1700,7 @@ static int xilinx_drm_hdmi_probe(struct platform_device *pdev)
 		if (ret == -EPROBE_DEFER)
 			hdmi_dbg("gpio tx_refclk_rdy_en not ready -EPROBE_DEFER\n");
 		if (ret != EPROBE_DEFER)
-			dev_err(&pdev->dev, "ERROR failed to locate gpio tx_refclk_rdy_en in dt\n");
+			dev_err(xhdmi->dev, "ERROR failed to locate gpio tx_refclk_rdy_en in dt\n");
 		return ret;
 	}
 
@@ -1188,7 +1708,78 @@ static int xilinx_drm_hdmi_probe(struct platform_device *pdev)
 	gpiod_set_value_cansleep(xhdmi->freqchg_gpio, XVPHY_TXREFCLK_RDY_HIGH);
 	hdmi_dbg("acquired tx_refclk_rdy_en gpio\n");
 
+
+	res = platform_get_resource_byname(pdev, IORESOURCE_MEM, "hdcp1x-keymngmt");
+
+	if (res) {
+		hdmi_dbg("Mapping HDCP1x key management block.\n");
+		xhdmi->hdcp1x_keymngmt_iomem = devm_ioremap_resource(xhdmi->dev, res);
+		hdmi_dbg("HDCP1x key management block @%p.\n", xhdmi->hdcp1x_keymngmt_iomem);
+		if (IS_ERR(xhdmi->hdcp1x_keymngmt_iomem)) {
+			hdmi_dbg("Could not ioremap hdcp1x-keymngmt.\n");
+			return PTR_ERR(xhdmi->hdcp1x_keymngmt_iomem);
+		}
+	}
+
+	//RC: Do we need to acquire mutex before calling BM API?
+	/* if hdcp present, program the keys */
+	if (config.Hdcp14.IsPresent && config.HdcpTimer.IsPresent && xhdmi->hdcp1x_keymngmt_iomem) {
+		u8 Status;
+		XV_HdmiTxSs *HdmiTxSsPtr;
+		HdmiTxSsPtr = (XV_HdmiTxSs *)&xhdmi->xv_hdmitxss;
+		dev_info(xhdmi->dev, "HDCP1x components are all there.\n");
+		/* Set pointer to HDCP 1.4 key */
+		XV_HdmiTxSs_HdcpSetKey(HdmiTxSsPtr, XV_HDMITXSS_KEY_HDCP14, Hdcp14KeyA);
+		/* Key manager Init */
+		Status = XHdcp_KeyManagerInit((uintptr_t)xhdmi->hdcp1x_keymngmt_iomem, HdmiTxSsPtr->Hdcp14KeyPtr);
+		if (Status != XST_SUCCESS) {
+			dev_err(xhdmi->dev, "HDCP 1.4 TX Key Manager initialization error.\n");
+			return -EINVAL;
+		}
+		dev_info(xhdmi->dev, "HDCP 1.4 TX Key Manager initialized OK.\n");
+	}
+
+	if (config.Hdcp22.IsPresent) {
+		XV_HdmiTxSs *HdmiTxSsPtr;
+		HdmiTxSsPtr = (XV_HdmiTxSs *)&xhdmi->xv_hdmitxss;
+		/* Set pointer to HDCP 2.2 LC128 */
+		XV_HdmiTxSs_HdcpSetKey(HdmiTxSsPtr, XV_HDMITXSS_KEY_HDCP22_LC128, Hdcp22Lc128);
+		XV_HdmiTxSs_HdcpSetKey(HdmiTxSsPtr, XV_HDMITXSS_KEY_HDCP22_SRM, Hdcp22Srm);
+	}
+	
+	/* get HDMI TXSS irq */
+	xhdmi->irq = platform_get_irq(pdev, 0);
+	if (xhdmi->irq <= 0) {
+		dev_err(xhdmi->dev, "platform_get_irq() failed\n");
+		destroy_workqueue(xhdmi->work_queue);
+		return xhdmi->irq;
+	}
+
+	if (config.Hdcp14.IsPresent) {
+	  xhdmi->hdcp1x_irq = platform_get_irq_byname(pdev, "hdcp1x");
+	  hdmi_dbg("xhdmi->hdcp1x_irq = %d\n", xhdmi->hdcp1x_irq);
+	  xhdmi->hdcp1x_timer_irq = platform_get_irq_byname(pdev, "hdcp1x-timer");
+	  hdmi_dbg("xhdmi->hdcp1x_timer_irq = %d\n", xhdmi->hdcp1x_timer_irq);
+	}
+	
+	if (config.Hdcp22.IsPresent) {
+	  xhdmi->hdcp22_irq = platform_get_irq_byname(pdev, "hdcp22");
+	  hdmi_dbg("xhdmi->hdcp1x_irq = %d\n", xhdmi->hdcp22_irq);
+	  xhdmi->hdcp22_timer_irq = platform_get_irq_byname(pdev, "hdcp22-timer");
+	  hdmi_dbg("xhdmi->hdcp22_timer_irq = %d\n", xhdmi->hdcp22_timer_irq);
+	}
+	 
+	if (config.Hdcp14.IsPresent || config.Hdcp22.IsPresent) {
+	  INIT_DELAYED_WORK(&xhdmi->delayed_work_hdcp_poll, hdcp_poll_work/*function*/);
+	}
+	
+
 	platform_set_drvdata(pdev, xhdmi);
+
+	/* call into hdcp_poll_work, which will reschedule itself */
+	if (config.Hdcp14.IsPresent || config.Hdcp22.IsPresent) {
+	  hdcp_poll_work(&xhdmi->delayed_work_hdcp_poll.work);
+	}
 
 	/* remainder of initialization is in encoder_init() */
 	hdmi_dbg("hdmi-tx probe successful\n");
@@ -1196,6 +1787,15 @@ static int xilinx_drm_hdmi_probe(struct platform_device *pdev)
 	instance++;
 	return 0;
 error_phy:
+	printk(KERN_INFO "xhdmitx_probe() error_phy:\n");
+	index = 0;
+	/* release the lanes that we did get, if we did not get all lanes */
+	if (xhdmi->phy[index]) {
+		printk(KERN_INFO "phy_exit() xhdmi->phy[%d] = %p\n", index, xhdmi->phy[index]);
+		phy_exit(xhdmi->phy[index]);
+		xhdmi->phy[index] = NULL;
+	}
+
 	return ret;
 }
 

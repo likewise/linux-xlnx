@@ -27,6 +27,8 @@
 * Ver   Who    Date     Changes
 * ----- ---- -------- -------------------------------------------------------
 * 1.00   MMO 19/12/16 Move HDCP Code from xv_hdmitxss.c to xv_hdmitxss_hdcp.c
+* 3.20   MH  04/12/17 Updated function XV_HdmiTxSs_IsSinkHdcp14Capable and
+*                     XV_HdmiTxSs_IsSinkHdcp22Capable.
 * </pre>
 *
 ******************************************************************************/
@@ -1577,7 +1579,7 @@ void XV_HdmiTxSs_HdcpInfo(XV_HdmiTxSs *InstancePtr)
           xil_printf("\r\nHDCP 1.4 TX Info\r\n");
 
           // Route debug output to xil_printf
-          XHdcp1x_SetDebugPrintf(xil_printf);
+          XHdcp1x_SetDebugPrintf(printk);
 
           // Display info
           XHdcp1x_Info(InstancePtr->Hdcp14Ptr);
@@ -1635,7 +1637,7 @@ void XV_HdmiTxSs_HdcpSetInfoDetail(XV_HdmiTxSs *InstancePtr, u8 Verbose)
 #ifdef XPAR_XHDCP_NUM_INSTANCES
     // HDCP 1.4
     if (InstancePtr->Hdcp14Ptr) {
-      XHdcp1x_SetDebugLogMsg(xil_printf);
+      XHdcp1x_SetDebugLogMsg(printk);
     }
 #endif
 

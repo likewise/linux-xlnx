@@ -50,6 +50,7 @@
 * 1.10  MMO    03/01/17 Remove XV_HdmiTxSs_ComputeSubcoreAbsAddr API, as it
 *                            handles in the "_g" TCL generation
 *                       Re-align coding style to ensure, 80 characters per row
+* 3.2   MH     04/24/17 Set default HDMI mode in XV_HdmiTxSs_SubcoreInitHdmiTx
 * </pre>
 *
 ******************************************************************************/

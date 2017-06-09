@@ -27,6 +27,8 @@
 * Ver   Who    Date     Changes
 * ----- ---- -------- -------------------------------------------------------
 * 1.00   MMO 19/12/16 Move HDCP Code from xv_hdmirxss.c to xv_hdmirxss_hdcp.c
+* 3.2    MH  04/07/17 Fixed issue to prevent HDCP protocol switching when only
+*                     one protocol is in the design.
 *
 * </pre>
 *
@@ -1216,7 +1218,7 @@ void XV_HdmiRxSs_HdcpInfo(XV_HdmiRxSs *InstancePtr)
           }
 
           // Route debug output to xil_printf
-          XHdcp1x_SetDebugPrintf(xil_printf);
+          XHdcp1x_SetDebugPrintf(printk);
 
           // Display info
           XHdcp1x_Info(InstancePtr->Hdcp14Ptr);
@@ -1276,7 +1278,7 @@ void XV_HdmiRxSs_HdcpSetInfoDetail(XV_HdmiRxSs *InstancePtr, u8 Verbose)
 #ifdef XPAR_XHDCP_NUM_INSTANCES
    // HDCP 1.4
    if (InstancePtr->Hdcp14Ptr) {
-     XHdcp1x_SetDebugLogMsg(xil_printf);
+     XHdcp1x_SetDebugLogMsg(printk);
    }
 #endif
 

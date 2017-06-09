@@ -55,6 +55,8 @@
 *                       Move XV_HdmiRx_DdcLoadEdid to xv_hdmirxss.h and call it
 *                       in user application
 *                       Add compiler option(XV_HDMIRXSS_LOG_ENABLE) to enable Log
+* 3.2   MH     04/07/17 Fixed issue to prevent HDCP protocol switching when only
+*                       one protocol is in the design.
 * </pre>
 *
 ******************************************************************************/

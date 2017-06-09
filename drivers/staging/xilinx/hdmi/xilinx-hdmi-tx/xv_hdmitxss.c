@@ -73,7 +73,6 @@
 *                       XV_HdmiTxSs_WaitUs
 * 1.20   MH    08/10/16 Update function call sequence in
 *                       XV_HdmiTxSs_StreamUpCallback
-*
 * 1.1x   mmo   04/11/16 Updated the XV_HdmiTxSs_SetAudioChannels API which
 *                       currently calls XV_HdmiTx_SetAudioChannels driver,
 *                       which sets the Audio Channels
@@ -92,6 +91,8 @@
 *                             Segment Support and HDMI Compliance Test
 *                       Updated the XV_HdmiTxSs_ShowEdid API to have support
 *                             multiple EDID.
+* 3.2   MH     04/21/17 Updated to set HDMI mode in functions
+*                       XV_HdmiTxSS_SetHdmiMode and XV_HdmiTxSS_SetDviMode.
 * </pre>
 *
 ******************************************************************************/

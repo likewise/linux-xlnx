@@ -23,7 +23,7 @@
  */
 
 /* if both both DEBUG and DEBUG_TRACE are defined, trace_printk() is used */
-//#define DEBUG
+#define DEBUG
 //#define DEBUG_TRACE
 
 //#define DEBUG_MUTEX
@@ -55,6 +55,24 @@
 /* common RX/TX */
 #include "phy-xilinx-vphy/xvidc.h"
 #include "phy-xilinx-vphy/xvidc_edid.h"
+/* either comment-out, or define as 1. Adapt Makefile also, see HDCP section */
+
+#ifdef XPAR_XHDCP_NUM_INSTANCES
+#include "xtmrctr.h"
+#include "xhdcp1x.h"
+#endif
+#ifdef XPAR_XHDCP22_TX_NUM_INSTANCES
+#include "xhdcp22_tx.h"
+#endif
+
+#include "phy-xilinx-vphy/bigdigits.h"
+#include "phy-xilinx-vphy/xhdcp22_cipher.h"
+#include "phy-xilinx-vphy/xhdcp22_mmult.h"
+#include "phy-xilinx-vphy/xhdcp22_rng.h"
+#include "phy-xilinx-vphy/xhdcp22_common.h"
+#include "phy-xilinx-vphy/xhdcp22_rx.h"
+#include "phy-xilinx-vphy/xtmrctr.h"
+
 
 #define XVPHY_DRU_REF_CLK_HZ	156250000
 
@@ -620,6 +638,14 @@ MODULE_LICENSE("GPL");
 MODULE_AUTHOR("Leon Woestenberg <leon@sidebranch.com>");
 MODULE_DESCRIPTION("Xilinx Vphy driver");
 
+XHdcp1x_Config XHdcp1x_ConfigTable[XPAR_XHDCP_NUM_INSTANCES];
+XHdcp22_Cipher_Config XHdcp22_Cipher_ConfigTable[XPAR_XHDCP22_CIPHER_NUM_INSTANCES];
+XHdcp22_mmult_Config XHdcp22_mmult_ConfigTable[XPAR_XHDCP22_MMULT_NUM_INSTANCES];
+XHdcp22_Rng_Config XHdcp22_Rng_ConfigTable[XPAR_XHDCP22_RNG_NUM_INSTANCES];
+XHdcp22_Rx_Config XHdcp22_Rx_ConfigTable[XPAR_XHDCP22_RX_NUM_INSTANCES];
+XHdcp22_Tx_Config XHdcp22_Tx_ConfigTable[XPAR_XHDCP22_TX_NUM_INSTANCES];
+XTmrCtr_Config XTmrCtr_ConfigTable[XPAR_XTMRCTR_NUM_INSTANCES];
+
 /* common functionality shared between RX and TX */
 EXPORT_SYMBOL_GPL(XVidC_ReportTiming);
 EXPORT_SYMBOL_GPL(XVidC_SetVideoStream);
@@ -631,3 +657,8 @@ EXPORT_SYMBOL_GPL(XVidC_GetVideoModeId);
 EXPORT_SYMBOL_GPL(XVidC_GetPixelClockHzByHVFr);
 
 
+EXPORT_SYMBOL_GPL(XHdcp1x_ConfigTable);
+EXPORT_SYMBOL_GPL(XTmrCtr_ConfigTable);
+EXPORT_SYMBOL_GPL(XHdcp22_Cipher_ConfigTable);
+EXPORT_SYMBOL_GPL(XHdcp22_mmult_ConfigTable);
+EXPORT_SYMBOL_GPL(XHdcp22_Rng_ConfigTable);

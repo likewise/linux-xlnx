@@ -61,6 +61,10 @@
 *                         Log
 *						Re-order the enumaration and data structure
 *                       Move HDCP local API into _hdcp.h
+*       ms     03/17/17 Added readme.txt file in examples folder for doxygen
+*                       generation.
+*       ms     04/10/17 Modified filename tag in examples to include them in
+*                        doxygen.
 * </pre>
 *
 ******************************************************************************/
@@ -73,6 +77,7 @@ extern "C" {
 #endif
 
 /***************************** Include Files *********************************/
+
 #include "xstatus.h"
 #include "xv_hdmirx.h"
 #if !defined(XV_CONFIG_LOG_VHDMIRXSS_DISABLE) && \
@@ -88,11 +93,11 @@ extern "C" {
 
 #ifdef XPAR_XHDCP_NUM_INSTANCES
 #include "xtmrctr.h"
-//#include "xhdcp1x.h"
+#include "xhdcp1x.h"
 #endif
 
 #ifdef XPAR_XHDCP22_RX_NUM_INSTANCES
-//#include "xhdcp22_rx.h"
+#include "xhdcp22_rx.h"
 #endif
 /****************************** Type Definitions ******************************/
 /** @name Handler Types
