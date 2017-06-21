@@ -576,33 +576,40 @@ static irqreturn_t hdmirx_hdcp_irq_handler(int irq, void *dev_id)
 	//printk(KERN_INFO "hdmirx_irq_handler()\n");
 	HdmiRxSsPtr = (XV_HdmiRxSs *)&xhdmi->xv_hdmirxss;
 	BUG_ON(!HdmiRxSsPtr->HdmiRxPtr);
-	printk(KERN_INFO "hdmirx_hdcp_irq_handler(irq = %d)\n", irq);
+	//printk(KERN_INFO "hdmirx_hdcp_irq_handler(irq = %d)\n", irq);
 
-	spin_lock_irqsave(&xhdmi->irq_lock, flags);
-	/* unmask/enable interrupt request from HDCP1x link status update */
+	/* mask/disable interrupt request from HDCP1x link status update */
 	if (irq == xhdmi->hdcp1x_irq) {
 #if 0
+		xhdmi->HdcpIntrStatus = XHdcp1x_ReadReg(InstancePtr->Config.BaseAddress,
+			XHDCP1X_CIPHER_REG_INTERRUPT_STATUS);
+		/* mask interrupts */
 		XHdcp1x_WriteReg(HdmiRxSsPtr->Hdcp14Ptr->Config.BaseAddress,
 			XHDCP1X_CIPHER_REG_INTERRUPT_MASK, (u32)0xFFFFFFFFu);
+		/* clear pending interrupt events */
+		XHdcp1x_WriteReg(HdmiRxSsPtr->Hdcp14Ptr->Config.BaseAddress,
+			XHDCP1X_CIPHER_REG_INTERRUPT_STATUS, xhdmi->HdcpIntrStatus);
 #else
-		disable_irq_nosync(xhdmi->hdcp1x_irq);
+		disable_irq_nosync(irq);
 #endif
-	/* unmask/enable interrupt requests from timers */
-	} else if (irq == xhdmi->hdcp1x_timer_irq) {
+	/* mask/disable interrupt requests from timers */
+	}
+	spin_lock_irqsave(&xhdmi->irq_lock, flags);
+	if (irq == xhdmi->hdcp1x_timer_irq) {
 		XTmrCtr_DisableIntr(HdmiRxSsPtr->HdcpTimerPtr->BaseAddress, 0);
 	} else if (irq == xhdmi->hdcp22_timer_irq) {
 		XTmrCtr_DisableIntr(HdmiRxSsPtr->Hdcp22Ptr->TimerInst.BaseAddress, 0);
 	}
 	spin_unlock_irqrestore(&xhdmi->irq_lock, flags);
-
-	mask = XHdcp1x_ReadReg(HdmiRxSsPtr->Hdcp14Ptr->Config.BaseAddress,
-		XHDCP1X_CIPHER_REG_INTERRUPT_MASK);
-	status = XHdcp1x_ReadReg(HdmiRxSsPtr->Hdcp14Ptr->Config.BaseAddress,
-		XHDCP1X_CIPHER_REG_INTERRUPT_STATUS);
+#if 0
 	if (irq == xhdmi->hdcp1x_irq) {
+		mask = XHdcp1x_ReadReg(HdmiRxSsPtr->Hdcp14Ptr->Config.BaseAddress,
+			XHDCP1X_CIPHER_REG_INTERRUPT_MASK);
+		status = XHdcp1x_ReadReg(HdmiRxSsPtr->Hdcp14Ptr->Config.BaseAddress,
+			XHDCP1X_CIPHER_REG_INTERRUPT_STATUS);
 		printk(KERN_INFO "mask = 0x%08x status = 0x%08x\n", (unsigned int)mask, (unsigned int)status);
 	}
-
+#endif
 	/* call bottom-half */
 	return IRQ_WAKE_THREAD;
 }
@@ -623,7 +630,7 @@ static irqreturn_t hdmirx_hdcp_irq_thread(int irq, void *dev_id)
 		printk(KERN_INFO "irq_thread: teardown\n");
 		return IRQ_HANDLED;
 	}
-	printk(KERN_INFO "hdmirx_hdcp_irq_thread(irq = %d)\n", irq);
+	//printk(KERN_INFO "hdmirx_hdcp_irq_thread(irq = %d)\n", irq);
 
 	hdmi_mutex_lock(&xhdmi->xhdmi_mutex);
 	if (irq == xhdmi->hdcp1x_irq) {
@@ -635,24 +642,25 @@ static irqreturn_t hdmirx_hdcp_irq_thread(int irq, void *dev_id)
 	}
 	hdmi_mutex_unlock(&xhdmi->xhdmi_mutex);
 
-	spin_lock_irqsave(&xhdmi->irq_lock, flags);
 	/* unmask/enable interrupt request from HDCP1x link status update */
 	if (irq == xhdmi->hdcp1x_irq) {
 #if 0
 		XHdcp1x_WriteReg(HdmiRxSsPtr->Hdcp14Ptr->Config.BaseAddress,
 			XHDCP1X_CIPHER_REG_INTERRUPT_MASK, (u32)0xFFFFFFFDu);
 #else
-		enable_irq(xhdmi->hdcp1x_irq);
+		enable_irq(irq);
 #endif
 	/* unmask/enable interrupt requests from timers */
-	} else if (irq == xhdmi->hdcp1x_timer_irq) {
+	}
+	spin_lock_irqsave(&xhdmi->irq_lock, flags);
+	if (irq == xhdmi->hdcp1x_timer_irq) {
 		XTmrCtr_EnableIntr(HdmiRxSsPtr->HdcpTimerPtr->BaseAddress, 0);
 	} else if (irq == xhdmi->hdcp22_timer_irq) {
 		XTmrCtr_EnableIntr(HdmiRxSsPtr->Hdcp22Ptr->TimerInst.BaseAddress, 0);
 	}
 	spin_unlock_irqrestore(&xhdmi->irq_lock, flags);
 
-	printk(KERN_INFO "hdmirx_irq_thread() done\n");
+	//printk(KERN_INFO "hdmirx_irq_thread() done\n");
 
 	return IRQ_HANDLED;
 }
