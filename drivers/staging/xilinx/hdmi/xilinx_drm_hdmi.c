@@ -133,6 +133,7 @@ struct xilinx_drm_hdmi {
 	bool hdcp_encrypted;
 	/* delayed work to drive HDCP poll */
 	struct delayed_work delayed_work_hdcp_poll;
+	struct delayed_work delayed_work_hdcp_info;
 #endif
 
 	bool teardown;
@@ -356,12 +357,9 @@ static irqreturn_t hdmitx_irq_thread(int irq, void *dev_id)
 	return IRQ_HANDLED;
 }
 
-/* if defined (un)mask the interrupt on the host (rather than device) in top/bottom half */
-//#define MASK_IRQ_ON_HOST
-
 /* if defined, the HDCP handling runs in interrupt context and thus the
  * DDC might race against EDID */
-#define RUN_HDCP_IN_INTERRUPT_CONTEXT
+//#define RUN_HDCP_IN_INTERRUPT_CONTEXT
 
 /* top-half interrupt handler for HDMI TX HDCP */
 static irqreturn_t hdmitx_hdcp_irq_handler(int irq, void *dev_id)
@@ -378,19 +376,20 @@ static irqreturn_t hdmitx_hdcp_irq_handler(int irq, void *dev_id)
 
  /* use desired threaded irq handler approach*/
 #ifndef RUN_HDCP_IN_INTERRUPT_CONTEXT
-#ifdef MASK_IRQ_ON_HOST
-	//printk(KERN_INFO "hdmitx_hdcp_irq_handler(irq = %d) disable_irq(irq = %d)\n", irq, irq);
-	disable_irq(irq);
-#else
+	if (irq == xhdmi->hdcp1x_irq) {
+		disable_irq_nosync(irq);
+		/* mask/disable interrupt request from HDCP1x link status update */
+		//XHdcp1x_WriteReg(HdmiTxSsPtr->Hdcp14Ptr->Config.BaseAddress,
+		//	XHDCP1X_CIPHER_REG_INTERRUPT_MASK, (u32)0xFFFFFFFFu);
+	}
 	spin_lock_irqsave(&xhdmi->irq_lock, flags);
 	/* mask/disable interrupt requests from timers */
-	XTmrCtr_DisableIntr(HdmiTxSsPtr->HdcpTimerPtr->BaseAddress, 0);
-	XTmrCtr_DisableIntr(HdmiTxSsPtr->Hdcp22Ptr->Timer.TmrCtr.BaseAddress, 0);
-	/* mask/disable interrupt request from HDCP1x link status update */
-	XHdcp1x_WriteReg(HdmiTxSsPtr->Hdcp14Ptr->Config.BaseAddress,
-		XHDCP1X_CIPHER_REG_INTERRUPT_MASK, (u32)0xFFFFFFFFu);
+	if (irq == xhdmi->hdcp1x_timer_irq) {
+		XTmrCtr_DisableIntr(HdmiTxSsPtr->HdcpTimerPtr->BaseAddress, 0);
+	} else if (irq == xhdmi->hdcp22_timer_irq) {
+		XTmrCtr_DisableIntr(HdmiTxSsPtr->Hdcp22Ptr->Timer.TmrCtr.BaseAddress, 0);
+	}
 	spin_unlock_irqrestore(&xhdmi->irq_lock, flags);
-#endif /* MASK_IRQ_ON_HOST */
 	//printk(KERN_INFO "hdmitx_hdcp_irq_handler(irq = %d) wake thread\n", irq);
 	/* call bottom-half */
 	return IRQ_WAKE_THREAD;
@@ -432,29 +431,32 @@ static irqreturn_t hdmitx_hdcp_irq_thread(int irq, void *dev_id)
 
 	/* invoke the bare-metal interrupt handler under mutex lock */
 	hdmi_mutex_lock(&xhdmi->hdmi_mutex);
-	//if (irq == xhdmi->hdcp1x_irq) {
+	if (irq == xhdmi->hdcp1x_irq) {
 		XV_HdmiTxSS_HdcpIntrHandler(HdmiTxSsPtr);
-	//} else if (irq == xhdmi->hdcp1x_timer_irq) {
+	} else if (irq == xhdmi->hdcp1x_timer_irq) {
 		XV_HdmiTxSS_HdcpTimerIntrHandler(HdmiTxSsPtr);
-	//} else if (irq == xhdmi->hdcp22_timer_irq) {
+	} else if (irq == xhdmi->hdcp22_timer_irq) {
 		XV_HdmiTxSS_Hdcp22TimerIntrHandler(HdmiTxSsPtr);
-	//}
+	}
 	hdmi_mutex_unlock(&xhdmi->hdmi_mutex);
 
 	/* re-enable interrupt requests */
-#ifdef MASK_IRQ_ON_HOST
-	//printk(KERN_INFO "hdmitx_hdcp_irq_thread(irq = %d), enable_irq(irq = %d)\n", irq);
-	enable_irq(irq);
-#else
-	spin_lock_irqsave(&xhdmi->irq_lock, flags);
-	/* unmask/enable interrupt requests from timers */
-	XTmrCtr_EnableIntr(HdmiTxSsPtr->HdcpTimerPtr->BaseAddress, 0);
-	XTmrCtr_EnableIntr(HdmiTxSsPtr->Hdcp22Ptr->Timer.TmrCtr.BaseAddress, 0);
+
 	/* unmask/enable interrupt request from HDCP1x link status update */
-	XHdcp1x_WriteReg(HdmiTxSsPtr->Hdcp14Ptr->Config.BaseAddress,
-		XHDCP1X_CIPHER_REG_INTERRUPT_MASK, (u32)0xFFFFFFFDu);
+	if (irq == xhdmi->hdcp1x_irq) {
+		enable_irq(irq);
+		//XHdcp1x_WriteReg(HdmiTxSsPtr->Hdcp14Ptr->Config.BaseAddress,
+		//	XHDCP1X_CIPHER_REG_INTERRUPT_MASK, (u32)0xFFFFFFFDu);
+	}
+
+	/* unmask/enable interrupt requests from timers */
+	spin_lock_irqsave(&xhdmi->irq_lock, flags);
+	if (irq == xhdmi->hdcp1x_timer_irq) {
+		XTmrCtr_EnableIntr(HdmiTxSsPtr->HdcpTimerPtr->BaseAddress, 0);
+	} else if (irq == xhdmi->hdcp22_timer_irq) {
+		XTmrCtr_EnableIntr(HdmiTxSsPtr->Hdcp22Ptr->Timer.TmrCtr.BaseAddress, 0);
+	}
 	spin_unlock_irqrestore(&xhdmi->irq_lock, flags);
-#endif
 
 	//printk(KERN_INFO "hdmitx_irq_thread() done\n");
 
@@ -1730,18 +1732,31 @@ static void hdcp_poll_work(struct work_struct *work)
 #ifndef RUN_HDCP_IN_INTERRUPT_CONTEXT
 	hdmi_mutex_unlock(&xhdmi->hdmi_mutex);
 #endif
-	/* reschedule this work again in 1 millisecond */
-	schedule_delayed_work(&xhdmi->delayed_work_hdcp_poll, msecs_to_jiffies(1));
 
 	counter++;
 	if (counter >= 1000) {
 		counter = 0;
-		XV_HdmiTxSs_HdcpInfo(HdmiTxSsPtr);
+		schedule_delayed_work(&xhdmi->delayed_work_hdcp_info, 0);
 	}
-	//dev_info(xhdmi->dev, "hdcp_poll_work()\n");
-
+	/* reschedule this work again in 1 millisecond */
+	schedule_delayed_work(&xhdmi->delayed_work_hdcp_poll, msecs_to_jiffies(1));
 	return;
 }
+
+static void hdcp_info_work(struct work_struct *work)
+{
+	/* find our parent container structure */
+	struct xilinx_drm_hdmi *xhdmi = container_of(work, struct xilinx_drm_hdmi,
+		delayed_work_hdcp_poll.work);
+	static int counter = 0;
+	XV_HdmiTxSs *HdmiTxSsPtr;
+	BUG_ON(!xhdmi);
+	HdmiTxSsPtr = (XV_HdmiTxSs *)&xhdmi->xv_hdmitxss;
+	BUG_ON(!HdmiTxSsPtr);
+
+	XV_HdmiTxSs_HdcpInfo(HdmiTxSsPtr);
+}
+
 
 static int xilinx_drm_hdmi_probe(struct platform_device *pdev)
 {
@@ -1899,6 +1914,8 @@ static int xilinx_drm_hdmi_probe(struct platform_device *pdev)
 	dev_err(&pdev->dev, "xhdmi->hdcp22_timer_irq = %d\n", xhdmi->hdcp22_timer_irq);
 
 	INIT_DELAYED_WORK(&xhdmi->delayed_work_hdcp_poll, hdcp_poll_work/*function*/);
+	INIT_DELAYED_WORK(&xhdmi->delayed_work_hdcp_info, hdcp_info_work/*function*/);
+
 #endif
 
 	/* support to drive an external retimer IC on the TX path, depending on TX clock line rate */
