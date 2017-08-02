@@ -16,7 +16,7 @@
 #define DEBUG
 //#define DEBUG_TRACE
 
-#define DEBUG_MUTEX
+//#define DEBUG_MUTEX
 
 #include <linux/device.h>
 #include <linux/gpio/consumer.h>
@@ -32,8 +32,9 @@
 
 #include <media/v4l2-async.h>
 #include <media/v4l2-ctrls.h>
-#include <media/v4l2-subdev.h>
 #include <media/v4l2-dv-timings.h>
+#include <media/v4l2-event.h>
+#include <media/v4l2-subdev.h>
 
 #include <linux/phy/phy-vphy.h>
 
@@ -175,6 +176,37 @@ static inline struct xhdmi_device *to_xhdmi(struct v4l2_subdev *subdev)
 }
 
 /* -----------------------------------------------------------------------------
+ * V4L2 Subdevice Core Operations
+ */
+
+static const struct v4l2_event xhdmi_ev_fmt = {
+	.type = V4L2_EVENT_SOURCE_CHANGE,
+	.u.src_change.changes = V4L2_EVENT_SRC_CH_RESOLUTION,
+};
+
+static int xhdmi_subscribe_event(struct v4l2_subdev *sd, struct v4l2_fh *fh, struct v4l2_event_subscription *sub)
+{
+	switch (sub->type) {
+		case V4L2_EVENT_SOURCE_CHANGE:
+		{
+			int rc;
+			rc = v4l2_src_change_event_subdev_subscribe(sd, fh, sub);
+			printk(KERN_INFO "xhdmi_subscribe_event(V4L2_EVENT_SOURCE_CHANGE) = %d\n", rc);
+			return rc;
+		}
+#if 0
+		case V4L2_EVENT_CTRL:
+			return v4l2_ctrl_subdev_subscribe_event(sd, fh, sub);
+#endif
+		default:
+		{
+			printk(KERN_INFO "xhdmi_subscribe_event() default: -EINVAL\n");
+			return -EINVAL;
+		}
+	}
+}
+
+ /* -----------------------------------------------------------------------------
  * V4L2 Subdevice Video Operations
  */
 
@@ -402,6 +434,8 @@ static const struct v4l2_ctrl_ops xhdmi_ctrl_ops = {
 };
 
 static struct v4l2_subdev_core_ops xhdmi_core_ops = {
+	.subscribe_event = xhdmi_subscribe_event,
+	.unsubscribe_event = v4l2_event_subdev_unsubscribe,
 };
 
 static struct v4l2_subdev_video_ops xhdmi_video_ops = {
@@ -491,6 +525,7 @@ static irqreturn_t hdmirx_irq_handler(int irq, void *dev_id)
 	unsigned long flags;
 	BUG_ON(!dev_id);
 	xhdmi = (struct xhdmi_device *)dev_id;
+	//printk(KERN_INFO "hdmirx_irq_handler()\n");
 	HdmiRxSsPtr = (XV_HdmiRxSs *)&xhdmi->xv_hdmirxss;
 	BUG_ON(!HdmiRxSsPtr->HdmiRxPtr);
 
@@ -552,7 +587,9 @@ static irqreturn_t hdmirx_irq_thread(int irq, void *dev_id)
 	if (xhdmi->IntrStatus[4]) HdmiRx_AuxIntrHandler(HdmiRxSsPtr->HdmiRxPtr);
 	if (xhdmi->IntrStatus[5]) HdmiRx_AudIntrHandler(HdmiRxSsPtr->HdmiRxPtr);
 	if (xhdmi->IntrStatus[6]) HdmiRx_LinkStatusIntrHandler(HdmiRxSsPtr->HdmiRxPtr);
-	//printk(KERN_INFO "hdmirx_irq_thread() %s 0x%08x\n", which, (int)which_mask);
+	if (xhdmi->IntrStatus[0] | xhdmi->IntrStatus[1] | xhdmi->IntrStatus[3] | xhdmi->IntrStatus[5] |
+		xhdmi->IntrStatus[6] | xhdmi->IntrStatus[7])
+	printk(KERN_INFO "hdmirx_irq_thread() %s 0x%08x\n", which, (int)which_mask);
 
 	hdmi_mutex_unlock(&xhdmi->xhdmi_mutex);
 	spin_lock_irqsave(&xhdmi->irq_lock, flags);
@@ -576,7 +613,7 @@ static irqreturn_t hdmirx_hdcp_irq_handler(int irq, void *dev_id)
 	//printk(KERN_INFO "hdmirx_irq_handler()\n");
 	HdmiRxSsPtr = (XV_HdmiRxSs *)&xhdmi->xv_hdmirxss;
 	BUG_ON(!HdmiRxSsPtr->HdmiRxPtr);
-	//printk(KERN_INFO "hdmirx_hdcp_irq_handler(irq = %d)\n", irq);
+	printk(KERN_INFO "hdmirx_hdcp_irq_handler(irq = %d)\n", irq);
 
 	/* mask/disable interrupt request from HDCP1x link status update */
 	if (irq == xhdmi->hdcp1x_irq) {
@@ -592,8 +629,8 @@ static irqreturn_t hdmirx_hdcp_irq_handler(int irq, void *dev_id)
 #else
 		disable_irq_nosync(irq);
 #endif
-	/* mask/disable interrupt requests from timers */
 	}
+	/* mask/disable interrupt requests from timers */
 	spin_lock_irqsave(&xhdmi->irq_lock, flags);
 	if (irq == xhdmi->hdcp1x_timer_irq) {
 		XTmrCtr_DisableIntr(HdmiRxSsPtr->HdcpTimerPtr->BaseAddress, 0);
@@ -630,7 +667,7 @@ static irqreturn_t hdmirx_hdcp_irq_thread(int irq, void *dev_id)
 		printk(KERN_INFO "irq_thread: teardown\n");
 		return IRQ_HANDLED;
 	}
-	//printk(KERN_INFO "hdmirx_hdcp_irq_thread(irq = %d)\n", irq);
+	printk(KERN_INFO "hdmirx_hdcp_irq_thread(irq = %d)\n", irq);
 
 	hdmi_mutex_lock(&xhdmi->xhdmi_mutex);
 	if (irq == xhdmi->hdcp1x_irq) {
@@ -885,6 +922,9 @@ static void RxStreamUpCallback(void *CallbackRef)
 	(void)Stream->VmId;
 
 	xhdmi->hdmi_stream_is_up = 1;
+	/* notify source format change event */
+	v4l2_subdev_notify_event(&xhdmi->subdev, &xhdmi_ev_fmt);
+
 #ifdef DEBUG
 	v4l2_print_dv_timings("xilinx-hdmi-rx", "", & xhdmi->detected_timings, 1);
 #endif
@@ -1544,8 +1584,8 @@ static int xhdmi_probe(struct platform_device *pdev)
 		}
 
 	if (config.Hdcp14.IsPresent || config.Hdcp22.IsPresent) {
-	  INIT_DELAYED_WORK(&xhdmi->delayed_work_hdcp_poll, hdcp_poll_work/*function*/);
-	  INIT_DELAYED_WORK(&xhdmi->delayed_work_hdcp_info, hdcp_info_work/*function*/);
+		INIT_DELAYED_WORK(&xhdmi->delayed_work_hdcp_poll, hdcp_poll_work/*function*/);
+		INIT_DELAYED_WORK(&xhdmi->delayed_work_hdcp_info, hdcp_info_work/*function*/);
 	}
 
 	HdmiRxSsPtr = (XV_HdmiRxSs *)&xhdmi->xv_hdmirxss;
@@ -1724,7 +1764,7 @@ static int xhdmi_probe(struct platform_device *pdev)
 	subdev->internal_ops = &xhdmi_internal_ops;
 	strlcpy(subdev->name, dev_name(&pdev->dev), sizeof(subdev->name));
 	v4l2_set_subdevdata(subdev, xhdmi);
-	subdev->flags |= V4L2_SUBDEV_FL_HAS_DEVNODE /* | V4L2_SUBDEV_FL_HAS_EVENTS*/;
+	subdev->flags |= V4L2_SUBDEV_FL_HAS_DEVNODE | V4L2_SUBDEV_FL_HAS_EVENTS;
 
 	/* Initialize V4L2 media entity */
 	xhdmi->pad.flags = MEDIA_PAD_FL_SOURCE;
@@ -1768,10 +1808,9 @@ static int xhdmi_probe(struct platform_device *pdev)
 	spin_lock_irqsave(&xhdmi->irq_lock, flags);
 	XV_HdmiRxSs_IntrEnable(HdmiRxSsPtr);
 	spin_unlock_irqrestore(&xhdmi->irq_lock, flags);
-	hdmi_dbg("hdmi-rx probe successful\n");
+
 	/* call into hdcp_poll_work, which will reschedule itself */
 	if (HdmiRxSsPtr->Config.Hdcp14.IsPresent || HdmiRxSsPtr->Config.Hdcp22.IsPresent) {
-
 		//hdcp_poll_work(&xhdmi->delayed_work_hdcp_poll.work);
 		schedule_delayed_work(&xhdmi->delayed_work_hdcp_poll, msecs_to_jiffies(1));
 	}
